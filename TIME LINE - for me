@@ -1,0 +1,53 @@
+Week I
+Users can register, login, and see their profile
+Set up XAMPP and configure PHP/MySQL
+Create the database and all tables
+Build registration page with password hashing
+Build login page with session management
+Create basic profile page (view only)
+Build logout functionality
+
+Week II
+Let users customize their profile with preset options.
+Build profile editing page structure
+Add preset options (background color, text color, font size)
+Save and display preset customizations on profile
+Test and fix any issues
+
+Week III
+Advanced customization with HTML/CSS and security
+Add advanced mode with raw HTML/CSS editing
+Implement HTML Purifier for sanitization
+Test security (try to inject <script> tags)
+Refine profile display with custom HTML/CSS
+
+Week IV
+Users can create posts and have discussions
+Build post creation form
+Create homepage feed showing posts in chronological order
+Build comment system with threading
+Add reply functionality to comments
+
+Week V
+Users can connect with friends and add music
+Build friend request system (send, accept, decline)
+Create friends list display
+Add Spotify search and embed functionality for profile songs
+Display profile song on user profiles
+
+Week VI
+Top 8 friends and real-time status
+Build Top 8 management with drag-and-drop
+Display Top 8 on profiles
+Implement Spotify OAuth for "Currently Playing" status
+Add Discord/Steam integration for game status
+
+Week VII
+Private communication and finishing touches
+Build private messaging system (inbox, send, receive)
+Add message notifications
+Security audit (XSS, CSRF, SQL injection)
+Add Content Security Policy headers
+Design retro theme polish
+Bug fixes and performance optimization
+Prepare final demonstration
