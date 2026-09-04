@@ -1,53 +1,82 @@
-Week I
-Users can register, login, and see their profile
-Set up XAMPP and configure PHP/MySQL
-Create the database and all tables
-Build registration page with password hashing
-Build login page with session management
-Create basic profile page (view only)
-Build logout functionality
+# Week I
 
-Week II
-Let users customize their profile with preset options.
-Build profile editing page structure
-Add preset options (background color, text color, font size)
-Save and display preset customizations on profile
+## Users can register, log in, and see their profile
+
+Set up Laragon and configure PHP/MySQL
+Create the database and all tables
+Build registration with password hashing and strong-password requirements
+Build login with session management
+Create a basic protected profile page (view only)
+Build logout functionality
+Add simple light-blue starter styling
+
+# Week II
+
+## Build the retro main-page layout
+
+Replace the temporary homepage with the main NexusSpace dashboard
+Build the dark-blue page background and three-column layout
+Add the left sidebar: current user, status area, friends placeholder, settings, and logout
+Add center feed cards with placeholder posts
+Add a right-side chat panel with placeholder messages
+Use the real signed-in username where needed
+Keep posts, friends, and messages as placeholders until their feature weeks
+
+# Week III
+
+## Let users customize their profile with preset options
+
+Build the Edit Profile page structure
+Add a bio field
+Add preset options: background color, text color, and font size
+Save and display preset customizations on profiles
 Test and fix any issues
 
-Week III
-Advanced customization with HTML/CSS and security
+# Week IV
+
+## Advanced customization with HTML/CSS and security
+
 Add advanced mode with raw HTML/CSS editing
 Implement HTML Purifier for sanitization
-Test security (try to inject <script> tags)
+Test security by attempting to inject `<script>` tags
 Refine profile display with custom HTML/CSS
 
-Week IV
-Users can create posts and have discussions
+# Week V
+
+## Users can create posts and have discussions
+
 Build post creation form
-Create homepage feed showing posts in chronological order
+Replace feed placeholders with real chronological posts
 Build comment system with threading
 Add reply functionality to comments
 
-Week V
-Users can connect with friends and add music
-Build friend request system (send, accept, decline)
-Create friends list display
+# Week VI
+
+## Users can connect with friends and add music
+
+Build friend request system: send, accept, and decline
+Replace the friends placeholder with a real friends-list display
 Add Spotify search and embed functionality for profile songs
-Display profile song on user profiles
+Display profile songs on user profiles
 
-Week VI
-Top 8 friends and real-time status
-Build Top 8 management with drag-and-drop
+# Week VII
+
+## Top 8 friends and current status
+
+Build Top 8 management with drag and drop
 Display Top 8 on profiles
-Implement Spotify OAuth for "Currently Playing" status
-Add Discord/Steam integration for game status
+Add a manual “currently listening / playing” status
+Optionally research Spotify OAuth and Discord/Steam integrations for a later upgrade
 
-Week VII
-Private communication and finishing touches
-Build private messaging system (inbox, send, receive)
-Add message notifications
-Security audit (XSS, CSRF, SQL injection)
+# Week VIII
+
+## Private communication and finishing touches
+
+Build private messaging: inbox, send, and receive
+Replace the chat-panel placeholder with real messages
+Add unread-message notifications
+Security audit: XSS, CSRF, and SQL injection protection
 Add Content Security Policy headers
-Design retro theme polish
+Design retro-theme polish
 Bug fixes and performance optimization
 Prepare final demonstration
