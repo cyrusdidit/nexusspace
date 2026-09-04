@@ -24,8 +24,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Enter a valid email address.';
     }
 
-    if (strlen($password) < 8) {
-        $errors[] = 'Password must be at least 8 characters long.';
+    if (
+        strlen($password) < 8
+        || !preg_match('/[A-Z]/', $password)
+        || !preg_match('/[0-9]/', $password)
+        || !preg_match('/[^A-Za-z0-9]/', $password)
+    ) {
+        $errors[] = 'Password must be at least 8 characters and include an uppercase letter, number, and symbol.';
     }
 
     if ($password !== $confirmPassword) {
@@ -102,6 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <label for="password">Password</label>
             <input id="password" name="password" type="password" autocomplete="new-password" required>
+            <small>Use at least 8 characters, including an uppercase letter, number, and symbol.</small>
 
             <label for="confirm_password">Confirm password</label>
             <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
