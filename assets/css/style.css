@@ -136,7 +136,7 @@ body.dashboard-page {
     box-shadow: none;
     display: grid;
     gap: 28px;
-    grid-template-columns: 132px minmax(260px, 1fr) 260px;
+    grid-template-columns: 150px minmax(260px, 1fr) 260px;
     grid-template-rows: minmax(0, 1fr);
     margin: 0 auto;
     max-width: 1180px;
@@ -163,8 +163,8 @@ body.dashboard-page {
 
 .dashboard-user {
     align-items: center;
-    background: #16d916;
-    color: #000000;
+    background: transparent;
+    color: #163b5c;
     display: flex;
     font-weight: 700;
     gap: 7px;
@@ -175,7 +175,11 @@ body.dashboard-page {
 }
 
 .dashboard-user span:last-child {
+    background: #238bc5;
+    color: #ffffff;
+    flex: 1;
     overflow: hidden;
+    padding: 3px 5px;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -244,6 +248,7 @@ body.dashboard-page {
     font-size: 12px;
     margin: 9px 0 14px !important;
     padding: 3px 6px !important;
+    width: calc(100% - 20px);
 }
 
 .friends-panel {
@@ -276,13 +281,21 @@ body.dashboard-page {
 
 .friends-list li {
     align-items: center;
-    background: #1ee625;
+    background: transparent;
+    border: 0;
     display: flex;
     font-size: 12px;
     gap: 3px;
     margin-top: 4px;
     overflow: hidden;
     white-space: nowrap;
+}
+
+.friends-list li > span:last-child {
+    background: #ffffff;
+    border: 1px solid #b9e3f8;
+    flex: 1;
+    min-width: 0;
 }
 
 .friends-list .mini-avatar { flex-basis: 18px; font-size: 11px; height: 18px; width: 18px; }
@@ -303,8 +316,10 @@ body.dashboard-page {
     margin: 5px 10px 0;
     padding: 3px 6px;
     text-decoration: none;
+    width: calc(100% - 20px);
 }
 
+.sidebar-actions button { justify-content: center; }
 .sidebar-actions a { background: #f600b8; justify-content: center; }
 .copyright {
     color: #000;
@@ -376,15 +391,15 @@ main.dashboard {
     margin: -10px 0 -10px -10px;
 }
 
-.dashboard-user { background: #238bc5; color: #ffffff; }
+.dashboard-user { background: transparent; color: #163b5c; }
 .mini-avatar { background: #b9e3f8; color: #166da5; }
 .status-panel { background: #f6fcff; border: 1px solid #b9e3f8; }
 .status-edit { background: #238bc5; color: #ffffff; }
 .panel-heading { background: #166da5; }
 
 .friends-list li {
-    background: #ffffff;
-    border: 1px solid #b9e3f8;
+    background: transparent;
+    border: 0;
 }
 
 .sidebar-actions button, .sidebar-actions a {
@@ -458,6 +473,7 @@ main.dashboard {
         font-size: 1.6vh;
         margin: 1vh 0 1.5vh !important;
         padding: 0.5vh 0.8vh !important;
+        width: calc(100% - 3vh);
     }
 
     .friends-panel {
@@ -473,16 +489,16 @@ main.dashboard {
     .friends-list { margin-top: 0.5vh; }
 
     .friends-list li {
-        font-size: 1.6vh;
+        font-size: 12px;
         gap: 0.4vh;
         margin-top: 0.45vh;
     }
 
     .friends-list .mini-avatar {
-        flex-basis: 2.4vh;
-        font-size: 1.4vh;
-        height: 2.4vh;
-        width: 2.4vh;
+        flex-basis: 1.5em;
+        font-size: 0.9em;
+        height: 1.5em;
+        width: 1.5em;
     }
 
     .sidebar-actions { margin-top: auto; }
@@ -492,6 +508,7 @@ main.dashboard {
         font-size: 1.8vh;
         margin: 0.6vh 1.5vh 0;
         padding: 0.5vh 0.8vh;
+        width: calc(100% - 3vh);
     }
 
     .copyright {
