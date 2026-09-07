@@ -197,9 +197,11 @@ body.dashboard-page {
 
 .status-panel {
     background: #05e4e8;
+    display: grid;
+    grid-template-rows: repeat(3, 1fr);
     margin: 5px;
     min-height: 105px;
-    padding: 6px;
+    padding: 0;
 }
 
 .status-panel h2, .friends-panel h2, .notifications-panel h2, .chat-preview h2 {
@@ -210,8 +212,16 @@ body.dashboard-page {
 
 .status-panel p {
     font-size: 13px;
-    margin: 7px 0 0;
+    margin: 0;
 }
+
+.status-item {
+    align-items: center;
+    display: flex;
+    padding: 6px;
+}
+
+.status-item + .status-item { border-top: 1px solid #b9e3f8; }
 
 .dashboard button {
     border: 0;
@@ -236,7 +246,12 @@ body.dashboard-page {
     padding: 3px 6px !important;
 }
 
-.friends-panel { margin: 0 10px; }
+.friends-panel {
+    flex: 1 1 auto;
+    margin: 0 10px;
+    min-height: 0;
+    overflow-y: auto;
+}
 
 .panel-heading {
     align-items: center;
@@ -273,11 +288,9 @@ body.dashboard-page {
 .friends-list .mini-avatar { flex-basis: 18px; font-size: 11px; height: 18px; width: 18px; }
 
 .sidebar-actions {
-    bottom: 20px;
-    left: 0;
-    margin-top: 0;
-    position: absolute;
-    right: 0;
+    flex: 0 0 auto;
+    margin-top: 8px;
+    position: static;
 }
 
 .sidebar-actions button, .sidebar-actions a {
@@ -294,15 +307,13 @@ body.dashboard-page {
 
 .sidebar-actions a { background: #f600b8; justify-content: center; }
 .copyright {
-    bottom: 0;
     color: #000;
+    flex: 0 0 auto;
     font-size: 10px;
-    left: 0;
     padding: 3px 10px;
-    position: absolute;
 }
 
-.dashboard-feed { margin: 0 auto; max-width: 330px; min-height: 0; overflow: hidden; width: 100%; }
+.dashboard-feed { margin: 0 auto; max-width: min(330px, 58vh); min-height: 0; overflow: hidden; width: 100%; }
 
 .user-search { display: flex; margin-bottom: 10px; }
 .user-search input { display: none; }
@@ -315,14 +326,14 @@ body.dashboard-page {
 
 .dashboard-right-rail { display: flex; flex-direction: column; gap: 28px; min-height: 0; padding-top: 0; position: relative; }
 
-.notifications-panel { background: #ffd3dc; min-height: 200px; }
+.notifications-panel { background: #ffd3dc; height: min(200px, 43vh); min-height: 0; }
 .notifications-heading { align-items: center; background: #ffad0a; display: flex; height: 34px; justify-content: end; padding: 0 8px; position: relative; }
 .notifications-heading h2 { margin-right: 10px; }
 .notifications-heading button { background: transparent; font-size: 13px; }
 .notification-badge { align-items: center; background: #f20808; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); color: #000; display: flex; font-size: 13px; height: 36px; justify-content: center; left: -17px; position: absolute; width: 36px; }
 .notifications-panel > p { font-size: 13px; margin: 13px 9px; }
 
-.chat-preview { background: #65d4ed; bottom: 0; left: 0; margin-top: 0; min-height: 205px; position: absolute; right: 0; }
+.chat-preview { background: #65d4ed; bottom: 0; height: min(205px, 50vh); left: 0; margin-top: 0; min-height: 0; position: absolute; right: 0; }
 .chat-heading { align-items: center; background: #0900c6; color: #000; display: flex; gap: 5px; justify-content: space-between; min-height: 26px; padding: 3px 5px; }
 .chat-heading h2 { font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-heading button { background: transparent; color: #ff0040; font-size: 14px; }
@@ -407,11 +418,86 @@ main.dashboard {
 
 .sr-only { height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px; }
 
-@media (max-width: 780px) {
+@media (max-width: 640px) and (min-height: 500px) {
     .dashboard { gap: 14px; grid-template-columns: 118px minmax(0, 1fr); }
     .dashboard-right-rail { grid-column: 1 / -1; }
     .notifications-panel { min-height: 120px; }
     .chat-preview { margin-top: 0; }
+}
+
+/* Keep the complete left sidebar visible when browser zoom reduces viewport height. */
+@media (max-height: 760px) {
+    .dashboard-sidebar .dashboard-user {
+        font-size: 2.1vh;
+        gap: 0.8vh;
+        margin: 0.8vh;
+        padding: 0.5vh;
+    }
+
+    .dashboard-sidebar .mini-avatar {
+        flex-basis: 3.4vh;
+        font-size: 1.8vh;
+        height: 3.4vh;
+        width: 3.4vh;
+    }
+
+    .dashboard-sidebar .status-panel {
+        height: 18vh;
+        margin: 0.8vh;
+        min-height: 0;
+    }
+
+    .dashboard-sidebar .status-panel h2,
+    .dashboard-sidebar .status-panel p {
+        font-size: 1.8vh;
+    }
+
+    .status-item { padding: 0.8vh; }
+
+    .status-edit {
+        font-size: 1.6vh;
+        margin: 1vh 0 1.5vh !important;
+        padding: 0.5vh 0.8vh !important;
+    }
+
+    .friends-panel {
+        flex: 0 0 auto;
+        margin: 0 1.5vh;
+        overflow: visible;
+    }
+
+    .panel-heading { padding: 0.3vh 0.8vh; }
+    .friends-panel h2 { font-size: 1.9vh; }
+    .friends-edit { font-size: 2vh; }
+
+    .friends-list { margin-top: 0.5vh; }
+
+    .friends-list li {
+        font-size: 1.6vh;
+        gap: 0.4vh;
+        margin-top: 0.45vh;
+    }
+
+    .friends-list .mini-avatar {
+        flex-basis: 2.4vh;
+        font-size: 1.4vh;
+        height: 2.4vh;
+        width: 2.4vh;
+    }
+
+    .sidebar-actions { margin-top: auto; }
+
+    .sidebar-actions button,
+    .sidebar-actions a {
+        font-size: 1.8vh;
+        margin: 0.6vh 1.5vh 0;
+        padding: 0.5vh 0.8vh;
+    }
+
+    .copyright {
+        font-size: 1.3vh;
+        padding: 0.5vh 1.5vh;
+    }
 }
 
 @media (max-width: 520px) {

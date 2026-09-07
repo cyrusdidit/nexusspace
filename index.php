@@ -29,9 +29,15 @@ session_start();
                 </a>
 
                 <section class="status-panel" aria-labelledby="status-heading">
-                    <h2 id="status-heading">your status???</h2>
-                    <p>currently music</p>
-                    <p>current game</p>
+                    <div class="status-item">
+                        <h2 id="status-heading">your status???</h2>
+                    </div>
+                    <div class="status-item">
+                        <p>currently music</p>
+                    </div>
+                    <div class="status-item">
+                        <p>current game</p>
+                    </div>
                 </section>
                 <button class="status-edit" type="button" disabled>Update/edit status</button>
 
