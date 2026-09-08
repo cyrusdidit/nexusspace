@@ -208,7 +208,7 @@ body.dashboard-page {
     padding: 0;
 }
 
-.status-panel h2, .friends-panel h2, .notifications-panel h2, .chat-preview h2 {
+.friends-panel h2, .notifications-panel h2, .chat-preview h2 {
     font-size: 14px;
     font-weight: 400;
     margin: 0;
@@ -226,6 +226,20 @@ body.dashboard-page {
 }
 
 .status-item + .status-item { border-top: 1px solid #b9e3f8; }
+
+.status-item input {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    color: #163b5c;
+    font-size: 13px;
+    padding: 0;
+}
+
+.status-item input:focus {
+    box-shadow: none;
+    outline: 0;
+}
 
 .dashboard button {
     border: 0;
@@ -248,7 +262,16 @@ body.dashboard-page {
     font-size: 12px;
     margin: 9px 0 14px !important;
     padding: 3px 6px !important;
+    cursor: pointer !important;
     width: calc(100% - 20px);
+}
+
+.status-form { display: flex; flex: 0 0 auto; flex-direction: column; }
+
+.status-editor-error {
+    color: #8b1d1d;
+    font-size: 10px;
+    margin: 4px 0 0;
 }
 
 .friends-panel {
@@ -408,6 +431,7 @@ main.dashboard {
 }
 
 .sidebar-actions a { background: #166da5; }
+.sidebar-actions .settings-link { background: #5b9bc0; }
 .copyright { color: #4d6b80; }
 .user-search button { background: #238bc5; }
 

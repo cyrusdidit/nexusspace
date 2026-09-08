@@ -5,6 +5,39 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/db_connect.php';
 
 session_start();
+
+$basicStatus = '';
+$statusError = '';
+
+if (isset($_SESSION['user_id'])) {
+    $userId = (int) $_SESSION['user_id'];
+    $statement = mysqli_prepare($conn, 'SELECT status_text FROM users WHERE id = ? LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'i', $userId);
+    mysqli_stmt_execute($statement);
+    $result = mysqli_stmt_get_result($statement);
+    $user = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($statement);
+
+    if ($user) {
+        $basicStatus = (string) ($user['status_text'] ?? '');
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
+        $basicStatus = trim($_POST['status'] ?? '');
+
+        if (strlen($basicStatus) > 160) {
+            $statusError = 'Use 160 characters or fewer.';
+        } else {
+            $updateStatement = mysqli_prepare($conn, 'UPDATE users SET status_text = ? WHERE id = ?');
+            mysqli_stmt_bind_param($updateStatement, 'si', $basicStatus, $userId);
+            mysqli_stmt_execute($updateStatement);
+            mysqli_stmt_close($updateStatement);
+
+            header('Location: index.php');
+            exit;
+        }
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -13,7 +46,7 @@ session_start();
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>NexusSpace</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
-    <script src="assets/js/dashboard.js" defer></script>
+    <script src="assets/js/dashboard.js?v=<?= filemtime(__DIR__ . '/assets/js/dashboard.js') ?>" defer></script>
 </head>
 <body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
@@ -28,18 +61,24 @@ session_start();
                     <span><?= $username ?></span>
                 </a>
 
-                <section class="status-panel" aria-labelledby="status-heading">
-                    <div class="status-item">
-                        <h2 id="status-heading">your status???</h2>
-                    </div>
-                    <div class="status-item">
-                        <p>currently music</p>
-                    </div>
-                    <div class="status-item">
-                        <p>current game</p>
-                    </div>
-                </section>
-                <button class="status-edit" type="button" disabled>Update/edit status</button>
+                <form class="status-form" method="post">
+                    <input type="hidden" name="action" value="update_status">
+                    <section class="status-panel" aria-label="Status information">
+                        <div class="status-item">
+                            <label class="sr-only" for="basic-status">Basic status</label>
+                            <input id="basic-status" name="status" type="text" value="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" maxlength="160" autocomplete="off" placeholder="your status???" data-status-input>
+                        </div>
+                        <div class="status-item">
+                            <p>currently music</p>
+                        </div>
+                        <div class="status-item">
+                            <p>current game</p>
+                        </div>
+                    </section>
+                    <?php if ($statusError): ?>
+                        <p class="status-editor-error" role="alert"><?= htmlspecialchars($statusError, ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php endif; ?>
+                </form>
 
                 <section class="friends-panel" aria-labelledby="friends-heading">
                     <div class="panel-heading">
@@ -57,7 +96,7 @@ session_start();
                 </section>
 
                 <nav class="sidebar-actions" aria-label="Account actions">
-                    <button type="button" disabled><span aria-hidden="true">&#9881;</span> settings</button>
+                    <a class="settings-link" href="pages/coming-soon.php?feature=settings"><span aria-hidden="true">&#9881;</span> settings</a>
                     <a href="logout.php">log out</a>
                 </nav>
                 <small class="copyright">mini copyright</small>

@@ -1,20 +1,34 @@
 document.addEventListener('DOMContentLoaded', () => {
     const chatForm = document.querySelector('[data-chat-form]');
 
-    if (!chatForm) {
-        return;
+    if (chatForm) {
+        chatForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const messageInput = chatForm.elements.message;
+
+            if (messageInput.value.trim() === '') {
+                return;
+            }
+
+            // Messaging is a later feature. For now, a submitted placeholder message vanishes.
+            messageInput.value = '';
+        });
     }
 
-    chatForm.addEventListener('submit', (event) => {
-        event.preventDefault();
+    const statusInput = document.querySelector('[data-status-input]');
 
-        const messageInput = chatForm.elements.message;
+    if (statusInput) {
+        statusInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                statusInput.form.submit();
+            }
+        });
 
-        if (messageInput.value.trim() === '') {
-            return;
-        }
+        statusInput.addEventListener('change', () => {
+            statusInput.form.submit();
+        });
+    }
 
-        // Messaging is a later feature. For now, a submitted placeholder message vanishes.
-        messageInput.value = '';
-    });
 });
