@@ -11,6 +11,12 @@ $statusError = '';
 
 if (isset($_SESSION['user_id'])) {
     $userId = (int) $_SESSION['user_id'];
+
+    $activityStatement = mysqli_prepare($conn, "UPDATE users SET activity_state = 'online', last_active_at = NOW() WHERE id = ?");
+    mysqli_stmt_bind_param($activityStatement, 'i', $userId);
+    mysqli_stmt_execute($activityStatement);
+    mysqli_stmt_close($activityStatement);
+
     $statement = mysqli_prepare($conn, 'SELECT status_text FROM users WHERE id = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
@@ -57,7 +63,10 @@ if (isset($_SESSION['user_id'])) {
         <main class="dashboard" aria-label="NexusSpace dashboard">
             <aside class="dashboard-sidebar">
                 <a class="dashboard-user" href="pages/profile.php">
-                    <span class="mini-avatar" aria-hidden="true"><?= $initial ?></span>
+                    <span class="dashboard-avatar" aria-hidden="true">
+                        <span class="mini-avatar"><?= $initial ?></span>
+                        <span class="activity-diamond" data-activity-indicator data-state="online"></span>
+                    </span>
                     <span><?= $username ?></span>
                 </a>
 
@@ -82,8 +91,10 @@ if (isset($_SESSION['user_id'])) {
 
                 <section class="friends-panel" aria-labelledby="friends-heading">
                     <div class="panel-heading">
-                        <h2 id="friends-heading">Friends</h2>
-                        <button class="friends-edit" type="button" disabled aria-label="Rearrange Top 8 friends">&#9998;</button>
+                        <a class="friends-link" id="friends-heading" href="pages/friends.php">Friends</a>
+                        <button class="friends-reorder" type="button" disabled aria-label="Rearrange Top 8 friends">
+                            <img src="assets/images/arrows.png" alt="">
+                        </button>
                     </div>
                     <ul class="friends-list">
                         <?php for ($friendNumber = 1; $friendNumber <= 8; $friendNumber++): ?>

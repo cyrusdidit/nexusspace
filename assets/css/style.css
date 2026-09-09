@@ -174,7 +174,7 @@ body.dashboard-page {
     text-decoration: none;
 }
 
-.dashboard-user span:last-child {
+.dashboard-user > span:last-child {
     background: #238bc5;
     color: #ffffff;
     flex: 1;
@@ -198,6 +198,26 @@ body.dashboard-page {
     justify-content: center;
     width: 23px;
 }
+
+.dashboard-avatar {
+    display: inline-flex;
+    flex: 0 0 23px;
+    position: relative;
+}
+
+.activity-diamond {
+    background: #18a957;
+    border: 1px solid #ffffff;
+    bottom: -2px;
+    height: 9px;
+    position: absolute;
+    right: -2px;
+    transform: rotate(45deg);
+    width: 9px;
+}
+
+.activity-diamond[data-state="idle"] { background: #f2c230; }
+.activity-diamond[data-state="offline"] { background: #d94747; }
 
 .status-panel {
     background: #05e4e8;
@@ -276,24 +296,42 @@ body.dashboard-page {
 
 .friends-panel {
     flex: 1 1 auto;
-    margin: 0 10px;
+    margin: 0 5px;
     min-height: 0;
     overflow-y: auto;
 }
 
 .panel-heading {
     align-items: center;
-    background: #0500b8;
-    color: #ffffff;
     display: flex;
-    justify-content: space-between;
-    padding: 1px 6px;
+    gap: 3px;
+    width: 100%;
 }
 
-.friends-edit {
-    background: transparent;
+.friends-link {
+    background: #0500b8;
     color: #ffffff;
-    font-size: 15px;
+    flex: 1;
+    padding: 1px 6px;
+    text-decoration: none;
+}
+
+.friends-reorder {
+    align-items: center;
+    background: transparent;
+    display: flex;
+    flex: 0 0 18px;
+    height: 18px;
+    justify-content: center;
+    padding: 0;
+    width: 18px;
+}
+
+.friends-reorder img {
+    display: block;
+    height: 16px;
+    object-fit: fill;
+    width: 16px;
 }
 
 .friends-list {
@@ -418,7 +456,7 @@ main.dashboard {
 .mini-avatar { background: #b9e3f8; color: #166da5; }
 .status-panel { background: #f6fcff; border: 1px solid #b9e3f8; }
 .status-edit { background: #238bc5; color: #ffffff; }
-.panel-heading { background: #166da5; }
+.friends-link { background: #166da5; }
 
 .friends-list li {
     background: transparent;
@@ -473,11 +511,19 @@ main.dashboard {
         padding: 0.5vh;
     }
 
-    .dashboard-sidebar .mini-avatar {
+    .dashboard-sidebar .mini-avatar,
+    .dashboard-sidebar .dashboard-avatar {
         flex-basis: 3.4vh;
         font-size: 1.8vh;
         height: 3.4vh;
         width: 3.4vh;
+    }
+
+    .dashboard-sidebar .activity-diamond {
+        bottom: -0.3vh;
+        height: 1.4vh;
+        right: -0.3vh;
+        width: 1.4vh;
     }
 
     .dashboard-sidebar .status-panel {
@@ -502,13 +548,13 @@ main.dashboard {
 
     .friends-panel {
         flex: 0 0 auto;
-        margin: 0 1.5vh;
+        margin: 0 0.8vh;
         overflow: visible;
     }
 
-    .panel-heading { padding: 0.3vh 0.8vh; }
-    .friends-panel h2 { font-size: 1.9vh; }
-    .friends-edit { font-size: 2vh; }
+    .friends-link { font-size: 1.9vh; padding: 0.3vh 0.8vh; }
+    .friends-reorder { flex-basis: 2.4vh; height: 2.4vh; width: 2.4vh; }
+    .friends-reorder img { height: 2.1vh; width: 2.1vh; }
 
     .friends-list { margin-top: 0.5vh; }
 
