@@ -161,6 +161,10 @@ if (isset($_SESSION['user_id'])) {
                 </section>
             </aside>
         </main>
+        <aside class="zoom-layout-warning" role="status" data-zoom-warning>
+            <span>This layout works best at 200% zoom or lower. Please zoom out for the full experience.</span>
+            <button type="button" data-dismiss-zoom-warning>Okay</button>
+        </aside>
     <?php else: ?>
         <main>
             <h1>NexusSpace</h1>

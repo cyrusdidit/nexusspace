@@ -1,4 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const zoomWarning = document.querySelector('[data-zoom-warning]');
+    const dismissZoomWarning = document.querySelector('[data-dismiss-zoom-warning]');
+
+    if (zoomWarning && dismissZoomWarning) {
+        dismissZoomWarning.addEventListener('click', () => {
+            zoomWarning.hidden = true;
+        });
+    }
+
     const activityIndicator = document.querySelector('[data-activity-indicator]');
 
     if (activityIndicator) {
