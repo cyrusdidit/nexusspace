@@ -20,6 +20,7 @@ if (!isset($_SESSION['user_id'])) {
 <body>
     <main class="card">
         <h1>Friends</h1>
+        <p><a class="button" href="../index.php">Back to dashboard</a></p>
     </main>
 </body>
 </html>
