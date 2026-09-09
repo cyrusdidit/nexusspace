@@ -133,13 +133,17 @@ if (isset($_SESSION['user_id'])) {
             </section>
 
             <aside class="dashboard-right-rail">
-                <section class="notifications-panel" aria-labelledby="notifications-heading">
+                <section class="notifications-panel is-collapsed" data-notifications>
                     <div class="notifications-heading">
-                        <span class="notification-badge">9+</span>
-                        <h2 id="notifications-heading">notifs</h2>
-                        <button type="button" disabled aria-label="Open notifications">v</button>
+                        <span class="notification-badge" data-notification-badge hidden aria-label="Unread notifications"></span>
+                        <button class="notifications-toggle" type="button" aria-expanded="false" aria-controls="notifications-list">
+                            <span>notifications</span>
+                            <span aria-hidden="true" data-notification-chevron>v</span>
+                        </button>
                     </div>
-                    <p>user [liked ur .../commented]</p>
+                    <div class="notifications-list" id="notifications-list" data-notifications-list>
+                        <p class="notification-item is-unread" data-notification-item data-unread="true">user [liked ur .../commented]</p>
+                    </div>
                 </section>
 
                 <section class="chat-preview" aria-labelledby="chat-heading">

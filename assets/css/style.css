@@ -403,11 +403,15 @@ body.dashboard-page {
 .dashboard-right-rail { display: flex; flex-direction: column; gap: 28px; min-height: 0; padding-top: 0; position: relative; }
 
 .notifications-panel { background: #ffd3dc; height: min(200px, 43vh); min-height: 0; }
-.notifications-heading { align-items: center; background: #ffad0a; display: flex; height: 34px; justify-content: end; padding: 0 8px; position: relative; }
-.notifications-heading h2 { margin-right: 10px; }
-.notifications-heading button { background: transparent; font-size: 13px; }
-.notification-badge { align-items: center; background: #f20808; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); color: #000; display: flex; font-size: 13px; height: 36px; justify-content: center; left: -17px; position: absolute; width: 36px; }
-.notifications-panel > p { font-size: 13px; margin: 13px 9px; }
+.notifications-heading { background: #ffad0a; height: 34px; position: relative; }
+.notifications-toggle { align-items: center; background: transparent; border: 0; box-shadow: none; cursor: pointer !important; display: flex; font-size: 13px; gap: 12px; height: 100%; justify-content: flex-end; outline: 0; padding: 0 8px !important; width: 100%; }
+.notifications-toggle:focus { box-shadow: none; outline: 0; }
+.notification-badge { align-items: center; background: #f20808; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); color: #000; display: flex; font-size: 14px; height: 42px; justify-content: center; left: 0; position: absolute; top: 50%; transform: translate(-50%, -50%); width: 42px; }
+.notification-badge[hidden] { display: none; }
+.notifications-list p { font-size: 13px; margin: 13px 9px; }
+.notification-item.is-unread { font-weight: 700; }
+.notifications-panel.is-collapsed { height: 34px; }
+.notifications-panel.is-collapsed .notifications-list { display: none; }
 
 .chat-preview { background: #65d4ed; bottom: 0; height: min(205px, 50vh); left: 0; margin-top: 0; min-height: 0; position: absolute; right: 0; }
 .chat-heading { align-items: center; background: #0900c6; color: #000; display: flex; gap: 5px; justify-content: space-between; min-height: 26px; padding: 3px 5px; }

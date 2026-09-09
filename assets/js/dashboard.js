@@ -8,6 +8,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const notificationsPanel = document.querySelector('[data-notifications]');
+
+    if (notificationsPanel) {
+        const notificationToggle = notificationsPanel.querySelector('.notifications-toggle');
+        const notificationBadge = notificationsPanel.querySelector('[data-notification-badge]');
+        const notificationChevron = notificationsPanel.querySelector('[data-notification-chevron]');
+        const notificationList = notificationsPanel.querySelector('[data-notifications-list]');
+
+        const updateUnreadCount = () => {
+            const unreadCount = notificationsPanel.querySelectorAll('[data-notification-item][data-unread="true"]').length;
+
+            if (notificationBadge) {
+                notificationBadge.hidden = unreadCount === 0;
+                notificationBadge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+            }
+        };
+
+        updateUnreadCount();
+
+        if (notificationToggle) {
+            notificationToggle.addEventListener('click', () => {
+                const isCollapsed = notificationsPanel.classList.toggle('is-collapsed');
+                notificationToggle.setAttribute('aria-expanded', String(!isCollapsed));
+
+                if (notificationChevron) {
+                    notificationChevron.textContent = isCollapsed ? 'v' : '^';
+                }
+            });
+        }
+
+        if (notificationList) {
+            notificationList.addEventListener('pointerover', (event) => {
+                const notificationItem = event.target.closest('[data-notification-item]');
+
+                if (!notificationItem || notificationItem.dataset.unread !== 'true') {
+                    return;
+                }
+
+                notificationItem.dataset.unread = 'false';
+                notificationItem.classList.remove('is-unread');
+                updateUnreadCount();
+            });
+        }
+    }
+
     const activityIndicator = document.querySelector('[data-activity-indicator]');
 
     if (activityIndicator) {
