@@ -402,7 +402,7 @@ body.dashboard-page {
 
 .dashboard-right-rail { display: flex; flex-direction: column; gap: 28px; min-height: 0; padding-top: 0; position: relative; }
 
-.notifications-panel { background: #ffd3dc; height: min(200px, 43vh); min-height: 0; }
+.notifications-panel { background: #ffd3dc; height: min(200px, 43vh); min-height: 0; position: relative; }
 .notifications-heading { background: #ffad0a; height: 34px; position: relative; }
 .notifications-toggle { align-items: center; background: transparent; border: 0; box-shadow: none; cursor: pointer !important; display: flex; font-size: 13px; gap: 12px; height: 100%; justify-content: flex-end; outline: 0; padding: 0 8px !important; width: 100%; }
 .notifications-toggle:focus { box-shadow: none; outline: 0; }
@@ -412,6 +412,11 @@ body.dashboard-page {
 .notification-item.is-unread { font-weight: 700; }
 .notifications-panel.is-collapsed { height: 34px; }
 .notifications-panel.is-collapsed .notifications-list { display: none; }
+.notifications-list { bottom: 32px; left: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; position: absolute; right: 0; top: 34px; overflow-wrap: anywhere; }
+.notifications-list:focus-visible { outline: 2px solid #238bc5; outline-offset: -2px; }
+.dashboard .notifications-read-all { background: #238bc5; border-radius: 3px; bottom: 6px; color: #ffffff; cursor: pointer; font-size: 11px; left: 8px; padding: 3px 6px; position: absolute; }
+.dashboard .notifications-read-all:hover { background: #166da5; }
+.notifications-panel.is-collapsed .notifications-read-all { display: none; }
 
 .chat-preview { background: #65d4ed; bottom: 0; height: min(205px, 50vh); left: 0; margin-top: 0; min-height: 0; position: absolute; right: 0; }
 .chat-heading { align-items: center; background: #0900c6; color: #000; display: flex; gap: 5px; justify-content: space-between; min-height: 26px; padding: 3px 5px; }

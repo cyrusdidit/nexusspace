@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const notificationBadge = notificationsPanel.querySelector('[data-notification-badge]');
         const notificationChevron = notificationsPanel.querySelector('[data-notification-chevron]');
         const notificationList = notificationsPanel.querySelector('[data-notifications-list]');
+        const readAllButton = notificationsPanel.querySelector('[data-read-all-notifications]');
 
         const updateUnreadCount = () => {
             const unreadCount = notificationsPanel.querySelectorAll('[data-notification-item][data-unread="true"]').length;
@@ -26,6 +27,16 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         updateUnreadCount();
+
+        if (readAllButton) {
+            readAllButton.addEventListener('click', () => {
+                notificationsPanel.querySelectorAll('[data-notification-item]').forEach((item) => {
+                    item.dataset.unread = 'false';
+                    item.classList.remove('is-unread');
+                });
+                updateUnreadCount();
+            });
+        }
 
         if (notificationToggle) {
             notificationToggle.addEventListener('click', () => {
