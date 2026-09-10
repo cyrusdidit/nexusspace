@@ -107,6 +107,7 @@ if (isset($_SESSION['user_id'])) {
                 </section>
 
                 <nav class="sidebar-actions" aria-label="Account actions">
+                    <a href="pages/messages.php">messages</a>
                     <a class="settings-link" href="pages/coming-soon.php?feature=settings"><span aria-hidden="true">&#9881;</span> settings</a>
                     <a href="logout.php">log out</a>
                 </nav>
