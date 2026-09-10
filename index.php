@@ -114,10 +114,14 @@ if (isset($_SESSION['user_id'])) {
             </aside>
 
             <section class="dashboard-feed" aria-label="Post feed">
-                <form class="user-search" role="search">
+                <form class="user-search" role="search" action="pages/search.php" method="get" data-live-user-search>
                     <label class="sr-only" for="user-search">Search for users</label>
-                    <input id="user-search" type="search" placeholder="Search to find users" disabled>
-                    <button type="submit" disabled>SEARCH BAR THINGY</button>
+                    <input id="user-search" name="q" type="search" placeholder="Find users" maxlength="50" autocomplete="off" aria-controls="live-user-results" required>
+                    <button type="submit">Search</button>
+                    <div class="live-user-results" id="live-user-results" hidden>
+                        <p data-search-status role="status" aria-live="polite"></p>
+                        <ul class="search-results" data-search-matches></ul>
+                    </div>
                 </form>
 
                 <?php for ($postNumber = 1; $postNumber <= 2; $postNumber++): ?>

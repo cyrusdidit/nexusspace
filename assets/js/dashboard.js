@@ -1,4 +1,99 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const userSearch = document.querySelector('[data-live-user-search]');
+    if (userSearch) {
+        const input = userSearch.elements.q;
+        const results = userSearch.querySelector('.live-user-results');
+        const status = userSearch.querySelector('[data-search-status]');
+        const matches = userSearch.querySelector('[data-search-matches]');
+        let timer;
+        let request;
+        let version = 0;
+
+        const dismiss = () => {
+            clearTimeout(timer);
+            request?.abort();
+            version++;
+            results.hidden = true;
+        };
+
+        const search = (delay = 200) => {
+            dismiss();
+            const query = input.value.trim();
+            matches.replaceChildren();
+            if (!query) return;
+            const currentVersion = version;
+            results.hidden = false;
+            status.textContent = 'Searching…';
+            timer = setTimeout(async () => {
+                request = new AbortController();
+                try {
+                    const url = new URL(userSearch.action);
+                    url.search = new URLSearchParams({ q: query, format: 'json' });
+                    const response = await fetch(url, { signal: request.signal, credentials: 'same-origin' });
+                    const data = await response.json();
+                    if (currentVersion !== version) return;
+                    if (!response.ok) throw new Error(data.error || 'Search unavailable. Please try again.');
+                    data.users.forEach((user) => {
+                        const item = document.createElement('li');
+                        const link = document.createElement('a');
+                        link.href = `pages/profile.php?id=${encodeURIComponent(user.id)}`;
+                        const avatar = document.createElement('span');
+                        avatar.className = 'mini-avatar search-avatar';
+                        avatar.setAttribute('aria-hidden', 'true');
+                        avatar.textContent = user.username.charAt(0).toUpperCase();
+                        if (user.avatar_path) {
+                            try {
+                                const avatarUrl = new URL(user.avatar_path, new URL('../', userSearch.action));
+                                if (['http:', 'https:'].includes(avatarUrl.protocol)) {
+                                    const picture = document.createElement('img');
+                                    picture.alt = '';
+                                    picture.src = avatarUrl.href;
+                                    picture.addEventListener('error', () => {
+                                        avatar.textContent = user.username.charAt(0).toUpperCase();
+                                    });
+                                    avatar.replaceChildren(picture);
+                                }
+                            } catch {
+                                // Keep the initial if the saved picture address is invalid.
+                            }
+                        }
+                        const name = document.createElement('span');
+                        name.textContent = user.username;
+                        link.append(avatar, name);
+                        item.append(link);
+                        matches.append(item);
+                    });
+                    status.textContent = data.users.length
+                        ? (data.hasMore ? 'First 50 matches — type more to narrow your search.' : `${data.users.length} matching user${data.users.length === 1 ? '' : 's'}`)
+                        : 'No users found.';
+                } catch (error) {
+                    if (currentVersion !== version || error.name === 'AbortError') return;
+                    status.textContent = 'Search unavailable. Please try again or log in again.';
+                }
+            }, delay);
+        };
+
+        input.addEventListener('input', () => search());
+        input.addEventListener('focus', () => { if (results.hidden) search(); });
+        userSearch.addEventListener('submit', (event) => {
+            event.preventDefault();
+            search(0);
+        });
+        userSearch.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') dismiss();
+            if (event.key === 'ArrowDown' && event.target === input && !results.hidden) {
+                const first = matches.querySelector('a');
+                if (first) { event.preventDefault(); first.focus(); }
+            }
+        });
+        document.addEventListener('pointerdown', (event) => {
+            if (!userSearch.contains(event.target)) dismiss();
+        });
+        userSearch.addEventListener('focusout', (event) => {
+            if (!userSearch.contains(event.relatedTarget)) dismiss();
+        });
+    }
+
     const zoomWarning = document.querySelector('[data-zoom-warning]');
     const dismissZoomWarning = document.querySelector('[data-dismiss-zoom-warning]');
 
