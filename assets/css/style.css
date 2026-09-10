@@ -121,6 +121,12 @@ a {
     margin: 4px 0 0;
 }
 
+.profile-name-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.profile-name-row h1 { margin: 0; overflow-wrap: anywhere; min-width: 0; }
+.profile-name-row form { margin-left: auto; flex-shrink: 0; }
+.profile-name-row button { margin: 0; }
+.profile-name-row button:disabled { background: #5b9bc0; cursor: default; }
+
 /* Week II dashboard shell */
 body.dashboard-page {
     align-items: start;

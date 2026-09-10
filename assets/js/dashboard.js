@@ -111,6 +111,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const notificationChevron = notificationsPanel.querySelector('[data-notification-chevron]');
         const notificationList = notificationsPanel.querySelector('[data-notifications-list]');
         const readAllButton = notificationsPanel.querySelector('[data-read-all-notifications]');
+        const friendNotifications = notificationsPanel.querySelector('[data-friend-notifications]');
+        const readRequests = new Set();
+        const markRead = (item) => {
+            item.dataset.unread = 'false';
+            item.classList.remove('is-unread');
+            if (item.dataset.requestKey) {
+                readRequests.add(item.dataset.requestKey);
+                try { sessionStorage.setItem(item.dataset.requestKey, 'read'); } catch {}
+            }
+        };
 
         const updateUnreadCount = () => {
             const unreadCount = notificationsPanel.querySelectorAll('[data-notification-item][data-unread="true"]').length;
@@ -123,11 +133,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateUnreadCount();
 
+        if (friendNotifications) {
+            let fetching = false;
+            const refreshRequests = async () => {
+                if (fetching) return;
+                fetching = true;
+                try {
+                    const response = await fetch('friend-notifications.php', { credentials: 'same-origin', cache: 'no-store' });
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    const activeKeys = new Set();
+                    data.requests.forEach((request) => {
+                        const key = `friend-request:${data.userId}:${request.id}:${request.created_at}`;
+                        activeKeys.add(key);
+                        let item = Array.from(friendNotifications.children).find((child) => child.dataset.requestKey === key);
+                        if (item) {
+                            if (request.status !== 'pending') markRead(item);
+                            return;
+                        }
+                        item = document.createElement('p');
+                        item.className = 'notification-item is-unread';
+                        item.dataset.notificationItem = '';
+                        item.dataset.requestKey = key;
+                        item.dataset.unread = 'true';
+                        const link = document.createElement('a');
+                        link.href = `pages/profile.php?id=${encodeURIComponent(request.sender_id)}`;
+                        link.textContent = `${request.username} sent you a friend request!`;
+                        item.append(link);
+                        let alreadyRead = request.status !== 'pending' || readRequests.has(key);
+                        try { alreadyRead ||= sessionStorage.getItem(key) === 'read'; } catch {}
+                        if (alreadyRead) markRead(item);
+                        friendNotifications.append(item);
+                    });
+                    Array.from(friendNotifications.children).forEach((item) => {
+                        if (!activeKeys.has(item.dataset.requestKey)) item.remove();
+                    });
+                    updateUnreadCount();
+                } catch {
+                    // Retain existing notifications during a temporary connection failure.
+                } finally {
+                    fetching = false;
+                }
+            };
+            refreshRequests();
+            window.setInterval(refreshRequests, 5000);
+            window.addEventListener('focus', refreshRequests);
+        }
+
         if (readAllButton) {
             readAllButton.addEventListener('click', () => {
                 notificationsPanel.querySelectorAll('[data-notification-item]').forEach((item) => {
-                    item.dataset.unread = 'false';
-                    item.classList.remove('is-unread');
+                    markRead(item);
                 });
                 updateUnreadCount();
             });
@@ -152,9 +208,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                notificationItem.dataset.unread = 'false';
-                notificationItem.classList.remove('is-unread');
+                markRead(notificationItem);
                 updateUnreadCount();
+            });
+            notificationList.addEventListener('click', (event) => {
+                const item = event.target.closest('[data-notification-item]');
+                if (item) { markRead(item); updateUnreadCount(); }
             });
         }
     }

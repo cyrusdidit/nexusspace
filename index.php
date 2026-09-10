@@ -146,10 +146,7 @@ if (isset($_SESSION['user_id'])) {
                         </button>
                     </div>
                     <div class="notifications-list" id="notifications-list" data-notifications-list tabindex="0" role="region" aria-label="Notifications">
-                        <p class="notification-item is-unread" data-notification-item data-unread="true">user [liked ur .../commented]</p>
-                        <?php for ($notificationNumber = 1; $notificationNumber <= 10; $notificationNumber++): ?>
-                            <p class="notification-item is-unread" data-notification-item data-unread="true">Test user <?= $notificationNumber ?> commented on your post.</p>
-                        <?php endfor; ?>
+                        <div data-friend-notifications></div>
                     </div>
                     <button class="notifications-read-all" type="button" data-read-all-notifications>Read all</button>
                 </section>
