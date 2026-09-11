@@ -22,7 +22,7 @@ $_SESSION['message_token'] ??= bin2hex(random_bytes(32));
 $token = $_SESSION['message_token'];
 session_write_close();
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
-$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, (SELECT COUNT(*) FROM messages m WHERE m.sender_id = u.id AND m.receiver_id = ? AND m.is_read = 0) AS unread_count FROM users u WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY u.username, u.id');
+$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, (SELECT COUNT(*) FROM messages m WHERE m.sender_id = u.id AND m.receiver_id = ? AND m.is_read = 0) AS unread_count FROM users u WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY u.username, u.id');
 mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $friends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
@@ -43,6 +43,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$selectedFriend || !is_string($submittedToken) || !hash_equals($token, $submittedToken)) {
         http_response_code(403);
         $error = 'Could not send. Refresh the page and choose a friend.';
+    } elseif (($_POST['action'] ?? '') === 'read') {
+        $first = filter_var($_POST['first'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $last = filter_var($_POST['last'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (!$first || !$last || $last < $first) {
+            http_response_code(422);
+            $error = 'Invalid message range.';
+        } else {
+            $statement = mysqli_prepare($conn, 'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND id BETWEEN ? AND ?');
+            mysqli_stmt_bind_param($statement, 'iiii', $selectedId, $currentUserId, $first, $last);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+            if ($isJson) { echo json_encode(['ok' => true]); exit; }
+        }
     } else {
         $content = is_string($_POST['content'] ?? null) ? trim($_POST['content']) : '';
         $length = preg_match_all('/./us', $content);
@@ -87,7 +100,7 @@ if ($selectedFriend && $error === '') {
         $messages = array_reverse(array_slice($messages, 0, 100));
     }
     // Only acknowledge incoming messages actually included in this response.
-    if ($messages) {
+    if ($messages && ($_GET['mini'] ?? '') !== '1') {
         $firstId = (int) $messages[0]['id'];
         $lastId = (int) $messages[count($messages) - 1]['id'];
         $statement = mysqli_prepare($conn, 'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND id BETWEEN ? AND ?');
@@ -97,7 +110,7 @@ if ($selectedFriend && $error === '') {
     }
 }
 if ($isJson) {
-    echo json_encode(['messages' => $messages, 'error' => $error]);
+    echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'viewerId' => $currentUserId, 'token' => $token]);
     exit;
 }
 ?>

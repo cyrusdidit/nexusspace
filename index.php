@@ -53,6 +53,8 @@ if (isset($_SESSION['user_id'])) {
     <title>NexusSpace</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
     <script src="assets/js/dashboard.js?v=<?= filemtime(__DIR__ . '/assets/js/dashboard.js') ?>" defer></script>
+    <script src="assets/js/message-updates.js?v=<?= filemtime(__DIR__ . '/assets/js/message-updates.js') ?>" defer></script>
+    <script src="assets/js/mini-chat.js?v=<?= filemtime(__DIR__ . '/assets/js/mini-chat.js') ?>" defer></script>
 </head>
 <body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
@@ -152,20 +154,17 @@ if (isset($_SESSION['user_id'])) {
                     <button class="notifications-read-all" type="button" data-read-all-notifications>Read all</button>
                 </section>
 
-                <section class="chat-preview" aria-labelledby="chat-heading">
+                <section class="chat-preview mini-chat" aria-labelledby="chat-heading" data-mini-chat hidden>
                     <div class="chat-heading">
-                        <h2 id="chat-heading">pic + username of friend ur texting</h2>
-                        <button type="button" disabled aria-label="Close chat preview">x</button>
+                        <span class="mini-avatar" data-mini-avatar aria-hidden="true"></span>
+                        <h2 id="chat-heading">Chat</h2>
+                        <button type="button" data-mini-close aria-label="Close chat">×</button>
                     </div>
-                    <div class="chat-messages" aria-label="Placeholder chat messages">
-                        <p class="message received"><span class="chat-avatar"></span><span></span></p>
-                        <p class="message sent"><span></span><span class="chat-avatar"></span></p>
-                        <p class="message received"><span class="chat-avatar"></span><span></span></p>
-                    </div>
-                    <p class="typing-placeholder">mini animation of ... when user is typing here in corner</p>
+                    <div class="chat-messages" data-mini-messages role="log" aria-label="Conversation" tabindex="0"></div>
+                    <p class="mini-chat-status" data-mini-status role="status"></p>
                     <form class="chat-input-placeholder" data-chat-form>
                         <label class="sr-only" for="chat-message">Type a chat message</label>
-                        <input id="chat-message" name="message" type="text" placeholder="See what ur typing here" autocomplete="off">
+                        <input id="chat-message" name="message" type="text" placeholder="Type a message" autocomplete="off" maxlength="2000" required>
                         <button type="submit" aria-label="Send message">&gt;</button>
                     </form>
                 </section>

@@ -537,6 +537,19 @@ main.dashboard {
 .chat-avatar { background: #b9e3f8; }
 .typing-placeholder { color: #4d6b80; }
 .chat-input-placeholder button { color: #166da5; }
+.mini-chat[hidden] { display: none; }
+.mini-chat { display: flex; flex-direction: column; height: min(300px, 55vh); }
+.mini-chat .chat-heading { flex-shrink: 0; min-height: 32px; }
+.mini-chat .chat-heading h2 { flex: 1; }
+.mini-chat .chat-heading button { cursor: pointer; padding: 4px; }
+.mini-chat .mini-avatar { overflow: hidden; }
+.mini-chat .mini-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.mini-chat .chat-messages { flex: 1; min-height: 0; overflow-y: auto; }
+.mini-chat-bubble { background: #79b9dd; border-radius: 12px; margin: 0 28px 8px 0; padding: 6px 9px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mini-chat-bubble.is-mine { background: #238bc5; color: white; margin-left: 28px; margin-right: 0; }
+.mini-chat-status { font-size: 11px; margin: 2px 8px; }
+.mini-chat .chat-input-placeholder { position: static; flex-shrink: 0; }
+.mini-chat .chat-input-placeholder button { cursor: pointer; }
 
 .sr-only { height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px; }
 

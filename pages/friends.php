@@ -38,6 +38,7 @@ mysqli_stmt_close($statement);
                             <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                         </a>
                         <a class="button" href="messages.php?user=<?= (int) $friend['id'] ?>">Message</a>
+                        <a href="../index.php?chat=<?= (int) $friend['id'] ?>">Mini chat</a>
                     </li>
                 <?php endforeach; ?>
             </ul>
