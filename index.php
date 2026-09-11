@@ -11,6 +11,11 @@ $statusError = '';
 
 if (isset($_SESSION['user_id'])) {
     $userId = (int) $_SESSION['user_id'];
+    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND f.top_eight_position BETWEEN 1 AND 8 ORDER BY f.top_eight_position, u.id LIMIT 8');
+    mysqli_stmt_bind_param($topStatement, 'i', $userId);
+    mysqli_stmt_execute($topStatement);
+    $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($topStatement), MYSQLI_ASSOC);
+    mysqli_stmt_close($topStatement);
 
     $activityStatement = mysqli_prepare($conn, "UPDATE users SET activity_state = 'online', last_active_at = NOW() WHERE id = ?");
     mysqli_stmt_bind_param($activityStatement, 'i', $userId);
@@ -55,6 +60,9 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/dashboard.js?v=<?= filemtime(__DIR__ . '/assets/js/dashboard.js') ?>" defer></script>
     <script src="assets/js/message-updates.js?v=<?= filemtime(__DIR__ . '/assets/js/message-updates.js') ?>" defer></script>
     <script src="assets/js/mini-chat.js?v=<?= filemtime(__DIR__ . '/assets/js/mini-chat.js') ?>" defer></script>
+    <script src="assets/js/mini-chat-resize.js?v=<?= filemtime(__DIR__ . '/assets/js/mini-chat-resize.js') ?>" defer></script>
+    <script src="assets/js/message-popup.js?v=<?= filemtime(__DIR__ . '/assets/js/message-popup.js') ?>" defer></script>
+    <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
 </head>
 <body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
@@ -93,23 +101,26 @@ if (isset($_SESSION['user_id'])) {
 
                 <section class="friends-panel" aria-labelledby="friends-heading">
                     <div class="panel-heading">
-                        <a class="friends-link" id="friends-heading" href="pages/friends.php">Friends</a>
-                        <button class="friends-reorder" type="button" disabled aria-label="Rearrange Top 8 friends">
+                        <a class="friends-link" id="friends-heading" href="pages/friends.php">Friends <span class="friends-unread-total" data-unread-total hidden></span></a>
+                        <a class="friends-reorder" href="pages/friends.php#top-eight" aria-label="Edit Top 8 friends">
                             <img src="assets/images/arrows.png" alt="">
-                        </button>
+                        </a>
                     </div>
                     <ul class="friends-list">
-                        <?php for ($friendNumber = 1; $friendNumber <= 8; $friendNumber++): ?>
+                        <?php foreach ($topFriends as $friend): ?>
                             <li>
-                                <span class="mini-avatar" aria-hidden="true">P</span>
-                                <span>username</span>
+                                <a class="top-friend-link" data-top-friend-chat="<?= (int) $friend['id'] ?>" href="index.php?chat=<?= (int) $friend['id'] ?>">
+                                    <span class="mini-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
+                                </a>
+                                <a class="friend-unread-diamond" data-friend-unread="<?= (int) $friend['id'] ?>" data-friend-name="<?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?>" href="index.php?chat=<?= (int) $friend['id'] ?>" hidden></a>
                             </li>
-                        <?php endfor; ?>
+                        <?php endforeach; ?>
                     </ul>
+                    <?php if (!$topFriends): ?><p class="top-eight-empty"><a href="pages/friends.php#top-eight">Choose your Top 8</a></p><?php endif; ?>
                 </section>
 
                 <nav class="sidebar-actions" aria-label="Account actions">
-                    <a href="pages/messages.php">messages</a>
                     <a class="settings-link" href="pages/coming-soon.php?feature=settings"><span aria-hidden="true">&#9881;</span> settings</a>
                     <a href="logout.php">log out</a>
                 </nav>
@@ -152,10 +163,16 @@ if (isset($_SESSION['user_id'])) {
                         <div data-friend-notifications></div>
                     </div>
                     <button class="notifications-read-all" type="button" data-read-all-notifications>Read all</button>
+                    <div class="message-popup" data-message-popup hidden>
+                        <button type="button" data-message-popup-open aria-label="Open message"></button>
+                        <button type="button" data-message-popup-dismiss aria-label="Dismiss message popup">×</button>
+                        <span class="sr-only" data-message-popup-announcement role="status" aria-live="polite"></span>
+                    </div>
                 </section>
 
                 <section class="chat-preview mini-chat" aria-labelledby="chat-heading" data-mini-chat hidden>
                     <div class="chat-heading">
+                        <button type="button" class="mini-chat-resize" data-mini-resize aria-label="Resize chat" title="Drag to resize. Arrow keys resize; double-click resets.">⤢</button>
                         <span class="mini-avatar" data-mini-avatar aria-hidden="true"></span>
                         <h2 id="chat-heading">Chat</h2>
                         <button type="button" data-mini-close aria-label="Close chat">×</button>
