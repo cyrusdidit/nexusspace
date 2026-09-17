@@ -163,8 +163,11 @@ if ($user) {
             <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
         </section>
         <section class="profile-top-eight" aria-labelledby="profile-top-eight-heading">
-            <h2 id="profile-top-eight-heading">Top 8 Friends</h2>
-            <ul class="profile-top-eight-list">
+            <div class="panel-heading">
+                <h2 class="friends-link" id="profile-top-eight-heading">Friends</h2>
+                <?php if ($isOwnProfile): ?><a class="friends-reorder" href="friends.php#top-eight" aria-label="Edit Top 8 friends"><img src="../assets/images/arrows.png" alt=""></a><?php endif; ?>
+            </div>
+            <ul class="friends-list">
                 <?php foreach ($topFriends as $friend): ?>
                     <?php
                     $friendAvatar = trim($friend['avatar_path'] ?? '');
@@ -172,7 +175,7 @@ if ($user) {
                         $friendAvatar = str_starts_with($friendAvatar, '/') ? $friendAvatar : '../' . $friendAvatar;
                     } else { $friendAvatar = ''; }
                     ?>
-                    <li><a href="profile.php?id=<?= (int) $friend['id'] ?>">
+                    <li><a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
                         <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                         <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                     </a></li>
@@ -180,21 +183,9 @@ if ($user) {
             </ul>
             <?php if (!$topFriends): ?><p>No Top 8 selected yet.</p><?php endif; ?>
         </section>
-        <div class="profile-account-details">
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
-
-        <dl class="profile-details">
-            <?php if ($isOwnProfile): ?>
-            <dt>Email</dt>
-            <dd><?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?></dd>
-            <?php endif; ?>
-
-            <dt>Member since</dt>
-            <dd><?= htmlspecialchars(date('F j, Y', strtotime($user['registration_date'])), ENT_QUOTES, 'UTF-8') ?></dd>
-        </dl>
-        </div>
         </aside>
         <section class="profile-posts" aria-labelledby="profile-posts-heading">
             <h2 id="profile-posts-heading">Posts</h2>
@@ -215,10 +206,6 @@ if ($user) {
         </div>
         <?php endif; ?>
 
-        <p class="profile-footer">
-            <a class="button" href="../index.php">Home</a>
-            <a class="button button-secondary" href="../logout.php">Log out</a>
-        </p>
     </main>
 </body>
 </html>
