@@ -153,6 +153,7 @@ if ($user) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($user['username'] ?? 'Profile not found', ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
+    <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
 </head>
 <body class="profile-page">
     <main class="card profile-sheet">
@@ -187,13 +188,13 @@ if ($user) {
             <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <?php if ($isOwnProfile): ?>
                 <details class="profile-bio-editor"<?= $bioError ? ' open' : '' ?>>
-                    <summary>Edit bio</summary>
+                    <summary aria-label="Edit bio" title="Edit bio">!</summary>
                     <form method="post" action="profile.php?id=<?= $userId ?>">
                         <input type="hidden" name="action" value="update_bio">
                         <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
                         <label class="sr-only" for="profile-bio-input">Bio</label>
                         <textarea id="profile-bio-input" name="bio" rows="3" maxlength="160" aria-describedby="bio-limit"><?= htmlspecialchars($bioDraft, ENT_QUOTES, 'UTF-8') ?></textarea>
-                        <div class="profile-bio-actions"><small id="bio-limit">160 characters max</small><button type="submit">Save</button></div>
+                        <div class="profile-bio-actions"><small id="bio-limit"><?= mb_strlen($bioDraft, 'UTF-8') ?>/160 characters used</small><button type="submit">Save</button></div>
                         <?php if ($bioError): ?><p class="post-error" role="alert"><?= htmlspecialchars($bioError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                     </form>
                 </details>
