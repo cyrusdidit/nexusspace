@@ -202,7 +202,7 @@ if ($user) {
         </section>
         <section class="profile-top-eight" aria-labelledby="profile-top-eight-heading">
             <div class="panel-heading">
-                <h2 class="friends-link" id="profile-top-eight-heading">Friends</h2>
+                <h2 class="friends-link" id="profile-top-eight-heading">Top 8 friends</h2>
                 <?php if ($isOwnProfile): ?><a class="friends-reorder" href="friends.php#top-eight" aria-label="Edit Top 8 friends"><img src="../assets/images/arrows.png" alt=""></a><?php endif; ?>
             </div>
             <ul class="friends-list">
@@ -233,7 +233,7 @@ if ($user) {
         <?php endif; ?>
         </aside>
         <section class="profile-posts" aria-labelledby="profile-posts-heading">
-            <h2 id="profile-posts-heading">Posts</h2>
+            <h2 id="profile-posts-heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
             <?php if (!$profilePosts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
             <?php foreach ($profilePosts as $post): ?>
                 <article class="post-card">
