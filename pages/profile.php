@@ -18,7 +18,7 @@ $userId = $userId === false ? 0 : $userId;
 $isOwnProfile = $userId === (int) $_SESSION['user_id'];
 $statement = mysqli_prepare(
     $conn,
-    'SELECT username, email, registration_date FROM users WHERE id = ? LIMIT 1'
+    'SELECT username, email, registration_date, avatar_path, bio FROM users WHERE id = ? LIMIT 1'
 );
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);
@@ -28,6 +28,12 @@ mysqli_stmt_close($statement);
 
 if (!$user) {
     http_response_code(404);
+}
+$avatarPath = trim($user['avatar_path'] ?? '');
+if ($avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath)) {
+    $avatarPath = str_starts_with($avatarPath, '/') ? $avatarPath : '../' . $avatarPath;
+} else {
+    $avatarPath = '';
 }
 
 $_SESSION['friend_request_token'] ??= bin2hex(random_bytes(32));
@@ -101,6 +107,20 @@ if ($user && !$isOwnProfile) {
     }
     $friendState = $readFriendState();
 }
+$profilePosts = [];
+$topFriends = [];
+if ($user) {
+    $statement = mysqli_prepare($conn, "SELECT p.content, p.visibility, p.created_at FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    mysqli_stmt_bind_param($statement, 'iiii', $userId, $currentUserId, $currentUserId, $currentUserId);
+    mysqli_stmt_execute($statement);
+    $profilePosts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+    mysqli_stmt_close($statement);
+    $statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND f.top_eight_position BETWEEN 1 AND 8 ORDER BY f.top_eight_position, u.id LIMIT 8');
+    mysqli_stmt_bind_param($statement, 'i', $userId);
+    mysqli_stmt_execute($statement);
+    $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+    mysqli_stmt_close($statement);
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -110,19 +130,24 @@ if ($user && !$isOwnProfile) {
     <title><?= htmlspecialchars($user['username'] ?? 'Profile not found', ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
 </head>
-<body>
-    <main class="card">
+<body class="profile-page">
+    <main class="card profile-sheet">
         <?php if (!$user): ?>
             <h1>Profile not found</h1>
             <p>This user does not exist.</p>
         <?php else: ?>
-        <div class="avatar-placeholder" aria-hidden="true">
-            <?= htmlspecialchars(strtoupper(substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?>
-        </div>
-        <div class="profile-name-row">
+        <div class="profile-layout">
+        <aside class="profile-sidebar">
+        <div class="profile-cover" aria-hidden="true"></div>
+        <section class="profile-identity" aria-label="Profile">
+            <div class="profile-picture" aria-hidden="true">
+                <span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                <?php if ($avatarPath !== ''): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?>
+            </div>
             <h1><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></h1>
+            <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
             <?php if (!$isOwnProfile): ?>
-                <form method="post" action="profile.php?id=<?= $userId ?>">
+                <form class="profile-friend-actions" method="post" action="profile.php?id=<?= $userId ?>">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['friend_request_token'], ENT_QUOTES, 'UTF-8') ?>">
                     <?php if ($friendState === 'received'): ?>
                         <button type="submit" name="action" value="accept">Accept</button>
@@ -132,7 +157,30 @@ if ($user && !$isOwnProfile) {
                     <?php endif; ?>
                 </form>
             <?php endif; ?>
-        </div>
+        </section>
+        <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
+        <section class="profile-bio-section" aria-label="Bio">
+            <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+        </section>
+        <section class="profile-top-eight" aria-labelledby="profile-top-eight-heading">
+            <h2 id="profile-top-eight-heading">Top 8 Friends</h2>
+            <ul class="profile-top-eight-list">
+                <?php foreach ($topFriends as $friend): ?>
+                    <?php
+                    $friendAvatar = trim($friend['avatar_path'] ?? '');
+                    if ($friendAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $friendAvatar)) {
+                        $friendAvatar = str_starts_with($friendAvatar, '/') ? $friendAvatar : '../' . $friendAvatar;
+                    } else { $friendAvatar = ''; }
+                    ?>
+                    <li><a href="profile.php?id=<?= (int) $friend['id'] ?>">
+                        <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
+                        <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
+                    </a></li>
+                <?php endforeach; ?>
+            </ul>
+            <?php if (!$topFriends): ?><p>No Top 8 selected yet.</p><?php endif; ?>
+        </section>
+        <div class="profile-account-details">
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
@@ -146,9 +194,28 @@ if ($user && !$isOwnProfile) {
             <dt>Member since</dt>
             <dd><?= htmlspecialchars(date('F j, Y', strtotime($user['registration_date'])), ENT_QUOTES, 'UTF-8') ?></dd>
         </dl>
+        </div>
+        </aside>
+        <section class="profile-posts" aria-labelledby="profile-posts-heading">
+            <h2 id="profile-posts-heading">Posts</h2>
+            <?php if (!$profilePosts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
+            <?php foreach ($profilePosts as $post): ?>
+                <article class="post-card">
+                    <header class="post-header">
+                        <span class="post-author">
+                            <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatarPath): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
+                            <span><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></span>
+                        </span>
+                        <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y \a\t H:i', strtotime($post['created_at'])), ENT_QUOTES, 'UTF-8') ?></time><?php if ($isOwnProfile): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
+                    </header>
+                    <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                </article>
+            <?php endforeach; ?>
+        </section>
+        </div>
         <?php endif; ?>
 
-        <p>
+        <p class="profile-footer">
             <a class="button" href="../index.php">Home</a>
             <a class="button button-secondary" href="../logout.php">Log out</a>
         </p>
