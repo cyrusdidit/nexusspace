@@ -6,11 +6,110 @@ require_once __DIR__ . '/includes/db_connect.php';
 
 session_start();
 
+function postTimestamp(string $value): string
+{
+    $date = new DateTimeImmutable($value);
+    $today = new DateTimeImmutable('today');
+    if ($date->format('Y-m-d') === $today->format('Y-m-d')) {
+        return 'Today at ' . $date->format('H:i');
+    }
+    if ($date->format('Y-m-d') === $today->modify('-1 day')->format('Y-m-d')) {
+        return 'Yesterday at ' . $date->format('H:i');
+    }
+    return $date->format('M j, Y') . ' at ' . $date->format('H:i');
+}
+
+function postAvatarPath(?string $path): string
+{
+    $path = trim($path ?? '');
+    // Only use local image paths, as in the dashboard user search.
+    if ($path === '' || preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $path)) {
+        return '';
+    }
+    return htmlspecialchars($path, ENT_QUOTES, 'UTF-8');
+}
+
+function renderPostAuthor(array $post): void
+{
+    $name = htmlspecialchars($post['username'], ENT_QUOTES, 'UTF-8');
+    $initial = htmlspecialchars(mb_strtoupper(mb_substr($post['username'], 0, 1)), ENT_QUOTES, 'UTF-8');
+    $avatar = postAvatarPath($post['avatar_path']);
+    $background = preg_match('/^#[0-9a-f]{6}$/i', $post['profile_background_color'] ?? '') ? $post['profile_background_color'] : '#ffffff';
+    $color = preg_match('/^#[0-9a-f]{6}$/i', $post['profile_text_color'] ?? '') ? $post['profile_text_color'] : '#163b5c';
+    ?>
+    <span class="post-author-preview" data-profile-preview>
+        <a class="post-author" href="pages/profile.php?id=<?= (int) $post['user_id'] ?>">
+            <span class="post-avatar" aria-hidden="true"><span><?= $initial ?></span><?php if ($avatar): ?><img src="<?= $avatar ?>" alt="" loading="lazy"><?php endif; ?></span>
+            <span><?= $name ?></span>
+        </a>
+        <aside class="profile-preview" data-profile-preview-panel hidden aria-label="<?= $name ?> profile preview" style="--preview-background: <?= $background ?>; --preview-color: <?= $color ?>">
+            <div class="profile-preview-banner"></div>
+            <div class="profile-preview-body">
+                <span class="post-avatar profile-preview-avatar" aria-hidden="true"><span><?= $initial ?></span><?php if ($avatar): ?><img src="<?= $avatar ?>" alt="" loading="lazy"><?php endif; ?></span>
+                <a class="profile-preview-name" href="pages/profile.php?id=<?= (int) $post['user_id'] ?>"><?= $name ?></a>
+                <?php if (trim($post['bio'] ?? '') !== ''): ?><p><?= htmlspecialchars(mb_substr($post['bio'], 0, 300), ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                <small>Member since <?= htmlspecialchars(date('F Y', strtotime($post['registration_date'])), ENT_QUOTES, 'UTF-8') ?></small>
+            </div>
+        </aside>
+    </span>
+    <?php
+}
+
 $basicStatus = '';
 $statusError = '';
+$postError = '';
+$postContent = '';
+$postVisibility = 'friends';
+$posts = [];
+$_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['create_post', 'delete_post'], true)) {
+    if (!isset($_SESSION['user_id'])) {
+        header('Location: pages/login.php');
+        exit;
+    }
+    $postContent = is_string($_POST['content'] ?? null) ? trim($_POST['content']) : '';
+    $postVisibility = is_string($_POST['visibility'] ?? null) ? $_POST['visibility'] : 'friends';
+    $token = $_POST['csrf_token'] ?? '';
+    if (!is_string($token) || !hash_equals($_SESSION['posts_csrf'], $token)) {
+        $postError = 'Your session changed. Please try again.';
+    } elseif ($_POST['action'] === 'create_post') {
+        if (!in_array($postVisibility, ['friends', 'public'], true)) {
+            $postError = 'Choose Friends Only or Public.';
+        } elseif ($postContent === '' || mb_strlen($postContent, 'UTF-8') > 2000) {
+            $postError = 'Write a post using 1 to 2,000 characters.';
+        } else {
+            $authorId = (int) $_SESSION['user_id'];
+            $statement = mysqli_prepare($conn, 'INSERT INTO posts (user_id, content, visibility) VALUES (?, ?, ?)');
+            mysqli_stmt_bind_param($statement, 'iss', $authorId, $postContent, $postVisibility);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+            header('Location: index.php');
+            exit;
+        }
+    } else {
+        $postId = filter_var($_POST['post_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (!$postId) {
+            $postError = 'Choose a valid post.';
+        } else {
+            $authorId = (int) $_SESSION['user_id'];
+            $statement = mysqli_prepare($conn, 'DELETE FROM posts WHERE id = ? AND user_id = ?');
+            mysqli_stmt_bind_param($statement, 'ii', $postId, $authorId);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+            header('Location: index.php');
+            exit;
+        }
+    }
+}
 
 if (isset($_SESSION['user_id'])) {
     $userId = (int) $_SESSION['user_id'];
+    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    mysqli_stmt_bind_param($feedStatement, 'iii', $userId, $userId, $userId);
+    mysqli_stmt_execute($feedStatement);
+    $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
+    mysqli_stmt_close($feedStatement);
     $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND f.top_eight_position BETWEEN 1 AND 8 ORDER BY f.top_eight_position, u.id LIMIT 8');
     mysqli_stmt_bind_param($topStatement, 'i', $userId);
     mysqli_stmt_execute($topStatement);
@@ -48,6 +147,9 @@ if (isset($_SESSION['user_id'])) {
             exit;
         }
     }
+} else {
+    $publicResult = mysqli_query($conn, "SELECT p.user_id, p.content, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $posts = mysqli_fetch_all($publicResult, MYSQLI_ASSOC);
 }
 ?>
 <!doctype html>
@@ -58,6 +160,7 @@ if (isset($_SESSION['user_id'])) {
     <title>NexusSpace</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
     <script src="assets/js/dashboard.js?v=<?= filemtime(__DIR__ . '/assets/js/dashboard.js') ?>" defer></script>
+    <script src="assets/js/profile-preview.js?v=<?= filemtime(__DIR__ . '/assets/js/profile-preview.js') ?>" defer></script>
     <script src="assets/js/message-updates.js?v=<?= filemtime(__DIR__ . '/assets/js/message-updates.js') ?>" defer></script>
     <script src="assets/js/mini-chat.js?v=<?= filemtime(__DIR__ . '/assets/js/mini-chat.js') ?>" defer></script>
     <script src="assets/js/mini-chat-resize.js?v=<?= filemtime(__DIR__ . '/assets/js/mini-chat-resize.js') ?>" defer></script>
@@ -138,16 +241,39 @@ if (isset($_SESSION['user_id'])) {
                     </div>
                 </form>
 
-                <?php for ($postNumber = 1; $postNumber <= 2; $postNumber++): ?>
+                <form class="post-composer" method="post">
+                    <input type="hidden" name="action" value="create_post">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
+                    <label class="sr-only" for="post-content">Write a post</label>
+                    <textarea id="post-content" name="content" rows="4" maxlength="2000" placeholder="What's on your mind?" required><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
+                    <div class="post-composer-actions">
+                        <label for="post-visibility">Audience</label>
+                        <select id="post-visibility" name="visibility">
+                            <option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option>
+                            <option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option>
+                        </select>
+                        <button type="submit">Post</button>
+                    </div>
+                    <?php if ($postError): ?><p class="post-error" role="alert"><?= htmlspecialchars($postError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                </form>
+                <?php if (!$posts): ?><p class="post-empty">No posts yet.</p><?php endif; ?>
+                <?php foreach ($posts as $post): ?>
                     <article class="post-card">
-                        <header>profile pic + username</header>
-                        <div class="post-image-placeholder" aria-label="Post image placeholder"></div>
-                        <div class="post-copy">
-                            <p>Caption</p>
-                            <p>top comment</p>
-                        </div>
+                        <header class="post-header">
+                            <?php renderPostAuthor($post); ?>
+                            <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if ((int) $post['user_id'] === $userId): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
+                        </header>
+                        <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                        <?php if ((int) $post['user_id'] === $userId): ?>
+                            <form method="post" class="post-delete-form">
+                                <input type="hidden" name="action" value="delete_post">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
+                                <input type="hidden" name="post_id" value="<?= (int) $post['id'] ?>">
+                                <button type="submit">Delete</button>
+                            </form>
+                        <?php endif; ?>
                     </article>
-                <?php endfor; ?>
+                <?php endforeach; ?>
             </section>
 
             <aside class="dashboard-right-rail">
@@ -199,6 +325,17 @@ if (isset($_SESSION['user_id'])) {
                 <a class="button" href="pages/register.php">Create an account</a>
                 <a class="button button-secondary" href="pages/login.php">Log in</a>
             </p>
+            <h2>Public Posts</h2>
+            <?php if (!$posts): ?><p>No public posts yet.</p><?php endif; ?>
+            <?php foreach ($posts as $post): ?>
+                <article class="post-card">
+                    <header class="post-header">
+                        <?php renderPostAuthor($post); ?>
+                        <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time></div>
+                    </header>
+                    <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                </article>
+            <?php endforeach; ?>
         </main>
     <?php endif; ?>
 </body>
