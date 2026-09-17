@@ -159,9 +159,12 @@ a {
 .profile-bio-editor summary { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 24px; height: 24px; color: #166da5; cursor: pointer; font-size: 14px; font-weight: 700; list-style: none; }
 .profile-bio-editor summary::-webkit-details-marker { display: none; }
 .profile-bio-editor summary:hover { background: #b9e3f8; }
-.profile-bio-editor summary:focus-visible { outline: 2px solid #166da5; outline-offset: -2px; }
+.profile-bio-editor summary:focus { outline: none; }
+.profile-bio-editor summary:focus-visible { background: #b9e3f8; }
+.profile-bio-section:has(.profile-bio-editor[open]) > .profile-bio { display: none; }
+.profile-bio-editor[open] { margin-top: 0; }
 .profile-bio-section:has(.profile-bio-editor) { padding-right: 32px; padding-left: 32px; }
-.profile-bio-editor textarea { display: block; width: 100%; margin-top: 8px; padding: 8px; resize: vertical; border: 1px solid #9dcce8; border-radius: 4px; background: #fff; color: #163b5c; font: inherit; font-size: 13px; }
+.profile-bio-editor textarea { display: block; width: 100%; margin-top: 0; padding: 0; resize: none; border: 0; border-radius: 0; background: transparent; color: #163b5c; font: inherit; font-size: 14px; line-height: 1.5; text-align: center; box-shadow: none; outline: none; }
 .profile-bio-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 6px; }
 .profile-bio-actions small { margin: 0; font-size: 11px; }
 .profile-bio-actions button { margin: 0; padding: 5px 12px; font-size: 12px; }
