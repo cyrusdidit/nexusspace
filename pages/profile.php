@@ -218,8 +218,15 @@ if ($user) {
                         <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                     </a></li>
                 <?php endforeach; ?>
+                <?php for ($temporaryFriend = 1; $temporaryFriend <= min(7, 8 - count($topFriends)); $temporaryFriend++): ?>
+                    <li class="temporary-profile-friend">
+                        <span class="top-friend-link">
+                            <span class="post-avatar" aria-hidden="true">T</span>
+                            <span>TempUser<?= $temporaryFriend ?></span>
+                        </span>
+                    </li>
+                <?php endfor; ?>
             </ul>
-            <?php if (!$topFriends): ?><p>No Top 8 selected yet.</p><?php endif; ?>
         </section>
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
