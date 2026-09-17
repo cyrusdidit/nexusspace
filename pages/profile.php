@@ -40,6 +40,30 @@ $_SESSION['friend_request_token'] ??= bin2hex(random_bytes(32));
 $friendState = 'none';
 $friendError = '';
 $currentUserId = (int) $_SESSION['user_id'];
+$bioError = '';
+$bioDraft = (string) ($user['bio'] ?? '');
+$_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_bio') {
+    $token = $_POST['token'] ?? '';
+    $bioDraft = is_string($_POST['bio'] ?? null) ? trim($_POST['bio']) : '';
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $bioError = 'You can only edit your own bio.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $bioError = 'Please refresh the page and try again.';
+    } elseif (!mb_check_encoding($bioDraft, 'UTF-8') || mb_strlen($bioDraft, 'UTF-8') > 160) {
+        $bioError = 'Use 160 characters or fewer.';
+    } else {
+        $statement = mysqli_prepare($conn, 'UPDATE users SET bio = ? WHERE id = ?');
+        mysqli_stmt_bind_param($statement, 'si', $bioDraft, $currentUserId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        header('Location: profile.php?id=' . $currentUserId);
+        exit;
+    }
+}
 
 $readFriendState = static function () use ($conn, $currentUserId, $userId): string {
     $statement = mysqli_prepare($conn, 'SELECT id FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?) LIMIT 1');
@@ -60,7 +84,7 @@ $readFriendState = static function () use ($conn, $currentUserId, $userId): stri
 };
 
 if ($user && !$isOwnProfile) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'update_bio') {
         $token = $_POST['token'] ?? '';
         if (!is_string($token) || !hash_equals($_SESSION['friend_request_token'], $token)) {
             http_response_code(403);
@@ -161,6 +185,19 @@ if ($user) {
         <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
         <section class="profile-bio-section" aria-label="Bio">
             <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+            <?php if ($isOwnProfile): ?>
+                <details class="profile-bio-editor"<?= $bioError ? ' open' : '' ?>>
+                    <summary>Edit bio</summary>
+                    <form method="post" action="profile.php?id=<?= $userId ?>">
+                        <input type="hidden" name="action" value="update_bio">
+                        <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
+                        <label class="sr-only" for="profile-bio-input">Bio</label>
+                        <textarea id="profile-bio-input" name="bio" rows="3" maxlength="160" aria-describedby="bio-limit"><?= htmlspecialchars($bioDraft, ENT_QUOTES, 'UTF-8') ?></textarea>
+                        <div class="profile-bio-actions"><small id="bio-limit">160 characters max</small><button type="submit">Save</button></div>
+                        <?php if ($bioError): ?><p class="post-error" role="alert"><?= htmlspecialchars($bioError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                    </form>
+                </details>
+            <?php endif; ?>
         </section>
         <section class="profile-top-eight" aria-labelledby="profile-top-eight-heading">
             <div class="panel-heading">
