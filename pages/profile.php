@@ -171,6 +171,7 @@ if ($user) {
             </div>
             <h1><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
+            <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
             <?php if (!$isOwnProfile): ?>
                 <form class="profile-friend-actions" method="post" action="profile.php?id=<?= $userId ?>">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['friend_request_token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -183,7 +184,6 @@ if ($user) {
                 </form>
             <?php endif; ?>
         </section>
-        <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
         <section class="profile-bio-section" aria-label="Bio">
             <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <?php if ($isOwnProfile): ?>
@@ -194,7 +194,7 @@ if ($user) {
                         <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
                         <label class="sr-only" for="profile-bio-input">Bio</label>
                         <textarea id="profile-bio-input" name="bio" rows="3" maxlength="160" aria-describedby="bio-limit"><?= htmlspecialchars($bioDraft, ENT_QUOTES, 'UTF-8') ?></textarea>
-                        <div class="profile-bio-actions"><small id="bio-limit"><?= mb_strlen($bioDraft, 'UTF-8') ?>/160 characters used</small><button type="submit">Save</button></div>
+                        <div class="profile-bio-actions"><small id="bio-limit"><?= mb_strlen($bioDraft, 'UTF-8') ?>/160</small><button type="submit" aria-label="Save bio" title="Save bio">&#10003;</button></div>
                         <?php if ($bioError): ?><p class="post-error" role="alert"><?= htmlspecialchars($bioError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                     </form>
                 </details>
@@ -202,10 +202,10 @@ if ($user) {
         </section>
         <section class="profile-top-eight" aria-labelledby="profile-top-eight-heading">
             <div class="panel-heading">
-                <h2 class="friends-link" id="profile-top-eight-heading">Top 8 friends</h2>
+                <h2 class="friends-link" id="profile-top-eight-heading"><?= $isOwnProfile ? 'My top 8 friends' : htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') . "'s top 8 friends" ?></h2>
                 <?php if ($isOwnProfile): ?><a class="friends-reorder" href="friends.php#top-eight" aria-label="Edit Top 8 friends"><img src="../assets/images/arrows.png" alt=""></a><?php endif; ?>
             </div>
-            <ul class="friends-list">
+            <ol class="friends-list">
                 <?php foreach ($topFriends as $friend): ?>
                     <?php
                     $friendAvatar = trim($friend['avatar_path'] ?? '');
@@ -226,7 +226,7 @@ if ($user) {
                         </span>
                     </li>
                 <?php endfor; ?>
-            </ul>
+            </ol>
         </section>
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
