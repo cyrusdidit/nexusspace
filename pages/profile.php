@@ -352,7 +352,14 @@ if ($user) {
             </ol>
             <?php if ($isOwnProfile): ?>
                 <aside class="top-eight-friend-picker" data-top-eight-picker hidden>
-                    <h3>Friends</h3>
+                    <div class="top-eight-picker-heading">
+                        <h3>Friends</h3>
+                        <button type="button" data-top-eight-search-toggle aria-label="Search friends" aria-expanded="false" title="Search friends"><span class="top-eight-search-icon" aria-hidden="true"></span></button>
+                    </div>
+                    <div class="top-eight-picker-search" data-top-eight-search-panel hidden>
+                        <label class="sr-only" for="top-eight-friend-search">Search friends</label>
+                        <input id="top-eight-friend-search" type="search" placeholder="Find a friend" autocomplete="off" data-top-eight-search>
+                    </div>
                     <ul data-top-eight-pool>
                         <?php foreach (array_slice($temporaryProfileUsers, $visibleTemporaryFriends) as $temporaryFriend): ?>
                             <li class="temporary-profile-friend" data-top-eight-item>

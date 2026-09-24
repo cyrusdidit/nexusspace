@@ -8,6 +8,9 @@ if (topEightForm) {
     const actions = topEightForm.querySelector('[data-top-eight-actions]');
     const cancelButton = topEightForm.querySelector('[data-top-eight-cancel]');
     const inputs = topEightForm.querySelector('[data-top-eight-inputs]');
+    const searchToggle = topEightForm.querySelector('[data-top-eight-search-toggle]');
+    const searchPanel = topEightForm.querySelector('[data-top-eight-search-panel]');
+    const searchInput = topEightForm.querySelector('[data-top-eight-search]');
     let originalTop = [];
     let originalPool = [];
     let draggedItem = null;
@@ -16,6 +19,24 @@ if (topEightForm) {
     const updateControls = () => {
         const full = itemsIn(list).length >= 8;
         pool?.querySelectorAll('[data-top-eight-add]').forEach((button) => { button.disabled = full; });
+    };
+    const filterPool = () => {
+        const query = searchInput?.value.trim().toLocaleLowerCase() || '';
+        itemsIn(pool).forEach((item) => {
+            item.hidden = query !== '' && !item.textContent.toLocaleLowerCase().includes(query);
+        });
+    };
+    const setSearchOpen = (open) => {
+        if (!searchPanel || !searchToggle) return;
+        searchPanel.hidden = !open;
+        searchToggle.setAttribute('aria-expanded', String(open));
+        if (open) {
+            searchInput.focus();
+        } else {
+            searchInput.value = '';
+            filterPool();
+        }
+        positionPicker();
     };
     const positionPicker = () => {
         if (!picker || picker.hidden) return;
@@ -32,6 +53,7 @@ if (topEightForm) {
         topEightForm.querySelectorAll('[data-top-eight-item]').forEach((item) => { item.draggable = editing; });
         updateControls();
         if (editing) positionPicker();
+        else setSearchOpen(false);
     };
     const moveToTop = (item, before = null) => {
         if (item.parentElement !== list && itemsIn(list).length >= 8) return;
@@ -47,6 +69,7 @@ if (topEightForm) {
         }
         item.querySelector('[data-top-eight-add]')?.remove();
         updateControls();
+        filterPool();
     };
     const moveToPool = (item) => {
         pool.append(item);
@@ -60,6 +83,7 @@ if (topEightForm) {
             item.append(add);
         }
         updateControls();
+        filterPool();
     };
 
     editButton?.addEventListener('click', () => {
@@ -92,6 +116,17 @@ if (topEightForm) {
             }
         });
         setEditing(false);
+    });
+
+    searchToggle?.addEventListener('click', () => setSearchOpen(searchPanel.hidden));
+    searchInput?.addEventListener('input', filterPool);
+    searchInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') event.preventDefault();
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            setSearchOpen(false);
+            searchToggle.focus();
+        }
     });
 
     topEightForm.addEventListener('click', (event) => {
