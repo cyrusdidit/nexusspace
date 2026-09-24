@@ -176,6 +176,10 @@ if ($user && !$isOwnProfile) {
 }
 $profilePosts = [];
 $topFriends = [];
+$temporaryProfileUsers = array_map(
+    static fn (int $number): array => ['username' => 'TempUser' . $number],
+    range(1, 10)
+);
 if ($user) {
     $statement = mysqli_prepare($conn, "SELECT p.content, p.visibility, p.created_at FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     mysqli_stmt_bind_param($statement, 'iiii', $userId, $currentUserId, $currentUserId, $currentUserId);
@@ -276,14 +280,14 @@ if ($user) {
                         <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                     </a></li>
                 <?php endforeach; ?>
-                <?php for ($temporaryFriend = 1; $temporaryFriend <= min(7, 8 - count($topFriends)); $temporaryFriend++): ?>
+                <?php foreach (array_slice($temporaryProfileUsers, 0, max(0, 8 - count($topFriends))) as $temporaryFriend): ?>
                     <li class="temporary-profile-friend">
                         <span class="top-friend-link">
                             <span class="post-avatar" aria-hidden="true">T</span>
-                            <span>TempUser<?= $temporaryFriend ?></span>
+                            <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                         </span>
                     </li>
-                <?php endfor; ?>
+                <?php endforeach; ?>
             </ol>
         </section>
         <nav class="profile-sidebar-actions" aria-label="Profile actions">
