@@ -163,6 +163,7 @@ if ($user) {
         <?php else: ?>
         <div class="profile-layout">
         <aside class="profile-sidebar">
+        <a class="profile-back" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
         <div class="profile-cover" aria-hidden="true"></div>
         <section class="profile-identity" aria-label="Profile">
             <div class="profile-picture" aria-hidden="true">

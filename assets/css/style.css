@@ -145,8 +145,11 @@ a {
 .profile-footer .button { background: transparent; color: #166da5; padding: 0; margin: 0; font-size: 13px; }
 .profile-page { display: block; padding: 0; }
 .profile-page .profile-sheet { width: 100%; min-height: 100vh; border: 0; border-radius: 0; }
-.profile-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: 100vh; }
-.profile-sidebar { min-width: 0; border-right: 1px solid #9dcce8; background: #f6fcff; }
+.profile-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
+.profile-sidebar { position: relative; min-width: 0; border-right: 1px solid #9dcce8; background: #f6fcff; }
+.profile-back { position: absolute; z-index: 3; top: 8px; left: 8px; display: grid; place-items: center; width: 28px; height: 28px; color: #fff; font-size: 22px; line-height: 1; text-decoration: none; }
+.profile-back:hover { background: #166da5; color: #fff; text-decoration: none; }
+.profile-back:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
 .profile-sidebar .profile-cover { height: 105px; }
 .profile-sidebar .profile-picture { width: 68px; height: 68px; margin-top: -34px; font-size: 24px; }
 .profile-sidebar .profile-identity { padding: 0 16px 14px; }
@@ -192,14 +195,16 @@ a {
     .profile-page { height: 100vh; height: 100dvh; overflow: hidden; }
     .profile-page .profile-sheet { display: flex; flex-direction: column; height: 100%; min-height: 0; }
     .profile-layout { flex: 1; min-height: 0; }
-    .profile-sidebar { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+    .profile-sidebar { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
     .profile-sidebar .profile-cover { height: 90px; flex-shrink: 0; }
     .profile-sidebar .profile-identity { flex-shrink: 0; padding-bottom: 8px; }
     .profile-sidebar .profile-picture { margin-bottom: 8px; }
     .profile-sidebar .profile-identity h1 { margin-bottom: 4px; }
     .profile-music-placeholder { flex-shrink: 0; }
     .profile-bio-section { height: 174px; padding: 24px 18px; flex-shrink: 0; }
-    .profile-top-eight { min-height: 0; padding: 0; flex: 1 0 auto; }
+    .profile-top-eight { display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
+    .profile-top-eight .panel-heading { flex-shrink: 0; }
+    .profile-top-eight .friends-list { display: grid; flex: 1; grid-template-rows: repeat(8, minmax(19px, 1fr)); min-height: 0; overflow: hidden; }
     .profile-account-details { padding: 0 16px 10px; margin-top: auto; }
     .profile-account-details .profile-details { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; margin-top: 10px; }
     .profile-account-details .profile-details dt, .profile-account-details .profile-details dd { margin: 0; font-size: 11px; }
