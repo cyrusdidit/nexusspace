@@ -37,8 +37,10 @@ if ($avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPa
 }
 
 $_SESSION['friend_request_token'] ??= bin2hex(random_bytes(32));
+$_SESSION['top_eight_token'] ??= bin2hex(random_bytes(32));
 $friendState = 'none';
 $friendError = '';
+$topEightError = '';
 $currentUserId = (int) $_SESSION['user_id'];
 $bioError = '';
 $avatarError = '';
@@ -108,6 +110,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_top_eight') {
+    $token = $_POST['token'] ?? '';
+    $slots = $_POST['top_eight_slots'] ?? [];
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $topEightError = 'You can only edit your own Top 8.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['top_eight_token'], $token)) {
+        http_response_code(403);
+        $topEightError = 'Please refresh the page and try again.';
+    } elseif (!is_array($slots) || count($slots) !== 8) {
+        $topEightError = 'Choose up to eight friends.';
+    } else {
+        $statement = mysqli_prepare($conn, 'SELECT friend_id FROM friends WHERE user_id = ?');
+        mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+        mysqli_stmt_execute($statement);
+        $allowedFriendIds = array_map('intval', array_column(mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC), 'friend_id'));
+        mysqli_stmt_close($statement);
+        $chosen = [];
+        foreach (array_values($slots) as $position => $value) {
+            if ($value === '') continue;
+            $friendId = filter_var($value, FILTER_VALIDATE_INT);
+            if (!$friendId || !in_array($friendId, $allowedFriendIds, true) || in_array($friendId, $chosen, true)) {
+                $topEightError = 'Your Top 8 can only contain each friend once.';
+                break;
+            }
+            $chosen[$position + 1] = $friendId;
+        }
+        if ($topEightError === '') {
+            mysqli_begin_transaction($conn);
+            try {
+                $clear = mysqli_prepare($conn, 'UPDATE friends SET top_eight_position = NULL WHERE user_id = ?');
+                mysqli_stmt_bind_param($clear, 'i', $currentUserId);
+                mysqli_stmt_execute($clear);
+                mysqli_stmt_close($clear);
+                $save = mysqli_prepare($conn, 'UPDATE friends SET top_eight_position = ? WHERE user_id = ? AND friend_id = ?');
+                foreach ($chosen as $position => $friendId) {
+                    mysqli_stmt_bind_param($save, 'iii', $position, $currentUserId, $friendId);
+                    mysqli_stmt_execute($save);
+                }
+                mysqli_stmt_close($save);
+                mysqli_commit($conn);
+                header('Location: profile.php?id=' . $currentUserId);
+                exit;
+            } catch (Throwable $exception) {
+                mysqli_rollback($conn);
+                $topEightError = 'Could not save your Top 8. Please try again.';
+            }
+        }
+    }
+}
+
 $readFriendState = static function () use ($conn, $currentUserId, $userId): string {
     $statement = mysqli_prepare($conn, 'SELECT id FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?) LIMIT 1');
     mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
@@ -127,7 +180,7 @@ $readFriendState = static function () use ($conn, $currentUserId, $userId): stri
 };
 
 if ($user && !$isOwnProfile) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'update_bio') {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline'], true)) {
         $token = $_POST['token'] ?? '';
         if (!is_string($token) || !hash_equals($_SESSION['friend_request_token'], $token)) {
             http_response_code(403);
@@ -176,6 +229,7 @@ if ($user && !$isOwnProfile) {
 }
 $profilePosts = [];
 $topFriends = [];
+$allFriends = [];
 $temporaryProfileUsers = array_map(
     static fn (int $number): array => ['username' => 'TempUser' . $number],
     range(1, 10)
@@ -186,10 +240,11 @@ if ($user) {
     mysqli_stmt_execute($statement);
     $profilePosts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);
-    $statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND f.top_eight_position BETWEEN 1 AND 8 ORDER BY f.top_eight_position, u.id LIMIT 8');
+    $statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, f.top_eight_position FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, f.top_eight_position, u.username, u.id');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
-    $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+    $allFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+    $topFriends = array_values(array_filter($allFriends, static fn (array $friend): bool => (int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8));
     mysqli_stmt_close($statement);
 }
 ?>
@@ -202,6 +257,7 @@ if ($user) {
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
+    <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
 </head>
 <body class="profile-page"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <main class="card profile-sheet">
@@ -262,12 +318,15 @@ if ($user) {
                 </details>
             <?php endif; ?>
         </section>
-        <section class="profile-top-eight" aria-labelledby="profile-top-eight-heading">
+        <form class="profile-top-eight" method="post" action="profile.php?id=<?= $userId ?>" aria-labelledby="profile-top-eight-heading" data-top-eight-form>
+            <input type="hidden" name="action" value="update_top_eight">
+            <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['top_eight_token'], ENT_QUOTES, 'UTF-8') ?>">
+            <span data-top-eight-inputs></span>
             <div class="panel-heading">
                 <h2 class="friends-link" id="profile-top-eight-heading"><?= $isOwnProfile ? 'My top 8 friends' : htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') . "'s top 8 friends" ?></h2>
-                <?php if ($isOwnProfile): ?><a class="friends-reorder" href="friends.php#top-eight" aria-label="Edit Top 8 friends"><img src="../assets/images/arrows.png" alt=""></a><?php endif; ?>
+                <?php if ($isOwnProfile): ?><button class="friends-reorder" type="button" aria-label="Reorder Top 8 friends" title="Reorder Top 8 friends" data-top-eight-edit><img src="../assets/images/arrows.png" alt=""></button><?php endif; ?>
             </div>
-            <ol class="friends-list">
+            <ol class="friends-list" data-top-eight-list>
                 <?php foreach ($topFriends as $friend): ?>
                     <?php
                     $friendAvatar = trim($friend['avatar_path'] ?? '');
@@ -275,21 +334,38 @@ if ($user) {
                         $friendAvatar = str_starts_with($friendAvatar, '/') ? $friendAvatar : '../' . $friendAvatar;
                     } else { $friendAvatar = ''; }
                     ?>
-                    <li><a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
+                    <li data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>"><a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
                         <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                         <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                     </a></li>
                 <?php endforeach; ?>
-                <?php foreach (array_slice($temporaryProfileUsers, 0, max(0, 8 - count($topFriends))) as $temporaryFriend): ?>
-                    <li class="temporary-profile-friend">
+                <?php $visibleTemporaryFriends = max(0, 8 - count($topFriends)); ?>
+                <?php foreach ($temporaryProfileUsers as $temporaryIndex => $temporaryFriend): ?>
+                    <li class="temporary-profile-friend<?= $temporaryIndex >= $visibleTemporaryFriends ? ' top-eight-extra' : '' ?>" data-top-eight-item>
                         <span class="top-friend-link">
                             <span class="post-avatar" aria-hidden="true">T</span>
                             <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                         </span>
                     </li>
                 <?php endforeach; ?>
+                <?php foreach ($allFriends as $friend): ?>
+                    <?php if ((int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8) continue; ?>
+                    <li class="top-eight-extra" data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>">
+                        <a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
+                            <span class="post-avatar" aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
             </ol>
-        </section>
+            <?php if ($topEightError): ?><p class="top-eight-error" role="alert"><?= htmlspecialchars($topEightError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+            <?php if ($isOwnProfile): ?>
+                <div class="top-eight-edit-actions" data-top-eight-actions hidden>
+                    <button type="button" data-top-eight-cancel aria-label="Cancel Top 8 changes">&times;</button>
+                    <button type="submit" data-top-eight-save aria-label="Save Top 8">&#10003;</button>
+                </div>
+            <?php endif; ?>
+        </form>
         <nav class="profile-sidebar-actions" aria-label="Profile actions">
             <a class="profile-icon-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
             <a class="profile-icon-button" href="coming-soon.php?feature=settings" aria-label="Settings" title="Settings">&#9881;</a>

@@ -217,6 +217,18 @@ a {
 .profile-top-eight .post-avatar { width: 19px; height: 19px; flex-basis: 19px; font-size: 10px; border: 1px solid #f6fcff; }
 .profile-top-eight .friends-list li > .top-friend-link,
 .profile-top-eight .friends-list .top-friend-link > span { background: transparent; border: 0; }
+.profile-top-eight .friends-reorder { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
+.profile-top-eight .friends-list .top-eight-extra { display: none; }
+.profile-top-eight.is-editing .friends-list .top-eight-extra { display: list-item; }
+.profile-top-eight.is-editing .friends-list { grid-template-rows: none; }
+.profile-top-eight.is-editing [data-top-eight-item] { cursor: grab; user-select: none; }
+.profile-top-eight.is-editing .top-friend-link { pointer-events: none; }
+.profile-top-eight.is-editing [data-top-eight-item]:active { cursor: grabbing; }
+.profile-top-eight .is-dragging { opacity: 0.45; }
+.top-eight-edit-actions { display: flex; justify-content: flex-end; gap: 4px; padding: 4px; }
+.top-eight-edit-actions[hidden] { display: none; }
+.top-eight-edit-actions button { display: grid; place-items: center; width: 26px; height: 26px; margin: 0; padding: 0; border-radius: 0; }
+.top-eight-error { margin: 4px 8px; color: #a12c42; font-size: 11px; }
 .profile-posts { min-width: 0; padding: 24px; background: #dff2ff; }
 .profile-posts > h2 { font-size: 18px; margin: 0 0 20px; }
 .profile-posts .post-card { padding: 16px; }
