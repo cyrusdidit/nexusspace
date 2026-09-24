@@ -169,6 +169,7 @@ if ($user) {
             <div class="profile-picture" aria-hidden="true">
                 <span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
                 <?php if ($avatarPath !== ''): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?>
+                <?php if ($isOwnProfile): ?><span class="profile-picture-overlay">!</span><?php endif; ?>
             </div>
             <h1><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
