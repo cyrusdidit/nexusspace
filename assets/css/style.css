@@ -147,13 +147,13 @@ a {
 .profile-page .profile-sheet { width: 100%; min-height: 100vh; border: 0; border-radius: 0; }
 .profile-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
 .profile-sidebar { position: relative; min-width: 0; border-right: 1px solid #9dcce8; background: #f6fcff; }
-.profile-back { position: absolute; z-index: 3; top: 8px; left: 8px; display: grid; place-items: center; width: 28px; height: 28px; color: #fff; font-size: 22px; line-height: 1; text-decoration: none; }
-.profile-back:hover { background: #166da5; color: #fff; text-decoration: none; }
-.profile-back:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.profile-back { display: grid; place-items: center; align-self: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid #9dcce8; background: #f6fcff; color: #166da5; font-size: 22px; line-height: 1; text-decoration: none; }
+.profile-back:hover { background: #dff2ff; color: #166da5; text-decoration: none; }
+.profile-back:focus-visible { outline: 2px solid #166da5; outline-offset: -2px; }
 .profile-sidebar .profile-cover { height: 105px; }
 .profile-sidebar .profile-picture { width: 68px; height: 68px; margin-top: -34px; font-size: 24px; }
 .profile-sidebar .profile-identity { padding: 0 16px 14px; }
-.profile-sidebar .profile-identity h1 { font-size: 18px; }
+.profile-sidebar .profile-identity h1 { font-size: 16px; }
 .profile-sidebar .profile-handle { font-size: 12px; margin-bottom: 6px; }
 .profile-music-placeholder { height: 18px; width: 100%; margin: 0; color: #166da5; text-align: center; font-size: 12px; line-height: 18px; }
 .profile-bio-section { position: relative; height: 174px; padding: 24px 18px; overflow: hidden; background: #dff2ff; text-align: center; }
@@ -178,8 +178,8 @@ a {
 .profile-top-eight { min-height: 230px; padding: 0; background: #b9e3f8; }
 .profile-top-eight h2 { font-size: 20px; font-weight: 400; margin: 0; }
 .profile-top-eight .panel-heading { gap: 0; }
-.profile-top-eight .friends-reorder { flex-basis: 32px; width: 32px; height: 42px; }
-.profile-top-eight .friends-link { min-height: 42px; padding: 9px 12px; }
+.profile-top-eight .friends-reorder { flex-basis: 32px; width: 32px; height: 38px; }
+.profile-top-eight .friends-link { min-height: 38px; padding: 6px 12px 8px; }
 .profile-top-eight .friends-list { margin: 0; padding: 8px 18px 16px 54px; list-style: decimal; }
 .profile-top-eight .friends-list li { display: list-item; overflow: visible; margin: 1px 0; color: #163b5c; font-size: 16px; line-height: 21px; }
 .profile-top-eight .friends-list li::marker { color: #163b5c; font-weight: 700; }
