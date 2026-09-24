@@ -41,8 +41,50 @@ $friendState = 'none';
 $friendError = '';
 $currentUserId = (int) $_SESSION['user_id'];
 $bioError = '';
+$avatarError = '';
 $bioDraft = (string) ($user['bio'] ?? '');
 $_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_avatar') {
+    $token = $_POST['token'] ?? '';
+    $upload = $_FILES['avatar'] ?? null;
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $avatarError = 'You can only change your own profile picture.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $avatarError = 'Please refresh the page and try again.';
+    } elseif (!is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        $avatarError = 'Choose an image to upload.';
+    } elseif (($upload['size'] ?? 0) > 5 * 1024 * 1024) {
+        $avatarError = 'Use an image smaller than 5 MB.';
+    } else {
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name']);
+        $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        if (!isset($extensions[$mime]) || @getimagesize($upload['tmp_name']) === false) {
+            $avatarError = 'Upload a JPG, PNG, WebP, or GIF image.';
+        } else {
+            $uploadDirectory = __DIR__ . '/../uploads/avatars';
+            if ((!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0755, true)) || !is_writable($uploadDirectory)) {
+                $avatarError = 'The profile picture could not be saved.';
+            } else {
+                $filename = 'avatar-' . $currentUserId . '-' . bin2hex(random_bytes(8)) . '.' . $extensions[$mime];
+                $destination = $uploadDirectory . '/' . $filename;
+                if (!move_uploaded_file($upload['tmp_name'], $destination)) {
+                    $avatarError = 'The profile picture could not be saved.';
+                } else {
+                    $storedPath = 'uploads/avatars/' . $filename;
+                    $statement = mysqli_prepare($conn, 'UPDATE users SET avatar_path = ? WHERE id = ?');
+                    mysqli_stmt_bind_param($statement, 'si', $storedPath, $currentUserId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+                    header('Location: profile.php?id=' . $currentUserId);
+                    exit;
+                }
+            }
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_bio') {
     $token = $_POST['token'] ?? '';
@@ -166,11 +208,24 @@ if ($user) {
         <aside class="profile-sidebar">
         <div class="profile-cover" aria-hidden="true"></div>
         <section class="profile-identity" aria-label="Profile">
-            <div class="profile-picture" aria-hidden="true">
-                <span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
-                <?php if ($avatarPath !== ''): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?>
-                <?php if ($isOwnProfile): ?><span class="profile-picture-overlay">!</span><?php endif; ?>
-            </div>
+            <?php if ($isOwnProfile): ?>
+                <form class="profile-picture-upload" method="post" action="profile.php?id=<?= $userId ?>" enctype="multipart/form-data">
+                    <input type="hidden" name="action" value="update_avatar">
+                    <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
+                    <input class="profile-picture-input" id="profile-picture-input" name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="this.form.requestSubmit()">
+                    <label class="profile-picture" for="profile-picture-input" title="Change profile picture">
+                        <span aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                        <?php if ($avatarPath !== ''): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?>
+                        <span class="profile-picture-overlay" aria-hidden="true">!</span>
+                    </label>
+                </form>
+            <?php else: ?>
+                <div class="profile-picture" aria-hidden="true">
+                    <span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php if ($avatarPath !== ''): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?>
+                </div>
+            <?php endif; ?>
+            <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
             <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
