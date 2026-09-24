@@ -228,7 +228,10 @@ if ($user) {
                 <?php endfor; ?>
             </ol>
         </section>
-        <a class="profile-back" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
+        <nav class="profile-sidebar-actions" aria-label="Profile actions">
+            <a class="profile-icon-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
+            <a class="profile-icon-button" href="coming-soon.php?feature=settings" aria-label="Settings" title="Settings">&#9881;</a>
+        </nav>
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
