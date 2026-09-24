@@ -102,6 +102,11 @@ if (avatarInput && cropDialog) {
         event.preventDefault();
         close();
     });
+    cropDialog.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || saveButton.disabled) return;
+        event.preventDefault();
+        saveButton.click();
+    });
 
     saveButton.addEventListener('click', () => {
         saveButton.disabled = true;
