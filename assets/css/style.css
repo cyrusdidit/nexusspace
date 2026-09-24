@@ -212,7 +212,9 @@ a {
 .profile-top-eight .friends-list { margin: 0; padding: 5px 4px 15px 43px; list-style: decimal; }
 .profile-top-eight .friends-list li { display: list-item; overflow: visible; margin: 3px 0; color: #163b5c; font-size: 22px; line-height: 29px; }
 .profile-top-eight .friends-list li::marker { color: #163b5c; font-weight: 700; }
-.profile-top-eight .top-friend-link { display: inline-flex; align-items: center; gap: 9px; vertical-align: top; width: calc(100% - 4px); height: 29px; padding: 1px 4px; overflow: hidden; border: 2px solid #238bc5; background: #fff; color: #166da5; font-size: 17px; line-height: 25px; }
+.profile-top-eight .top-friend-link { display: inline-flex; align-items: center; gap: 9px; box-sizing: border-box; vertical-align: top; width: calc(100% - 4px); height: 31px; padding: 1px 7px; overflow: hidden; border: 2px solid #668596; border-radius: 8px; background: linear-gradient(#fafdff 0%, #eaf6fc 42%, #c5dce7 100%); box-shadow: inset 0 0 0 2px #f7fcff, inset 0 -3px 4px rgb(56 92 112 / 22%), 0 1px 1px rgb(22 59 92 / 18%); color: #27485f; font-size: 17px; line-height: 25px; }
+.profile-top-eight .friends-list a.top-friend-link:hover { background: linear-gradient(#fff 0%, #f1faff 42%, #d4e7f0 100%); color: #166da5; text-decoration: none; }
+.profile-top-eight .friends-list a.top-friend-link:active { background: linear-gradient(#bed5e0 0%, #e7f3f9 42%, #fafdff 100%); box-shadow: inset 0 2px 4px rgb(56 92 112 / 25%), inset 0 0 0 2px #f5fbfe; }
 .profile-top-eight > p { text-align: center; font-size: 12px; }
 .profile-top-eight .post-avatar { width: 25px; height: 25px; flex-basis: 25px; font-size: 11px; border: 1px solid #f6fcff; }
 .profile-top-eight .friends-list .top-friend-link > span { background: transparent; border: 0; }
@@ -222,9 +224,9 @@ a {
 .profile-top-eight.is-editing [data-top-eight-item]:active { cursor: grabbing; }
 .profile-top-eight .is-dragging { opacity: 0.45; }
 .profile-top-eight .friends-list li { position: relative; }
-.top-eight-remove { position: absolute; top: 0; right: 0; display: none; place-items: center; width: 29px; height: 29px; margin: 0; padding: 0; border-radius: 0; background: #238bc5; color: #fff; font-size: 16px; }
+.top-eight-remove { position: absolute; top: 0; right: 0; display: none; place-items: center; width: 31px; height: 31px; margin: 0; padding: 0; border-radius: 0; background: #238bc5; color: #fff; font-size: 16px; }
 .profile-top-eight.is-editing .top-eight-remove { display: grid; }
-.profile-top-eight.is-editing .friends-list .top-friend-link { width: calc(100% - 34px); }
+.profile-top-eight.is-editing .friends-list .top-friend-link { width: calc(100% - 36px); }
 .top-eight-friend-picker { position: fixed; z-index: 30; width: 260px; max-width: calc(100vw - 16px); max-height: 60vh; overflow: hidden; border: 1px solid #79b9dd; background: #dff2ff; box-shadow: 0 8px 24px rgb(22 59 92 / 28%); }
 .top-eight-friend-picker[hidden] { display: none; }
 .top-eight-picker-heading { display: flex; align-items: center; min-height: 36px; background: #166da5; }
