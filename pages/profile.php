@@ -318,7 +318,7 @@ if ($user) {
                 </details>
             <?php endif; ?>
         </section>
-        <form class="profile-top-eight" method="post" action="profile.php?id=<?= $userId ?>" aria-labelledby="profile-top-eight-heading" data-top-eight-form>
+        <form class="profile-top-eight" method="post" action="profile.php?id=<?= $userId ?>" aria-labelledby="profile-top-eight-heading" data-top-eight-form data-profile-id="<?= $userId ?>">
             <input type="hidden" name="action" value="update_top_eight">
             <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['top_eight_token'], ENT_QUOTES, 'UTF-8') ?>">
             <span data-top-eight-inputs></span>
@@ -341,7 +341,7 @@ if ($user) {
                 <?php endforeach; ?>
                 <?php $visibleTemporaryFriends = max(0, 8 - count($topFriends)); ?>
                 <?php foreach (array_slice($temporaryProfileUsers, 0, $visibleTemporaryFriends) as $temporaryFriend): ?>
-                    <li class="temporary-profile-friend" data-top-eight-item>
+                    <li class="temporary-profile-friend" data-top-eight-item data-temp-user="<?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?>">
                         <span class="top-friend-link">
                             <span class="post-avatar" aria-hidden="true">T</span>
                             <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
@@ -362,7 +362,7 @@ if ($user) {
                     </div>
                     <ul data-top-eight-pool>
                         <?php foreach (array_slice($temporaryProfileUsers, $visibleTemporaryFriends) as $temporaryFriend): ?>
-                            <li class="temporary-profile-friend" data-top-eight-item>
+                            <li class="temporary-profile-friend" data-top-eight-item data-temp-user="<?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?>">
                                 <span class="top-friend-link">
                                     <span class="post-avatar" aria-hidden="true">T</span>
                                     <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>

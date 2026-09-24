@@ -7,6 +7,7 @@ if (topEightForm) {
     const pool = topEightForm.querySelector('[data-top-eight-pool]');
     const actions = topEightForm.querySelector('[data-top-eight-actions]');
     const cancelButton = topEightForm.querySelector('[data-top-eight-cancel]');
+    const saveButton = topEightForm.querySelector('[data-top-eight-save]');
     const inputs = topEightForm.querySelector('[data-top-eight-inputs]');
     const searchToggle = topEightForm.querySelector('[data-top-eight-search-toggle]');
     const searchPanel = topEightForm.querySelector('[data-top-eight-search-panel]');
@@ -14,8 +15,10 @@ if (topEightForm) {
     let originalTop = [];
     let originalPool = [];
     let draggedItem = null;
+    const storageKey = `nexusspace-top-eight-${topEightForm.dataset.profileId}`;
 
     const itemsIn = (container) => Array.from(container?.querySelectorAll(':scope > [data-top-eight-item]') || []);
+    const itemKey = (item) => item.dataset.friendId ? `friend:${item.dataset.friendId}` : `temp:${item.dataset.tempUser}`;
     itemsIn(pool)
         .sort((first, second) => Number(second.dataset.lastInteraction || 0) - Number(first.dataset.lastInteraction || 0))
         .forEach((item) => pool.append(item));
@@ -92,6 +95,25 @@ if (topEightForm) {
         filterPool();
     };
 
+    if (picker && pool) {
+        try {
+            const savedOrder = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
+            if (Array.isArray(savedOrder) && savedOrder.length) {
+                const availableItems = new Map(
+                    [...itemsIn(list), ...itemsIn(pool)].map((item) => [itemKey(item), item])
+                );
+                itemsIn(list).forEach(moveToPool);
+                savedOrder.slice(0, 8).forEach((key) => {
+                    const item = availableItems.get(key);
+                    if (item) moveToTop(item);
+                });
+                itemsIn(pool).filter((item) => itemsIn(list).length < 8).forEach((item) => moveToTop(item));
+            }
+        } catch (error) {
+            window.localStorage.removeItem(storageKey);
+        }
+    }
+
     editButton?.addEventListener('click', () => {
         originalTop = itemsIn(list);
         originalPool = itemsIn(pool);
@@ -134,6 +156,17 @@ if (topEightForm) {
             searchToggle.focus();
         }
     });
+    document.addEventListener('keydown', (event) => {
+        if (!topEightForm.classList.contains('is-editing') || event.repeat) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelButton.click();
+        }
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            topEightForm.requestSubmit(saveButton);
+        }
+    });
 
     topEightForm.addEventListener('click', (event) => {
         const item = event.target.closest('[data-top-eight-item]');
@@ -171,6 +204,7 @@ if (topEightForm) {
         draggedItem = null;
     });
     topEightForm.addEventListener('submit', () => {
+        window.localStorage.setItem(storageKey, JSON.stringify(itemsIn(list).slice(0, 8).map(itemKey)));
         inputs.replaceChildren();
         itemsIn(list).slice(0, 8).forEach((item) => {
             const input = document.createElement('input');
