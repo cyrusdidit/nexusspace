@@ -152,8 +152,9 @@ a {
 .avatar-zoom-control { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin: 0; padding: 0 16px; font-size: 13px; }
 .avatar-zoom-control input { margin: 0; padding: 0; }
 .avatar-crop-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 16px; }
-.avatar-crop-actions button { margin: 0; }
-.avatar-crop-actions [data-avatar-crop-save] { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 0; }
+.avatar-crop-actions button { height: 36px; margin: 0; border-radius: 4px; }
+.avatar-crop-actions [data-avatar-crop-cancel] { padding: 0 16px; }
+.avatar-crop-actions [data-avatar-crop-save] { display: grid; place-items: center; width: 36px; padding: 0; }
 .profile-identity h1 { color: #163b5c; font-size: 22px; margin: 0 0 8px; overflow-wrap: anywhere; }
 .profile-handle { color: #166da5; font-size: 13px; font-weight: 700; margin: 0 0 12px; overflow-wrap: anywhere; }
 .profile-bio { font-size: 14px; line-height: 1.5; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

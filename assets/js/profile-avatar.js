@@ -66,6 +66,23 @@ if (avatarInput && cropDialog) {
         draw();
     });
 
+    canvas.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        const bounds = canvas.getBoundingClientRect();
+        const canvasScale = canvas.width / bounds.width;
+        const cursorX = (event.clientX - bounds.left) * canvasScale;
+        const cursorY = (event.clientY - bounds.top) * canvasScale;
+        const previousZoom = zoom;
+        const nextZoom = Math.min(3, Math.max(1, zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
+        if (nextZoom === previousZoom) return;
+        const ratio = nextZoom / previousZoom;
+        centerX = cursorX - (cursorX - centerX) * ratio;
+        centerY = cursorY - (cursorY - centerY) * ratio;
+        zoom = nextZoom;
+        zoomInput.value = String(zoom);
+        draw();
+    }, { passive: false });
+
     canvas.addEventListener('pointerdown', (event) => {
         pointer = { x: event.clientX, y: event.clientY, centerX, centerY };
         canvas.setPointerCapture(event.pointerId);
