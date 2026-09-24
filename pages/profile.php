@@ -337,27 +337,45 @@ if ($user) {
                     <li data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>"><a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
                         <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                         <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
-                    </a></li>
+                    </a><button class="top-eight-remove" type="button" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button></li>
                 <?php endforeach; ?>
                 <?php $visibleTemporaryFriends = max(0, 8 - count($topFriends)); ?>
-                <?php foreach ($temporaryProfileUsers as $temporaryIndex => $temporaryFriend): ?>
-                    <li class="temporary-profile-friend<?= $temporaryIndex >= $visibleTemporaryFriends ? ' top-eight-extra' : '' ?>" data-top-eight-item>
+                <?php foreach (array_slice($temporaryProfileUsers, 0, $visibleTemporaryFriends) as $temporaryFriend): ?>
+                    <li class="temporary-profile-friend" data-top-eight-item>
                         <span class="top-friend-link">
                             <span class="post-avatar" aria-hidden="true">T</span>
                             <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                         </span>
-                    </li>
-                <?php endforeach; ?>
-                <?php foreach ($allFriends as $friend): ?>
-                    <?php if ((int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8) continue; ?>
-                    <li class="top-eight-extra" data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>">
-                        <a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
-                            <span class="post-avatar" aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
-                            <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
-                        </a>
+                        <button class="top-eight-remove" type="button" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button>
                     </li>
                 <?php endforeach; ?>
             </ol>
+            <?php if ($isOwnProfile): ?>
+                <aside class="top-eight-friend-picker" data-top-eight-picker hidden>
+                    <h3>Friends</h3>
+                    <ul data-top-eight-pool>
+                        <?php foreach (array_slice($temporaryProfileUsers, $visibleTemporaryFriends) as $temporaryFriend): ?>
+                            <li class="temporary-profile-friend" data-top-eight-item>
+                                <span class="top-friend-link">
+                                    <span class="post-avatar" aria-hidden="true">T</span>
+                                    <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
+                                </span>
+                                <button type="button" data-top-eight-add aria-label="Add <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
+                            </li>
+                        <?php endforeach; ?>
+                        <?php foreach ($allFriends as $friend): ?>
+                            <?php if ((int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8) continue; ?>
+                            <li data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>">
+                                <a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
+                                    <span class="post-avatar" aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
+                                </a>
+                                <button type="button" data-top-eight-add aria-label="Add <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </aside>
+            <?php endif; ?>
             <?php if ($topEightError): ?><p class="top-eight-error" role="alert"><?= htmlspecialchars($topEightError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <?php if ($isOwnProfile): ?>
                 <div class="top-eight-edit-actions" data-top-eight-actions hidden>

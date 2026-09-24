@@ -218,13 +218,22 @@ a {
 .profile-top-eight .friends-list li > .top-friend-link,
 .profile-top-eight .friends-list .top-friend-link > span { background: transparent; border: 0; }
 .profile-top-eight .friends-reorder { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: pointer; }
-.profile-top-eight .friends-list .top-eight-extra { display: none; }
-.profile-top-eight.is-editing .friends-list .top-eight-extra { display: list-item; }
-.profile-top-eight.is-editing .friends-list { grid-template-rows: none; }
 .profile-top-eight.is-editing [data-top-eight-item] { cursor: grab; user-select: none; }
 .profile-top-eight.is-editing .top-friend-link { pointer-events: none; }
 .profile-top-eight.is-editing [data-top-eight-item]:active { cursor: grabbing; }
 .profile-top-eight .is-dragging { opacity: 0.45; }
+.profile-top-eight .friends-list li { position: relative; }
+.top-eight-remove { position: absolute; top: 0; right: 0; display: none; place-items: center; width: 21px; height: 21px; margin: 0; padding: 0; border-radius: 0; background: #238bc5; color: #fff; }
+.profile-top-eight.is-editing .top-eight-remove { display: grid; }
+.profile-top-eight.is-editing .friends-list .top-friend-link { width: calc(100% - 25px); }
+.top-eight-friend-picker { position: fixed; z-index: 30; width: 260px; max-width: calc(100vw - 16px); max-height: 60vh; overflow: hidden; border: 1px solid #79b9dd; background: #dff2ff; box-shadow: 0 8px 24px rgb(22 59 92 / 28%); }
+.top-eight-friend-picker[hidden] { display: none; }
+.top-eight-friend-picker h3 { margin: 0; padding: 9px 12px; background: #166da5; color: #fff; font-size: 14px; font-weight: 400; }
+.top-eight-friend-picker ul { max-height: calc(60vh - 36px); margin: 0; padding: 6px; overflow-y: auto; list-style: none; }
+.top-eight-friend-picker li { display: flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 2px; font-size: 13px; }
+.top-eight-friend-picker .top-friend-link { flex: 1; min-width: 0; width: auto; }
+.top-eight-friend-picker [data-top-eight-add] { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 0; background: #238bc5; color: #fff; }
+.top-eight-friend-picker [data-top-eight-add]:disabled { opacity: 0.4; cursor: default; }
 .top-eight-edit-actions { display: flex; justify-content: flex-end; gap: 4px; padding: 4px; }
 .top-eight-edit-actions[hidden] { display: none; }
 .top-eight-edit-actions button { display: grid; place-items: center; width: 26px; height: 26px; margin: 0; padding: 0; border-radius: 0; }
