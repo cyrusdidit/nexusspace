@@ -239,6 +239,7 @@ a {
 .top-eight-picker-search:not([hidden]) + ul { max-height: calc(60vh - 78px); }
 .top-eight-friend-picker ul { max-height: calc(60vh - 36px); margin: 0; padding: 6px; overflow-y: auto; list-style: none; }
 .top-eight-friend-picker li { display: flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 2px; font-size: 13px; }
+.top-eight-friend-picker li[hidden] { display: none; }
 .top-eight-friend-picker .top-friend-link { flex: 1; min-width: 0; width: auto; height: 24px; padding: 0; border: 0; background: transparent; font-size: 13px; line-height: 24px; }
 .top-eight-friend-picker .post-avatar { width: 22px; height: 22px; flex-basis: 22px; font-size: 10px; }
 .top-eight-friend-picker [data-top-eight-add] { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 0; background: #238bc5; color: #fff; }
