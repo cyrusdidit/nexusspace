@@ -145,12 +145,15 @@ a {
 .avatar-crop-heading { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #b9e3f8; }
 .avatar-crop-heading h2 { margin: 0; font-size: 16px; }
 .avatar-crop-heading button { display: grid; place-items: center; width: 26px; height: 26px; margin: 0; padding: 0; border: 0; background: transparent; color: #163b5c; font-size: 20px; }
-.avatar-crop-stage { position: relative; width: min(100%, 360px); margin: 16px auto; padding: 0 12px; touch-action: none; }
-.avatar-crop-stage::after { position: absolute; inset: 0 12px; border: 3px solid rgb(255 255 255 / 90%); border-radius: 50%; pointer-events: none; content: ''; }
+.avatar-crop-stage { position: relative; width: min(100%, 360px); margin: 16px auto; padding: 0 12px; overflow: hidden; touch-action: none; }
+.avatar-crop-stage::after { position: absolute; inset: 0 12px; border: 3px solid rgb(255 255 255 / 90%); border-radius: 50%; box-shadow: 0 0 0 999px rgb(0 0 0 / 30%); pointer-events: none; content: ''; }
 .avatar-crop-stage canvas { display: block; width: 100%; aspect-ratio: 1; background: #dff2ff; cursor: grab; }
 .avatar-crop-stage canvas:active { cursor: grabbing; }
 .avatar-zoom-control { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin: 0; padding: 0 16px; font-size: 13px; }
-.avatar-zoom-control input { margin: 0; padding: 0; }
+.avatar-zoom-control input { appearance: none; width: 100%; height: 6px; margin: 0; padding: 0; border: 0; border-radius: 3px; background: #c7d7df; }
+.avatar-zoom-control input::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border: 0; border-radius: 50%; background: #238bc5; cursor: pointer; }
+.avatar-zoom-control input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #238bc5; cursor: pointer; }
+.avatar-zoom-control input::-moz-range-track { height: 6px; border: 0; border-radius: 3px; background: #c7d7df; }
 .avatar-crop-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 16px; }
 .avatar-crop-actions button { height: 36px; margin: 0; border-radius: 4px; }
 .avatar-crop-actions [data-avatar-crop-cancel] { padding: 0 16px; }
