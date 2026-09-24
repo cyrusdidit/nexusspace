@@ -47,6 +47,7 @@ $_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_bio') {
     $token = $_POST['token'] ?? '';
     $bioDraft = is_string($_POST['bio'] ?? null) ? trim($_POST['bio']) : '';
+    $bioDraft = str_replace(["\r\n", "\r"], "\n", $bioDraft);
     if (!$user || !$isOwnProfile) {
         http_response_code(403);
         $bioError = 'You can only edit your own bio.';
@@ -60,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
         mysqli_stmt_bind_param($statement, 'si', $bioDraft, $currentUserId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
-        header('Location: profile.php?id=' . $currentUserId);
+        header('Location: profile.php?id=' . $currentUserId . '&bio_saved=1');
         exit;
     }
 }
@@ -155,7 +156,7 @@ if ($user) {
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
 </head>
-<body class="profile-page">
+<body class="profile-page"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <main class="card profile-sheet">
         <?php if (!$user): ?>
             <h1>Profile not found</h1>
