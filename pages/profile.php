@@ -232,7 +232,7 @@ $topFriends = [];
 $allFriends = [];
 $temporaryProfileUsers = array_map(
     static fn (int $number): array => ['username' => 'TempUser' . $number],
-    range(1, 10)
+    range(1, 20)
 );
 if ($user) {
     $statement = mysqli_prepare($conn, "SELECT p.content, p.visibility, p.created_at FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
@@ -240,8 +240,8 @@ if ($user) {
     mysqli_stmt_execute($statement);
     $profilePosts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);
-    $statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, f.top_eight_position FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, f.top_eight_position, u.username, u.id');
-    mysqli_stmt_bind_param($statement, 'i', $userId);
+    $statement = mysqli_prepare($conn, "SELECT u.id, u.username, u.avatar_path, f.top_eight_position, GREATEST(f.created_at, COALESCE(MAX(m.created_at), f.created_at)) AS last_interaction_at FROM friends f JOIN users u ON u.id = f.friend_id LEFT JOIN messages m ON (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) WHERE f.user_id = ? GROUP BY u.id, u.username, u.avatar_path, f.top_eight_position, f.created_at ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, last_interaction_at DESC, u.username, u.id");
+    mysqli_stmt_bind_param($statement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($statement);
     $allFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     $topFriends = array_values(array_filter($allFriends, static fn (array $friend): bool => (int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8));
@@ -372,7 +372,7 @@ if ($user) {
                         <?php endforeach; ?>
                         <?php foreach ($allFriends as $friend): ?>
                             <?php if ((int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8) continue; ?>
-                            <li data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>">
+                            <li data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>" data-last-interaction="<?= (int) strtotime($friend['last_interaction_at']) ?>">
                                 <a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
                                     <span class="post-avatar" aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
                                     <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>

@@ -16,14 +16,20 @@ if (topEightForm) {
     let draggedItem = null;
 
     const itemsIn = (container) => Array.from(container?.querySelectorAll(':scope > [data-top-eight-item]') || []);
+    itemsIn(pool)
+        .sort((first, second) => Number(second.dataset.lastInteraction || 0) - Number(first.dataset.lastInteraction || 0))
+        .forEach((item) => pool.append(item));
     const updateControls = () => {
         const full = itemsIn(list).length >= 8;
         pool?.querySelectorAll('[data-top-eight-add]').forEach((button) => { button.disabled = full; });
     };
     const filterPool = () => {
         const query = searchInput?.value.trim().toLocaleLowerCase() || '';
+        let visibleCount = 0;
         itemsIn(pool).forEach((item) => {
-            item.hidden = query !== '' && !item.textContent.toLocaleLowerCase().includes(query);
+            const matches = item.textContent.toLocaleLowerCase().includes(query);
+            item.hidden = query !== '' ? !matches : visibleCount >= 10;
+            if (query === '' && !item.hidden) visibleCount++;
         });
     };
     const setSearchOpen = (open) => {
@@ -181,4 +187,5 @@ if (topEightForm) {
         }
     });
     window.addEventListener('resize', positionPicker);
+    filterPool();
 }
