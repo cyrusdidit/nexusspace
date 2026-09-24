@@ -197,6 +197,7 @@ if ($user) {
     <title><?= htmlspecialchars($user['username'] ?? 'Profile not found', ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
+    <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
 </head>
 <body class="profile-page"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <main class="card profile-sheet">
@@ -212,7 +213,7 @@ if ($user) {
                 <form class="profile-picture-upload" method="post" action="profile.php?id=<?= $userId ?>" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="update_avatar">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
-                    <input class="profile-picture-input" id="profile-picture-input" name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="this.form.requestSubmit()">
+                    <input class="profile-picture-input" id="profile-picture-input" name="avatar" type="file" accept="image/jpeg,image/png,image/webp,image/gif">
                     <label class="profile-picture" for="profile-picture-input" title="Change profile picture">
                         <span aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
                         <?php if ($avatarPath !== ''): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?>
@@ -313,5 +314,24 @@ if ($user) {
         <?php endif; ?>
 
     </main>
+    <?php if ($user && $isOwnProfile): ?>
+        <dialog class="avatar-crop-dialog" data-avatar-crop-dialog>
+            <div class="avatar-crop-heading">
+                <h2>Crop profile picture</h2>
+                <button type="button" data-avatar-crop-cancel aria-label="Close crop editor">&times;</button>
+            </div>
+            <div class="avatar-crop-stage">
+                <canvas width="512" height="512" data-avatar-crop-canvas aria-label="Profile picture crop preview"></canvas>
+            </div>
+            <label class="avatar-zoom-control" for="avatar-crop-zoom">
+                <span>Zoom</span>
+                <input id="avatar-crop-zoom" type="range" min="1" max="3" step="0.01" value="1" data-avatar-crop-zoom>
+            </label>
+            <div class="avatar-crop-actions">
+                <button type="button" class="button-secondary" data-avatar-crop-cancel>Cancel</button>
+                <button type="button" data-avatar-crop-save aria-label="Use cropped profile picture">&#10003;</button>
+            </div>
+        </dialog>
+    <?php endif; ?>
 </body>
 </html>

@@ -140,6 +140,20 @@ a {
 .profile-picture-upload:focus-within .profile-picture-overlay { opacity: 1; }
 .profile-picture-upload:focus-within .profile-picture { outline: 2px solid #166da5; outline-offset: 2px; }
 .profile-avatar-error { margin: 0 0 8px; color: #a12c42; font-size: 11px; }
+.avatar-crop-dialog { width: min(92vw, 430px); padding: 0; border: 1px solid #79b9dd; border-radius: 4px; background: #f6fcff; color: #163b5c; }
+.avatar-crop-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.avatar-crop-heading { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #b9e3f8; }
+.avatar-crop-heading h2 { margin: 0; font-size: 16px; }
+.avatar-crop-heading button { display: grid; place-items: center; width: 26px; height: 26px; margin: 0; padding: 0; border: 0; background: transparent; color: #163b5c; font-size: 20px; }
+.avatar-crop-stage { position: relative; width: min(100%, 360px); margin: 16px auto; padding: 0 12px; touch-action: none; }
+.avatar-crop-stage::after { position: absolute; inset: 0 12px; border: 3px solid rgb(255 255 255 / 90%); border-radius: 50%; pointer-events: none; content: ''; }
+.avatar-crop-stage canvas { display: block; width: 100%; aspect-ratio: 1; background: #dff2ff; cursor: grab; }
+.avatar-crop-stage canvas:active { cursor: grabbing; }
+.avatar-zoom-control { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin: 0; padding: 0 16px; font-size: 13px; }
+.avatar-zoom-control input { margin: 0; padding: 0; }
+.avatar-crop-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 16px; }
+.avatar-crop-actions button { margin: 0; }
+.avatar-crop-actions [data-avatar-crop-save] { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 0; }
 .profile-identity h1 { color: #163b5c; font-size: 22px; margin: 0 0 8px; overflow-wrap: anywhere; }
 .profile-handle { color: #166da5; font-size: 13px; font-weight: 700; margin: 0 0 12px; overflow-wrap: anywhere; }
 .profile-bio { font-size: 14px; line-height: 1.5; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
