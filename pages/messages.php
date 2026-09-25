@@ -208,11 +208,17 @@ if ($selectedFriend) {
                 <div class="conversation-content">
                     <?php if ($hasOlder): ?><a href="messages.php?user=<?= $selectedId ?>&amp;before=<?= (int) $messages[0]['id'] ?>">Older messages</a><?php endif; ?>
                     <?php if ($before): ?><p><a href="messages.php?user=<?= $selectedId ?>">Back to latest messages</a></p><?php endif; ?>
-                    <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-poll="<?= $before ? 'false' : 'true' ?>" role="log" aria-label="Messages" tabindex="0">
+                    <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
                         <?php if (!$messages): ?><p data-empty-messages>No messages yet. Say hello!</p><?php endif; ?>
-                        <?php foreach ($messages as $message): ?>
-                            <article class="conversation-message<?= (int) $message['sender_id'] === $currentUserId ? ' is-mine' : '' ?>" data-message-id="<?= (int) $message['id'] ?>">
-                                <strong><?= (int) $message['sender_id'] === $currentUserId ? 'You' : htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        <?php foreach ($messages as $messageIndex => $message): ?>
+                            <?php
+                            $messageIsMine = (int) $message['sender_id'] === $currentUserId;
+                            $nextMessage = $messages[$messageIndex + 1] ?? null;
+                            $showsFriendAvatar = !$messageIsMine && (!$nextMessage || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
+                            ?>
+                            <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= $showsFriendAvatar ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>">
+                                <?php if ($showsFriendAvatar): ?><a class="conversation-message-avatar" href="profile.php?id=<?= $selectedId ?>" aria-label="View <?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>'s profile"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
+                                <strong><?= $messageIsMine ? 'You' : htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
                                 <p><?= htmlspecialchars($message['content'], ENT_QUOTES, 'UTF-8') ?></p>
                                 <small><?= htmlspecialchars($message['created_at'], ENT_QUOTES, 'UTF-8') ?></small>
                             </article>
