@@ -336,9 +336,11 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .conversation-content { display: flex; flex: 1; min-height: 0; flex-direction: column; padding: 14px 18px; }
 .conversation-empty { display: grid; flex: 1; min-height: 0; place-items: center; padding: 24px; text-align: center; }
 .conversation-messages { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; border: 1px solid #b9e3f8; background: #f6fcff; }
-.conversation-message { max-width: min(72%, 680px); margin: 0 auto 12px 0; padding: 10px; overflow-wrap: anywhere; border-radius: 8px; background: #eaf7ff; }
-.conversation-message.is-mine { margin-right: 0; margin-left: auto; background: #b9e3f8; }
-.conversation-message p { margin: 6px 0; white-space: pre-wrap; }
+.conversation-message { width: fit-content; min-width: 72px; max-width: min(72%, 680px); margin: 0 auto 8px 0; padding: 8px 10px 6px; overflow-wrap: anywhere; border: 1px solid #cce7f5; border-radius: 4px 10px 10px; background: #fff; box-shadow: 0 1px 2px rgb(22 59 92 / 10%); }
+.conversation-message.is-mine { margin-right: 0; margin-left: auto; border-color: #9dcce8; border-radius: 10px 4px 10px 10px; background: #b9e3f8; }
+.conversation-message > strong { display: none; }
+.conversation-message p { margin: 0; color: #163b5c; font-size: 14px; line-height: 19px; white-space: pre-wrap; }
+.conversation-message small { margin: 4px 0 0; font-size: 10px; line-height: 12px; text-align: right; }
 .conversation-content form { display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 0 0 auto; gap: 8px; padding-top: 10px; }
 .conversation textarea { width: 100%; min-height: 52px; max-height: 140px; padding: 10px; resize: vertical; border: 1px solid #79b9dd; border-radius: 6px; font: inherit; }
 .conversation form button { align-self: stretch; min-width: 72px; margin: 0; }
