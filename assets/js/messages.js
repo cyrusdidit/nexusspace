@@ -12,15 +12,65 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchEmpty) searchEmpty.hidden = visibleFriends !== 0;
     });
 
+    const page = document.querySelector('[data-messages-page]');
+    const profilePanel = document.querySelector('[data-conversation-profile]');
+    const profileToggle = document.querySelector('[data-conversation-profile-toggle]');
+    const profileClose = document.querySelector('[data-conversation-profile-close]');
+    const setProfileOpen = (open) => {
+        if (!page || !profilePanel || !profileToggle) return;
+        page.classList.toggle('is-profile-open', open);
+        profilePanel.hidden = !open;
+        profileToggle.setAttribute('aria-expanded', String(open));
+        if (open) profileClose?.focus();
+    };
+    profileToggle?.addEventListener('click', () => setProfileOpen(profilePanel.hidden));
+    profileClose?.addEventListener('click', () => {
+        setProfileOpen(false);
+        profileToggle.focus();
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && profilePanel && !profilePanel.hidden) setProfileOpen(false);
+    });
+
     const list = document.querySelector('[data-message-list]');
     const form = document.querySelector('[data-message-form]');
     if (!list || !form || list.dataset.poll !== 'true') return;
     const status = document.querySelector('[data-message-status]');
     const input = form.elements.content;
     const button = form.querySelector('button');
+    const conversationList = document.querySelector('.conversation-list');
+    const selectedFriendItem = document.querySelector('[data-conversation-friend][aria-current="page"]');
     let lastId = Number(list.lastElementChild?.dataset.messageId || 0);
     let refreshing = null;
     list.scrollTop = list.scrollHeight;
+
+    const sidebarTimestamp = (value) => {
+        const date = new Date(value.replace(' ', 'T'));
+        const today = new Date();
+        if (date.toDateString() === today.toDateString()) return value.slice(11, 16);
+        if (date.getFullYear() === today.getFullYear()) return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+    const updateSidebarPreview = (message, mine) => {
+        if (!selectedFriendItem || !conversationList) return;
+        const preview = selectedFriendItem.querySelector('.conversation-list-preview');
+        const heading = selectedFriendItem.querySelector('.conversation-list-heading');
+        if (preview) {
+            preview.textContent = `${mine ? 'You: ' : ''}${message.content}`;
+            preview.classList.remove('is-empty');
+        }
+        let time = heading?.querySelector('time');
+        if (heading && !time) {
+            time = document.createElement('time');
+            heading.append(time);
+        }
+        if (time) {
+            time.dateTime = message.created_at.replace(' ', 'T');
+            time.textContent = sidebarTimestamp(message.created_at);
+        }
+        selectedFriendItem.querySelector('.conversation-unread')?.remove();
+        conversationList.prepend(selectedFriendItem);
+    };
 
     const refresh = () => {
         if (refreshing) return refreshing;
@@ -37,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.querySelector('[data-empty-messages]')?.remove();
                 const item = document.createElement('article');
                 const mine = Number(message.sender_id) === Number(list.dataset.viewer);
+                updateSidebarPreview(message, mine);
                 item.className = `conversation-message${mine ? ' is-mine' : ''}`;
                 item.dataset.messageId = message.id;
                 const author = document.createElement('strong');
@@ -53,6 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
         })().finally(() => { refreshing = null; });
         return refreshing;
     };
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+        event.preventDefault();
+        form.requestSubmit(button);
+    });
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();

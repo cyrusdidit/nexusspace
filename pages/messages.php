@@ -33,7 +33,7 @@ function conversationListTimestamp(?string $value): string
 }
 
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
-$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
+$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
 mysqli_stmt_bind_param($statement, 'iiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $friends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
@@ -176,6 +176,7 @@ if ($isJson) {
                 <?php if ($selectedFriend): ?>
                     <a class="conversation-mobile-back" href="messages.php" aria-label="Back to friends">&larr;</a>
                     <h2><a href="profile.php?id=<?= $selectedId ?>"><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></a></h2>
+                    <button class="conversation-profile-toggle" type="button" aria-label="Open friend profile" title="Open friend profile" aria-controls="conversation-profile" aria-expanded="false" data-conversation-profile-toggle>:</button>
                 <?php else: ?>
                     <h2>Conversation</h2>
                 <?php endif; ?>
@@ -211,7 +212,32 @@ if ($isJson) {
                 </div>
             <?php endif; ?>
         </section>
-        <aside class="conversation-profile" data-conversation-profile aria-label="Conversation profile" hidden></aside>
+        <aside class="conversation-profile" id="conversation-profile" data-conversation-profile aria-label="Conversation profile" hidden>
+            <?php if ($selectedFriend): ?>
+                <?php
+                $selectedAvatar = trim($selectedFriend['avatar_path'] ?? '');
+                if ($selectedAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $selectedAvatar)) {
+                    $selectedAvatar = str_starts_with($selectedAvatar, '/') ? $selectedAvatar : '../' . $selectedAvatar;
+                } else { $selectedAvatar = ''; }
+                $selectedInitial = mb_strtoupper(mb_substr($selectedFriend['username'], 0, 1));
+                $activityLabel = match ($selectedFriend['activity_state'] ?? 'offline') {
+                    'online' => 'Online',
+                    'idle' => 'Idle',
+                    default => $selectedFriend['last_active_at'] ? 'Last seen ' . conversationListTimestamp($selectedFriend['last_active_at']) : 'Offline',
+                };
+                ?>
+                <header class="conversation-profile-header">
+                    <h2>Profile</h2>
+                    <button type="button" aria-label="Close friend profile" title="Close friend profile" data-conversation-profile-close>&times;</button>
+                </header>
+                <div class="conversation-profile-identity">
+                    <span class="conversation-profile-avatar" aria-hidden="true"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></span>
+                    <a href="profile.php?id=<?= $selectedId ?>"><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></a>
+                    <small><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
+                </div>
+                <?php if (trim($selectedFriend['status_text'] ?? '') !== ''): ?><p class="conversation-profile-status"><?= htmlspecialchars($selectedFriend['status_text'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+            <?php endif; ?>
+        </aside>
     </main>
 </body>
 </html>
