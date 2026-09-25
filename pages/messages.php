@@ -126,7 +126,7 @@ if ($isJson) {
 <body>
     <main class="card messages-page">
         <h1>Messages</h1>
-        <nav class="messaging-nav"><a href="../index.php">Dashboard</a> · <a href="friends.php">Friends</a></nav>
+        <nav class="messaging-nav"><a href="../index.php">Dashboard</a></nav>
         <div class="messaging-layout">
             <aside class="conversation-list" aria-label="Choose a friend">
                 <?php if (!$friends): ?><p>Add a friend to start chatting.</p><?php endif; ?>

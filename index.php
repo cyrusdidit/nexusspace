@@ -204,8 +204,8 @@ if (isset($_SESSION['user_id'])) {
 
                 <section class="friends-panel" aria-labelledby="friends-heading">
                     <div class="panel-heading">
-                        <a class="friends-link" id="friends-heading" href="pages/friends.php">Friends <span class="friends-unread-total" data-unread-total hidden></span></a>
-                        <a class="friends-reorder" href="pages/friends.php#top-eight" aria-label="Edit Top 8 friends">
+                        <a class="friends-link" id="friends-heading" href="pages/messages.php">Friends <span class="friends-unread-total" data-unread-total hidden></span></a>
+                        <a class="friends-reorder" href="pages/profile.php#profile-top-eight-heading" aria-label="Edit Top 8 friends">
                             <img src="assets/images/arrows.png" alt="">
                         </a>
                     </div>
@@ -220,7 +220,7 @@ if (isset($_SESSION['user_id'])) {
                             </li>
                         <?php endforeach; ?>
                     </ul>
-                    <?php if (!$topFriends): ?><p class="top-eight-empty"><a href="pages/friends.php#top-eight">Choose your Top 8</a></p><?php endif; ?>
+                    <?php if (!$topFriends): ?><p class="top-eight-empty"><a href="pages/profile.php#profile-top-eight-heading">Choose your Top 8</a></p><?php endif; ?>
                 </section>
 
                 <nav class="sidebar-actions" aria-label="Account actions">
