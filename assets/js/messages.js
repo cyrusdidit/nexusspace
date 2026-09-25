@@ -51,6 +51,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (date.getFullYear() === today.getFullYear()) return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
         return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     };
+    const updateActivity = (friend) => {
+        if (!friend) return;
+        let label = 'Offline';
+        if (friend.activity_state === 'online') label = 'Online';
+        else if (friend.activity_state === 'idle') label = 'Idle';
+        else if (friend.last_active_at) label = `Last seen ${sidebarTimestamp(friend.last_active_at)}`;
+        document.querySelectorAll('[data-conversation-activity]').forEach((element) => { element.textContent = label; });
+    };
     const updateSidebarPreview = (message, mine) => {
         if (!selectedFriendItem || !conversationList) return;
         const preview = selectedFriendItem.querySelector('.conversation-list-preview');
@@ -81,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
             const data = await response.json();
             if (!response.ok || data.error) throw new Error(data.error || 'Could not load messages.');
+            updateActivity(data.friend);
             const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
             data.messages.forEach((message) => {
                 if (Number(message.id) <= lastId) return;

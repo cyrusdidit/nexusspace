@@ -124,6 +124,21 @@ if ($isJson) {
     echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'viewerId' => $currentUserId, 'token' => $token]);
     exit;
 }
+$selectedAvatar = '';
+$selectedInitial = '';
+$activityLabel = '';
+if ($selectedFriend) {
+    $selectedAvatar = trim($selectedFriend['avatar_path'] ?? '');
+    if ($selectedAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $selectedAvatar)) {
+        $selectedAvatar = str_starts_with($selectedAvatar, '/') ? $selectedAvatar : '../' . $selectedAvatar;
+    } else { $selectedAvatar = ''; }
+    $selectedInitial = mb_strtoupper(mb_substr($selectedFriend['username'], 0, 1));
+    $activityLabel = match ($selectedFriend['activity_state'] ?? 'offline') {
+        'online' => 'Online',
+        'idle' => 'Idle',
+        default => $selectedFriend['last_active_at'] ? 'Last seen ' . conversationListTimestamp($selectedFriend['last_active_at']) : 'Offline',
+    };
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -175,7 +190,15 @@ if ($isJson) {
             <header class="conversation-header">
                 <?php if ($selectedFriend): ?>
                     <a class="conversation-mobile-back" href="messages.php" aria-label="Back to friends">&larr;</a>
-                    <h2><a href="profile.php?id=<?= $selectedId ?>"><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></a></h2>
+                    <h2 class="sr-only">Conversation with <?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></h2>
+                    <a class="conversation-header-person" href="profile.php?id=<?= $selectedId ?>">
+                        <span class="conversation-header-avatar" aria-hidden="true"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></span>
+                        <span class="conversation-header-copy">
+                            <strong><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
+                            <small data-conversation-activity><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
+                        </span>
+                    </a>
+                    <button class="conversation-message-search-toggle" type="button" aria-label="Search messages" title="Search messages" aria-expanded="false" data-message-search-toggle><span class="conversation-message-search-icon" aria-hidden="true"></span></button>
                     <button class="conversation-profile-toggle" type="button" aria-label="Open friend profile" title="Open friend profile" aria-controls="conversation-profile" aria-expanded="false" data-conversation-profile-toggle>:</button>
                 <?php else: ?>
                     <h2>Conversation</h2>
@@ -214,18 +237,6 @@ if ($isJson) {
         </section>
         <aside class="conversation-profile" id="conversation-profile" data-conversation-profile aria-label="Conversation profile" hidden>
             <?php if ($selectedFriend): ?>
-                <?php
-                $selectedAvatar = trim($selectedFriend['avatar_path'] ?? '');
-                if ($selectedAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $selectedAvatar)) {
-                    $selectedAvatar = str_starts_with($selectedAvatar, '/') ? $selectedAvatar : '../' . $selectedAvatar;
-                } else { $selectedAvatar = ''; }
-                $selectedInitial = mb_strtoupper(mb_substr($selectedFriend['username'], 0, 1));
-                $activityLabel = match ($selectedFriend['activity_state'] ?? 'offline') {
-                    'online' => 'Online',
-                    'idle' => 'Idle',
-                    default => $selectedFriend['last_active_at'] ? 'Last seen ' . conversationListTimestamp($selectedFriend['last_active_at']) : 'Offline',
-                };
-                ?>
                 <header class="conversation-profile-header">
                     <h2>Profile</h2>
                     <button type="button" aria-label="Close friend profile" title="Close friend profile" data-conversation-profile-close>&times;</button>
@@ -233,7 +244,7 @@ if ($isJson) {
                 <div class="conversation-profile-identity">
                     <span class="conversation-profile-avatar" aria-hidden="true"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></span>
                     <a href="profile.php?id=<?= $selectedId ?>"><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></a>
-                    <small><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
+                    <small data-conversation-activity><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
                 </div>
                 <?php if (trim($selectedFriend['status_text'] ?? '') !== ''): ?><p class="conversation-profile-status"><?= htmlspecialchars($selectedFriend['status_text'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <?php endif; ?>
