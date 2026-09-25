@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const friendSearch = document.querySelector('[data-conversation-search]');
+    const friendItems = Array.from(document.querySelectorAll('[data-conversation-friend]'));
+    const searchEmpty = document.querySelector('[data-conversation-search-empty]');
+    friendSearch?.addEventListener('input', () => {
+        const query = friendSearch.value.trim().toLocaleLowerCase();
+        let visibleFriends = 0;
+        friendItems.forEach((item) => {
+            item.hidden = !item.dataset.friendName.toLocaleLowerCase().includes(query);
+            if (!item.hidden) visibleFriends++;
+        });
+        if (searchEmpty) searchEmpty.hidden = visibleFriends !== 0;
+    });
+
     const list = document.querySelector('[data-message-list]');
     const form = document.querySelector('[data-message-form]');
     if (!list || !form || list.dataset.poll !== 'true') return;

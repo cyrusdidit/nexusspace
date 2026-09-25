@@ -21,9 +21,20 @@ $currentUserId = (int) $_SESSION['user_id'];
 $_SESSION['message_token'] ??= bin2hex(random_bytes(32));
 $token = $_SESSION['message_token'];
 session_write_close();
+
+function conversationListTimestamp(?string $value): string
+{
+    if (!$value) return '';
+    $date = new DateTimeImmutable($value);
+    $today = new DateTimeImmutable('today');
+    if ($date->format('Y-m-d') === $today->format('Y-m-d')) return $date->format('H:i');
+    if ($date->format('Y') === $today->format('Y')) return $date->format('M j');
+    return $date->format('M j, Y');
+}
+
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
-$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, (SELECT COUNT(*) FROM messages m WHERE m.sender_id = u.id AND m.receiver_id = ? AND m.is_read = 0) AS unread_count FROM users u WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY u.username, u.id');
-mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId);
+$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
+mysqli_stmt_bind_param($statement, 'iiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $friends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
 mysqli_stmt_close($statement);
@@ -130,16 +141,34 @@ if ($isJson) {
                 <a class="messages-dashboard-link" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
                 <h1>Messages</h1>
             </header>
+            <div class="conversation-search">
+                <label class="sr-only" for="conversation-search-input">Search friends</label>
+                <input id="conversation-search-input" type="search" placeholder="Search friends" autocomplete="off" data-conversation-search>
+            </div>
             <aside class="conversation-list" aria-label="Choose a friend">
-                <?php if (!$friends): ?><p>Add a friend to start chatting.</p><?php endif; ?>
+                <?php if (!$friends): ?><p data-conversation-list-empty>Add a friend to start chatting.</p><?php endif; ?>
                 <?php foreach ($friends as $friend): ?>
-                    <a href="messages.php?user=<?= (int) $friend['id'] ?>"<?= (int) $friend['id'] === $selectedId ? ' aria-current="page"' : '' ?>>
-                        <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?>
-                        <?php if ((int) $friend['unread_count'] > 0 && (int) $friend['id'] !== $selectedId): ?>
-                            <small><?= (int) $friend['unread_count'] ?> unread</small>
-                        <?php endif; ?>
+                    <?php
+                    $friendAvatar = trim($friend['avatar_path'] ?? '');
+                    if ($friendAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $friendAvatar)) {
+                        $friendAvatar = str_starts_with($friendAvatar, '/') ? $friendAvatar : '../' . $friendAvatar;
+                    } else { $friendAvatar = ''; }
+                    $friendInitial = mb_strtoupper(mb_substr($friend['username'], 0, 1));
+                    $hasConversation = $friend['last_message_at'] !== null;
+                    ?>
+                    <a class="conversation-list-item" href="messages.php?user=<?= (int) $friend['id'] ?>" data-conversation-friend data-friend-name="<?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?>"<?= (int) $friend['id'] === $selectedId ? ' aria-current="page"' : '' ?>>
+                        <span class="conversation-list-avatar" aria-hidden="true"><span><?= htmlspecialchars($friendInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
+                        <span class="conversation-list-details">
+                            <span class="conversation-list-heading">
+                                <strong><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                <?php if ($hasConversation): ?><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $friend['last_message_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationListTimestamp($friend['last_message_at']), ENT_QUOTES, 'UTF-8') ?></time><?php endif; ?>
+                            </span>
+                            <span class="conversation-list-preview<?= $hasConversation ? '' : ' is-empty' ?>"><?php if ($hasConversation && (int) $friend['last_sender_id'] === $currentUserId): ?><span>You: </span><?php endif; ?><?= htmlspecialchars($hasConversation ? $friend['last_message'] : 'Start a conversation!', ENT_QUOTES, 'UTF-8') ?></span>
+                        </span>
+                        <?php if ((int) $friend['unread_count'] > 0 && (int) $friend['id'] !== $selectedId): ?><span class="conversation-unread" aria-label="<?= (int) $friend['unread_count'] ?> unread messages"><?= (int) $friend['unread_count'] ?></span><?php endif; ?>
                     </a>
                 <?php endforeach; ?>
+                <?php if ($friends): ?><p class="conversation-search-empty" data-conversation-search-empty hidden>No friends found.</p><?php endif; ?>
             </aside>
         </section>
         <section class="conversation" aria-label="Conversation">
