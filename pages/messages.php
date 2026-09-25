@@ -119,15 +119,17 @@ if ($isJson) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Messages · NexusSpace</title>
+    <title>Messages &middot; NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/messages.js?v=<?= filemtime(__DIR__ . '/../assets/js/messages.js') ?>" defer></script>
 </head>
-<body>
-    <main class="card messages-page">
-        <h1>Messages</h1>
-        <nav class="messaging-nav"><a href="../index.php">Dashboard</a></nav>
-        <div class="messaging-layout">
+<body class="messages-body">
+    <main class="messages-page<?= $selectedFriend ? ' has-selected-conversation' : '' ?>" data-messages-page>
+        <section class="messages-sidebar" aria-label="Messages navigation">
+            <header class="messages-sidebar-header">
+                <a class="messages-dashboard-link" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
+                <h1>Messages</h1>
+            </header>
             <aside class="conversation-list" aria-label="Choose a friend">
                 <?php if (!$friends): ?><p>Add a friend to start chatting.</p><?php endif; ?>
                 <?php foreach ($friends as $friend): ?>
@@ -139,9 +141,18 @@ if ($isJson) {
                     </a>
                 <?php endforeach; ?>
             </aside>
-            <section class="conversation" aria-label="Conversation">
+        </section>
+        <section class="conversation" aria-label="Conversation">
+            <header class="conversation-header">
                 <?php if ($selectedFriend): ?>
+                    <a class="conversation-mobile-back" href="messages.php" aria-label="Back to friends">&larr;</a>
                     <h2><a href="profile.php?id=<?= $selectedId ?>"><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></a></h2>
+                <?php else: ?>
+                    <h2>Conversation</h2>
+                <?php endif; ?>
+            </header>
+            <?php if ($selectedFriend): ?>
+                <div class="conversation-content">
                     <?php if ($hasOlder): ?><a href="messages.php?user=<?= $selectedId ?>&amp;before=<?= (int) $messages[0]['id'] ?>">Older messages</a><?php endif; ?>
                     <?php if ($before): ?><p><a href="messages.php?user=<?= $selectedId ?>">Back to latest messages</a></p><?php endif; ?>
                     <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-poll="<?= $before ? 'false' : 'true' ?>" role="log" aria-label="Messages" tabindex="0">
@@ -157,17 +168,21 @@ if ($isJson) {
                     <?php if (!$before): ?>
                     <form method="post" action="messages.php?user=<?= $selectedId ?>" data-message-form data-friend-name="<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>">
                         <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                        <label for="message-content">Message</label>
+                        <label class="sr-only" for="message-content">Message</label>
                         <textarea id="message-content" name="content" rows="3" maxlength="2000" required><?= htmlspecialchars($content, ENT_QUOTES, 'UTF-8') ?></textarea>
                         <button type="submit">Send</button>
                     </form>
                     <?php endif; ?>
-                <?php elseif (!$error): ?>
-                    <p>Choose a friend to open your conversation.</p>
-                <?php endif; ?>
-                <p class="message-status" data-message-status role="status"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
-            </section>
-        </div>
+                    <p class="message-status" data-message-status role="status"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+            <?php else: ?>
+                <div class="conversation-empty">
+                    <?php if (!$error): ?><p>Choose a friend to open your conversation.</p><?php endif; ?>
+                    <p class="message-status" data-message-status role="status"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+            <?php endif; ?>
+        </section>
+        <aside class="conversation-profile" data-conversation-profile aria-label="Conversation profile" hidden></aside>
     </main>
 </body>
 </html>
