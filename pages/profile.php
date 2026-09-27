@@ -11,11 +11,12 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../includes/db_connect.php';
 
+$currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
     ? filter_var($_GET['id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
     : (int) $_SESSION['user_id'];
 $userId = $userId === false ? 0 : $userId;
-$isOwnProfile = $userId === (int) $_SESSION['user_id'];
+$isOwnProfile = $userId === $currentUserId;
 $statement = mysqli_prepare(
     $conn,
     'SELECT username, email, registration_date, avatar_path, bio FROM users WHERE id = ? LIMIT 1'
@@ -29,6 +30,16 @@ mysqli_stmt_close($statement);
 if (!$user) {
     http_response_code(404);
 }
+$profileNickname = '';
+if ($user && !$isOwnProfile) {
+    $statement = mysqli_prepare($conn, 'SELECT nickname FROM friends WHERE user_id = ? AND friend_id = ? LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
+    mysqli_stmt_execute($statement);
+    $nicknameRow = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
+    mysqli_stmt_close($statement);
+    $profileNickname = trim($nicknameRow['nickname'] ?? '');
+}
+$profileDisplayName = $profileNickname !== '' ? $profileNickname : ($user['username'] ?? 'Profile not found');
 $avatarPath = trim($user['avatar_path'] ?? '');
 if ($avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath)) {
     $avatarPath = str_starts_with($avatarPath, '/') ? $avatarPath : '../' . $avatarPath;
@@ -41,7 +52,6 @@ $_SESSION['top_eight_token'] ??= bin2hex(random_bytes(32));
 $friendState = 'none';
 $friendError = '';
 $topEightError = '';
-$currentUserId = (int) $_SESSION['user_id'];
 $bioError = '';
 $avatarError = '';
 $bioDraft = (string) ($user['bio'] ?? '');
@@ -253,7 +263,7 @@ if ($user) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars($user['username'] ?? 'Profile not found', ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
+    <title><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
@@ -287,7 +297,7 @@ if ($user) {
                 </div>
             <?php endif; ?>
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
-            <h1><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></h1>
+            <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
             <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
             <?php if (!$isOwnProfile): ?>
@@ -323,7 +333,7 @@ if ($user) {
             <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['top_eight_token'], ENT_QUOTES, 'UTF-8') ?>">
             <span data-top-eight-inputs></span>
             <div class="panel-heading">
-                <h2 class="friends-link" id="profile-top-eight-heading"><?= $isOwnProfile ? 'My top 8 friends' : htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') . "'s top 8 friends" ?></h2>
+                <h2 class="friends-link" id="profile-top-eight-heading"><?= $isOwnProfile ? 'My top 8 friends' : htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') . "'s top 8 friends" ?></h2>
                 <?php if ($isOwnProfile): ?><button class="friends-reorder" type="button" aria-label="Reorder Top 8 friends" title="Reorder Top 8 friends" data-top-eight-edit><img src="../assets/images/arrows.png" alt=""></button><?php endif; ?>
             </div>
             <ol class="friends-list" data-top-eight-list>
@@ -407,7 +417,7 @@ if ($user) {
                     <header class="post-header">
                         <span class="post-author">
                             <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatarPath): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
-                            <span><?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></span>
+                            <span><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></span>
                         </span>
                         <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y \a\t H:i', strtotime($post['created_at'])), ENT_QUOTES, 'UTF-8') ?></time><?php if ($isOwnProfile): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
                     </header>

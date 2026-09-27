@@ -362,7 +362,19 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .conversation-profile-identity { display: flex; align-items: center; flex-direction: column; padding: 28px 18px 20px; border-bottom: 1px solid #cce7f5; text-align: center; }
 .conversation-profile-avatar { position: relative; display: grid; place-items: center; width: 86px; height: 86px; overflow: hidden; margin-bottom: 12px; border: 2px solid #79b9dd; border-radius: 50%; background: #dff2ff; color: #166da5; font-size: 28px; font-weight: 700; }
 .conversation-profile-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.conversation-profile-identity > a { color: #163b5c; font-size: 17px; font-weight: 700; text-decoration: none; }
+.conversation-profile-name-row { display: inline-flex; align-items: center; justify-content: center; max-width: 100%; gap: 4px; white-space: nowrap; }
+.conversation-profile-name-row[hidden] { display: none; }
+.conversation-profile-name-row > a { min-width: 0; overflow: hidden; color: #163b5c; font-size: 17px; font-weight: 700; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-profile-name-row > button { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #1677ad; font-size: 16px; }
+.conversation-profile-name-row > button:hover { background: #dff2ff; color: #163b5c; }
+.conversation-nickname-form { display: grid; grid-template-columns: minmax(72px, 132px) 32px 32px; align-items: end; justify-content: center; max-width: 100%; gap: 4px; }
+.conversation-nickname-form[hidden] { display: none; }
+.conversation-nickname-form input { min-width: 0; height: 32px; padding: 3px 2px 1px; border: 0; border-bottom: 2px solid #163b5c; border-radius: 0; outline: 0; background: transparent; color: #163b5c; font: inherit; font-size: 17px; font-weight: 700; text-align: center; }
+.conversation-nickname-form input:focus { border-bottom-color: #168ac5; }
+.conversation-nickname-form button { display: grid; place-items: center; width: 32px; height: 32px; margin: 0; padding: 0; border-radius: 0; font-size: 17px; }
+.conversation-nickname-status { min-height: 0; margin: 4px 0 0; color: #b42318; font-size: 11px; }
+.conversation-nickname-status:empty { display: none; }
+.conversation-profile-username { margin-top: 2px; color: #47728f; font-size: 11px; }
 .conversation-profile-identity small { margin-top: 4px; }
 .conversation-profile-status { margin: 0; padding: 18px; border-bottom: 1px solid #cce7f5; overflow-wrap: anywhere; white-space: pre-wrap; }
 .conversation-profile-sections { border-top: 1px solid #cce7f5; }

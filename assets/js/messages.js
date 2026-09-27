@@ -72,6 +72,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    const nicknameForm = document.querySelector('[data-nickname-form]');
+    const nicknameStatus = document.querySelector('[data-nickname-status]');
+    const nicknameDisplay = document.querySelector('[data-nickname-display]');
+    const nicknameEdit = document.querySelector('[data-nickname-edit]');
+    const nicknameCancel = document.querySelector('[data-nickname-cancel]');
+    const nicknameInput = nicknameForm?.elements.nickname;
+    const setNicknameEditing = (editing) => {
+        if (!nicknameForm || !nicknameDisplay) return;
+        nicknameDisplay.hidden = editing;
+        nicknameForm.hidden = !editing;
+        if (nicknameStatus) nicknameStatus.textContent = '';
+        if (editing) {
+            nicknameInput.focus();
+            nicknameInput.select();
+        }
+    };
+    nicknameEdit?.addEventListener('click', () => setNicknameEditing(true));
+    nicknameCancel?.addEventListener('click', () => {
+        nicknameInput.value = nicknameForm.dataset.nickname || document.querySelector('[data-selected-friend-name]')?.textContent || '';
+        setNicknameEditing(false);
+        nicknameEdit.focus();
+    });
+    nicknameForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const submitButton = nicknameForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        if (nicknameStatus) nicknameStatus.textContent = 'Saving...';
+        try {
+            const url = new URL(nicknameForm.getAttribute('action'), window.location.href);
+            url.searchParams.set('format', 'json');
+            const response = await fetch(url, { method: 'POST', credentials: 'same-origin', body: new FormData(nicknameForm) });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || 'Could not save nickname.');
+            document.querySelectorAll('[data-selected-friend-name]').forEach((element) => { element.textContent = data.displayName; });
+            const selectedFriendItem = document.querySelector('[data-conversation-friend][aria-current="page"]');
+            if (selectedFriendItem) selectedFriendItem.dataset.friendName = `${data.displayName} ${data.username}`;
+            const messageList = document.querySelector('[data-message-list]');
+            if (messageList) messageList.dataset.friendName = data.displayName;
+            const messageForm = document.querySelector('[data-message-form]');
+            if (messageForm) messageForm.dataset.friendName = data.displayName;
+            const username = document.querySelector('[data-selected-friend-username]');
+            if (username) username.hidden = data.nickname === '';
+            nicknameForm.dataset.nickname = data.nickname;
+            nicknameInput.value = data.displayName;
+            setNicknameEditing(false);
+            nicknameEdit.focus();
+        } catch (error) {
+            if (nicknameStatus) nicknameStatus.textContent = error.message;
+        } finally {
+            submitButton.disabled = false;
+        }
+    });
+
     const list = document.querySelector('[data-message-list]');
     const form = document.querySelector('[data-message-form]');
     if (!list || !form || list.dataset.poll !== 'true') return;

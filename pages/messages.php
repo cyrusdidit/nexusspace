@@ -53,8 +53,8 @@ $viewer = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: ['username' 
 mysqli_stmt_close($statement);
 
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
-$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
-mysqli_stmt_bind_param($statement, 'iiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
+$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, (SELECT f.nickname FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS nickname, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
+mysqli_stmt_bind_param($statement, 'iiiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $friends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
 mysqli_stmt_close($statement);
@@ -74,6 +74,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$selectedFriend || !is_string($submittedToken) || !hash_equals($token, $submittedToken)) {
         http_response_code(403);
         $error = 'Could not send. Refresh the page and choose a friend.';
+    } elseif (($_POST['action'] ?? '') === 'update_nickname') {
+        $nickname = is_string($_POST['nickname'] ?? null) ? trim($_POST['nickname']) : '';
+        $nickname = preg_replace('/\s+/u', ' ', $nickname) ?? '';
+        if (!mb_check_encoding($nickname, 'UTF-8') || mb_strlen($nickname, 'UTF-8') > 50) {
+            http_response_code(422);
+            $error = 'Use 50 characters or fewer.';
+        } else {
+            $statement = mysqli_prepare($conn, "UPDATE friends SET nickname = NULLIF(?, '') WHERE user_id = ? AND friend_id = ?");
+            mysqli_stmt_bind_param($statement, 'sii', $nickname, $currentUserId, $selectedId);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+            $displayName = $nickname !== '' ? $nickname : $selectedFriend['username'];
+            if ($isJson) {
+                echo json_encode(['ok' => true, 'nickname' => $nickname, 'displayName' => $displayName, 'username' => $selectedFriend['username']]);
+                exit;
+            }
+            header('Location: messages.php?user=' . $selectedId);
+            exit;
+        }
     } elseif (($_POST['action'] ?? '') === 'read') {
         $first = filter_var($_POST['first'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $last = filter_var($_POST['last'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -175,6 +194,7 @@ if ($selectedFriend) {
 }
 $selectedAvatar = '';
 $selectedInitial = '';
+$selectedDisplayName = '';
 $activityLabel = '';
 $viewerAvatar = trim($viewer['avatar_path'] ?? '');
 if ($viewerAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $viewerAvatar)) {
@@ -182,6 +202,7 @@ if ($viewerAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $viewer
 } else { $viewerAvatar = ''; }
 $viewerInitial = mb_strtoupper(mb_substr($viewer['username'], 0, 1));
 if ($selectedFriend) {
+    $selectedDisplayName = trim($selectedFriend['nickname'] ?? '') ?: $selectedFriend['username'];
     $selectedAvatar = trim($selectedFriend['avatar_path'] ?? '');
     if ($selectedAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $selectedAvatar)) {
         $selectedAvatar = str_starts_with($selectedAvatar, '/') ? $selectedAvatar : '../' . $selectedAvatar;
@@ -223,13 +244,14 @@ if ($selectedFriend) {
                         $friendAvatar = str_starts_with($friendAvatar, '/') ? $friendAvatar : '../' . $friendAvatar;
                     } else { $friendAvatar = ''; }
                     $friendInitial = mb_strtoupper(mb_substr($friend['username'], 0, 1));
+                    $friendDisplayName = trim($friend['nickname'] ?? '') ?: $friend['username'];
                     $hasConversation = $friend['last_message_at'] !== null;
                     ?>
-                    <a class="conversation-list-item" href="messages.php?user=<?= (int) $friend['id'] ?>" data-conversation-friend data-friend-name="<?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?>"<?= (int) $friend['id'] === $selectedId ? ' aria-current="page"' : '' ?>>
+                    <a class="conversation-list-item" href="messages.php?user=<?= (int) $friend['id'] ?>" data-conversation-friend data-friend-name="<?= htmlspecialchars($friendDisplayName . ' ' . $friend['username'], ENT_QUOTES, 'UTF-8') ?>"<?= (int) $friend['id'] === $selectedId ? ' aria-current="page"' : '' ?>>
                         <span class="conversation-list-avatar" aria-hidden="true"><span><?= htmlspecialchars($friendInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                         <span class="conversation-list-details">
                             <span class="conversation-list-heading">
-                                <strong><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                <strong<?= (int) $friend['id'] === $selectedId ? ' data-selected-friend-name' : '' ?>><?= htmlspecialchars($friendDisplayName, ENT_QUOTES, 'UTF-8') ?></strong>
                                 <?php if ($hasConversation): ?><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $friend['last_message_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationListTimestamp($friend['last_message_at']), ENT_QUOTES, 'UTF-8') ?></time><?php endif; ?>
                             </span>
                             <span class="conversation-list-preview<?= $hasConversation ? '' : ' is-empty' ?>"><?php if ($hasConversation && (int) $friend['last_sender_id'] === $currentUserId): ?><span>You: </span><?php endif; ?><?= htmlspecialchars($hasConversation ? $friend['last_message'] : 'Start a conversation!', ENT_QUOTES, 'UTF-8') ?></span>
@@ -244,11 +266,11 @@ if ($selectedFriend) {
             <header class="conversation-header">
                 <?php if ($selectedFriend): ?>
                     <a class="conversation-mobile-back" href="messages.php" aria-label="Back to friends">&larr;</a>
-                    <h2 class="sr-only">Conversation with <?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></h2>
+                    <h2 class="sr-only">Conversation with <?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?></h2>
                     <a class="conversation-header-person" href="profile.php?id=<?= $selectedId ?>">
                         <span class="conversation-header-avatar" aria-hidden="true"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></span>
                         <span class="conversation-header-copy">
-                            <strong><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
+                            <strong data-selected-friend-name><?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?></strong>
                             <small data-conversation-activity><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
                         </span>
                     </a>
@@ -262,7 +284,7 @@ if ($selectedFriend) {
                 <div class="conversation-content">
                     <?php if ($hasOlder): ?><a href="messages.php?user=<?= $selectedId ?>&amp;before=<?= (int) $messages[0]['id'] ?>">Older messages</a><?php endif; ?>
                     <?php if ($before): ?><p><a href="messages.php?user=<?= $selectedId ?>">Back to latest messages</a></p><?php endif; ?>
-                    <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-viewer-avatar="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" data-viewer-initial="<?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?>" data-viewer-profile="profile.php?id=<?= $currentUserId ?>" data-viewer-name="<?= htmlspecialchars($viewer['username'], ENT_QUOTES, 'UTF-8') ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
+                    <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-viewer-avatar="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" data-viewer-initial="<?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?>" data-viewer-profile="profile.php?id=<?= $currentUserId ?>" data-viewer-name="<?= htmlspecialchars($viewer['username'], ENT_QUOTES, 'UTF-8') ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
                         <?php if (!$messages): ?><p data-empty-messages>No messages yet. Say hello!</p><?php endif; ?>
                         <?php foreach ($messages as $messageIndex => $message): ?>
                             <?php
@@ -278,14 +300,14 @@ if ($selectedFriend) {
                             <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= ($showsFriendAvatar || $showsViewerAvatar) ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>" data-message-date="<?= htmlspecialchars($messageDate, ENT_QUOTES, 'UTF-8') ?>">
                                 <?php if ($showsFriendAvatar): ?><a class="conversation-message-avatar" href="profile.php?id=<?= $selectedId ?>" aria-label="View <?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>'s profile"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
                                 <?php if ($showsViewerAvatar): ?><a class="conversation-message-avatar is-viewer" href="profile.php?id=<?= $currentUserId ?>" aria-label="View your profile"><span><?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($viewerAvatar): ?><img src="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
-                                <strong><?= $messageIsMine ? 'You' : htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                <strong><?= $messageIsMine ? 'You' : htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?></strong>
                                 <p><?= htmlspecialchars($message['content'], ENT_QUOTES, 'UTF-8') ?></p>
                                 <small><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $message['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationMessageTime($message['created_at']), ENT_QUOTES, 'UTF-8') ?></time><?php if ($messageIsMine): ?><span class="message-read-receipt<?= (int) $message['is_read'] === 1 ? ' is-read' : '' ?>" data-read-receipt aria-label="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" title="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" aria-hidden="false"><?= (int) $message['is_read'] === 1 ? '&#10003;&#10003;' : '&#10003;' ?></span><?php endif; ?></small>
                             </article>
                         <?php endforeach; ?>
                     </div>
                     <?php if (!$before): ?>
-                    <form method="post" action="messages.php?user=<?= $selectedId ?>" data-message-form data-friend-name="<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>">
+                    <form method="post" action="messages.php?user=<?= $selectedId ?>" data-message-form data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>">
                         <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
                         <label class="sr-only" for="message-content">Message</label>
                         <textarea id="message-content" name="content" rows="3" maxlength="2000" required><?= htmlspecialchars($content, ENT_QUOTES, 'UTF-8') ?></textarea>
@@ -309,7 +331,20 @@ if ($selectedFriend) {
                 </header>
                 <div class="conversation-profile-identity">
                     <span class="conversation-profile-avatar" aria-hidden="true"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></span>
-                    <a href="profile.php?id=<?= $selectedId ?>"><?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></a>
+                    <div class="conversation-profile-name-row" data-nickname-display>
+                        <a href="profile.php?id=<?= $selectedId ?>" data-selected-friend-name><?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?></a>
+                        <button type="button" data-nickname-edit aria-label="Edit nickname" title="Edit nickname">&#9998;</button>
+                    </div>
+                    <form class="conversation-nickname-form" method="post" action="messages.php?user=<?= $selectedId ?>" data-nickname-form data-nickname="<?= htmlspecialchars($selectedFriend['nickname'] ?? '', ENT_QUOTES, 'UTF-8') ?>" hidden>
+                        <input type="hidden" name="action" value="update_nickname">
+                        <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                        <label class="sr-only" for="friend-nickname">Nickname</label>
+                        <input id="friend-nickname" name="nickname" type="text" maxlength="50" value="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>" placeholder="Friend's nickname" autocomplete="off">
+                        <button type="submit" aria-label="Save nickname" title="Save nickname">&#10003;</button>
+                        <button type="button" data-nickname-cancel aria-label="Cancel nickname editing" title="Cancel">&times;</button>
+                    </form>
+                    <p class="conversation-nickname-status" data-nickname-status role="status" aria-live="polite"></p>
+                    <span class="conversation-profile-username" data-selected-friend-username<?= $selectedDisplayName === $selectedFriend['username'] ? ' hidden' : '' ?>>@<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                     <small data-conversation-activity><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
                 </div>
                 <?php if (trim($selectedFriend['status_text'] ?? '') !== ''): ?><p class="conversation-profile-status"><?= htmlspecialchars($selectedFriend['status_text'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
