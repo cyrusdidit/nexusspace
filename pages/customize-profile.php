@@ -36,8 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Use valid UTF-8 text.';
         } elseif (strlen($templateHtml) > 50000 || strlen($customCss) > 30000) {
             $error = 'HTML must be under 50 KB and CSS must be under 30 KB.';
-        } elseif (trim($customCss) !== '' && sanitizeAndScopeProfileCss($customCss) === '') {
-            $error = 'CSS must use profile selectors without external URLs, @ rules, or fixed positioning.';
         } else {
             saveProfileCustomization($conn, $currentUserId, $templateHtml, $customCss);
             header('Location: customize-profile.php?saved=1');
@@ -73,10 +71,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="profile-customization-fields">
                 <section>
                     <label for="profile-template-html">HTML Template</label>
+                    <div class="profile-customization-warnings" data-html-warnings role="status" hidden></div>
                     <textarea id="profile-template-html" name="template_html" spellcheck="false" maxlength="50000"><?= htmlspecialchars($templateHtml, ENT_QUOTES, 'UTF-8') ?></textarea>
                 </section>
                 <section>
                     <label for="profile-custom-css">CSS</label>
+                    <div class="profile-customization-warnings" data-css-warnings role="status" hidden></div>
                     <textarea id="profile-custom-css" name="custom_css" spellcheck="false" maxlength="30000"><?= htmlspecialchars($customCss, ENT_QUOTES, 'UTF-8') ?></textarea>
                 </section>
                 <section class="profile-customization-preview">

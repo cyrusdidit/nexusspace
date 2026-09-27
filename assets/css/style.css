@@ -417,6 +417,10 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .profile-customization-fields section { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
 .profile-customization-fields section + section { border-left: 1px solid #79b9dd; }
 .profile-customization-fields label { flex: 0 0 42px; margin: 0; padding: 13px 14px 0; border-bottom: 1px solid #79b9dd; background: #f6fcff; font-size: 13px; }
+.profile-customization-warnings { flex: 0 0 auto; max-height: 116px; padding: 8px 12px; overflow-y: auto; border-bottom: 1px solid #e7bd75; background: #fff8df; color: #704d12; font-size: 11px; line-height: 1.4; }
+.profile-customization-warnings[hidden] { display: none; }
+.profile-customization-warnings ul { margin: 0; padding-left: 17px; }
+.profile-customization-warnings li + li { margin-top: 3px; }
 .profile-customization-fields textarea { display: block; flex: 1; width: 100%; min-height: 0; padding: 16px; resize: none; border: 0; outline: 0; background: #fbfdff; color: #163b5c; font: 13px/1.55 Consolas, "Courier New", monospace; tab-size: 4; }
 .profile-customization-fields textarea:focus { box-shadow: inset 3px 0 #238bc5; }
 .profile-customization-preview h2 { flex: 0 0 42px; margin: 0; padding: 13px 14px 0; border-bottom: 1px solid #79b9dd; background: #f6fcff; font-size: 13px; }

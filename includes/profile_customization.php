@@ -137,3 +137,62 @@ function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile
 
     return implode("\n", $safeRules);
 }
+
+function validateProfileTemplate(string $templateHtml): array
+{
+    $warnings = [];
+    $knownPlaceholders = ['profile_header', 'bio', 'top_eight', 'posts'];
+    preg_match_all('/{{\s*([^{}]+?)\s*}}/', $templateHtml, $placeholderMatches);
+    $placeholders = array_count_values($placeholderMatches[1] ?? []);
+
+    foreach ($placeholders as $placeholder => $count) {
+        if (!in_array($placeholder, $knownPlaceholders, true)) {
+            $warnings[] = 'Unknown placeholder {{' . $placeholder . '}} will remain as text.';
+        } elseif ($count > 1) {
+            $warnings[] = '{{' . $placeholder . '}} is used more than once and may duplicate controls or content.';
+        }
+    }
+    foreach ($knownPlaceholders as $placeholder) {
+        if (!isset($placeholders[$placeholder])) $warnings[] = 'Missing {{' . $placeholder . '}}; that profile module will not appear.';
+    }
+
+    if (preg_match('~<(?:base|button|embed|form|iframe|input|link|meta|object|option|script|select|style|textarea)\b~i', $templateHtml)) {
+        $warnings[] = 'Interactive, script, style, or embedded elements are removed from custom HTML.';
+    }
+    if (preg_match('~\s(?:on[a-z]+|style|srcdoc|formaction)\s*=~i', $templateHtml)) {
+        $warnings[] = 'Inline styles and event attributes are removed from custom HTML.';
+    }
+
+    foreach (['div', 'aside', 'section', 'article', 'header', 'footer', 'nav', 'main', 'span'] as $tag) {
+        preg_match_all('~<' . $tag . '\b(?![^>]*?/\s*>)[^>]*>~i', $templateHtml, $openingTags);
+        preg_match_all('~</' . $tag . '\s*>~i', $templateHtml, $closingTags);
+        if (count($openingTags[0]) !== count($closingTags[0])) $warnings[] = 'The <' . $tag . '> tags appear to be unbalanced.';
+    }
+
+    return array_values(array_unique($warnings));
+}
+
+function validateProfileCss(string $customCss): array
+{
+    if (trim($customCss) === '') return [];
+    $warnings = [];
+    $css = preg_replace('~/\*.*?\*/~s', '', $customCss) ?? '';
+
+    if (substr_count($css, '{') !== substr_count($css, '}')) $warnings[] = 'CSS braces are unbalanced.';
+    if (preg_match('/@/', $css)) $warnings[] = '@ rules are not supported yet and will be ignored.';
+    if (preg_match('~url\s*\(~i', $css)) $warnings[] = 'External images, fonts, and other url() resources are blocked.';
+    if (preg_match('~position\s*:\s*fixed\b~i', $css)) $warnings[] = 'Fixed positioning is blocked to keep customization inside the profile.';
+    if (preg_match('~!important\b~i', $css)) $warnings[] = '!important is removed from custom CSS.';
+    if (preg_match('~(?:expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:)~i', $css)) {
+        $warnings[] = 'Unsafe CSS syntax is blocked.';
+    }
+    if (preg_match('#(?:^|[,{]\s*)(?:html|body|:root)(?=$|[\s.\x23:\[>+\x7e,{])#im', $css)) {
+        $warnings[] = 'Global html, body, and :root selectors are ignored.';
+    }
+    if (preg_match('~\.(?:profile-sidebar-actions|profile-icon-button|avatar-crop-dialog)\b~i', $css)) {
+        $warnings[] = 'Protected profile controls cannot be customized.';
+    }
+    if (sanitizeAndScopeProfileCss($customCss) === '' && !$warnings) $warnings[] = 'CSS could not be parsed and will not appear in the preview.';
+
+    return array_values(array_unique($warnings));
+}

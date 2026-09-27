@@ -30,8 +30,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'custom_css' => $draftCss,
     ];
     $_SESSION['profile_preview_drafts'] = array_slice($_SESSION['profile_preview_drafts'], -5, null, true);
-    header('Content-Type: text/plain; charset=utf-8');
-    echo $draftToken;
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'draft' => $draftToken,
+        'warnings' => [
+            'html' => validateProfileTemplate($draftTemplate),
+            'css' => validateProfileCss($draftCss),
+        ],
+    ], JSON_UNESCAPED_SLASHES);
     exit;
 }
 
