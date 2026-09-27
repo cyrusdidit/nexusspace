@@ -107,7 +107,7 @@ $renderedTemplate = strtr($safeTemplate, [
     '{{posts}}' => $profilePosts,
 ]);
 $baseCss = str_replace('</style', '<\/style', file_get_contents(__DIR__ . '/../assets/css/style.css'));
-$customCss = preg_replace('~</style~i', '<\\/style', $customization['custom_css']) ?? '';
+$customCss = sanitizeAndScopeProfileCss($customization['custom_css']);
 
 header('Content-Type: text/html; charset=utf-8');
 header("Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'");
@@ -121,5 +121,5 @@ header('Referrer-Policy: no-referrer');
     <style><?= $baseCss ?></style>
     <style><?= $customCss ?></style>
 </head>
-<body class="profile-page"><?= $renderedTemplate ?></body>
+<body class="profile-page"><div class="profile-custom-content"><?= $renderedTemplate ?></div></body>
 </html>

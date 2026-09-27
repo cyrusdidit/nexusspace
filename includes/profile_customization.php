@@ -9,9 +9,7 @@ const DEFAULT_PROFILE_TEMPLATE = <<<'HTML'
         {{bio}}
         {{top_eight}}
     </aside>
-    <section class="profile-posts">
-        {{posts}}
-    </section>
+    {{posts}}
 </div>
 HTML;
 
@@ -88,4 +86,54 @@ function sanitizeProfileTemplate(string $templateHtml): string
     $safeHtml = '';
     foreach ($root->childNodes as $child) $safeHtml .= $document->saveHTML($child);
     return $safeHtml;
+}
+
+function appendLockedProfileControlsPlaceholder(string $safeTemplate): string
+{
+    $safeTemplate = str_replace('{{profile_controls}}', '', $safeTemplate);
+    $document = new DOMDocument('1.0', 'UTF-8');
+    $previousErrors = libxml_use_internal_errors(true);
+    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $safeTemplate . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousErrors);
+
+    $xpath = new DOMXPath($document);
+    $root = $xpath->query('//*[@id="profile-template-root"]')->item(0);
+    if (!$root) return '{{profile_controls}}';
+    $sidebar = $xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " profile-sidebar ")]')->item(0);
+    ($sidebar ?: $root)->appendChild($document->createTextNode('{{profile_controls}}'));
+
+    $templateWithControls = '';
+    foreach ($root->childNodes as $child) $templateWithControls .= $document->saveHTML($child);
+    return $templateWithControls;
+}
+
+function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile-custom-content'): string
+{
+    $css = preg_replace('~/\*.*?\*/~s', '', $customCss) ?? '';
+    if (trim($css) === '') return '';
+
+    $blockedSyntax = '~(?:@|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i';
+    if (preg_match($blockedSyntax, $css) || substr_count($css, '{') !== substr_count($css, '}')) return '';
+
+    preg_match_all('~([^{}]+)\{([^{}]*)\}~s', $css, $matches, PREG_SET_ORDER);
+    $unparsed = preg_replace('~[^{}]+\{[^{}]*\}~s', '', $css) ?? '';
+    if (trim($unparsed) !== '') return '';
+
+    $safeRules = [];
+    foreach ($matches as $match) {
+        $declarations = trim(preg_replace('~\s*!important\b~i', '', $match[2]) ?? '');
+        if ($declarations === '') continue;
+
+        $safeSelectors = [];
+        foreach (explode(',', $match[1]) as $selector) {
+            $selector = trim($selector);
+            if ($selector === '') continue;
+            if (preg_match('#(?:^|[\s>+\x7e])(?:html|body|:root)(?=$|[\s.\x23:\[>+\x7e])|\.profile-sidebar-actions\b|\.profile-icon-button\b|\.avatar-crop-dialog\b#i', $selector)) continue;
+            $safeSelectors[] = $scope . ' ' . $selector;
+        }
+        if ($safeSelectors) $safeRules[] = implode(', ', $safeSelectors) . " {\n    " . $declarations . "\n}";
+    }
+
+    return implode("\n", $safeRules);
 }

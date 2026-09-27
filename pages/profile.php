@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/profile_customization.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
@@ -257,6 +258,8 @@ if ($user) {
     $topFriends = array_values(array_filter($allFriends, static fn (array $friend): bool => (int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8));
     mysqli_stmt_close($statement);
 }
+$profileCustomization = $user ? readProfileCustomization($conn, $userId) : null;
+$profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileCustomization['custom_css']) : '';
 ?>
 <!doctype html>
 <html lang="en">
@@ -265,6 +268,7 @@ if ($user) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
+    <?php if ($profileCustomCss !== ''): ?><style data-profile-custom-css><?= str_replace('</style', '<\/style', $profileCustomCss) ?></style><?php endif; ?>
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
@@ -436,16 +440,18 @@ if ($user) {
             'top_eight' => $profileTopEightFragment,
             'posts' => $profilePostsFragment,
         ];
+        $safeProfileTemplate = sanitizeProfileTemplate($profileCustomization['template_html']);
+        if (trim($safeProfileTemplate) === '') $safeProfileTemplate = sanitizeProfileTemplate(DEFAULT_PROFILE_TEMPLATE);
+        $safeProfileTemplate = appendLockedProfileControlsPlaceholder($safeProfileTemplate);
+        $renderedProfileTemplate = strtr($safeProfileTemplate, [
+            '{{profile_header}}' => $profileFragments['profile_header'],
+            '{{bio}}' => $profileFragments['bio'],
+            '{{top_eight}}' => $profileFragments['top_eight'],
+            '{{posts}}' => $profileFragments['posts'],
+            '{{profile_controls}}' => $profileControlsFragment,
+        ]);
         ?>
-        <div class="profile-layout">
-            <aside class="profile-sidebar">
-                <?= $profileFragments['profile_header'] ?>
-                <?= $profileFragments['bio'] ?>
-                <?= $profileFragments['top_eight'] ?>
-                <?= $profileControlsFragment ?>
-            </aside>
-            <?= $profileFragments['posts'] ?>
-        </div>
+        <div class="profile-custom-content"><?= $renderedProfileTemplate ?></div>
         <?php endif; ?>
 
     </main>

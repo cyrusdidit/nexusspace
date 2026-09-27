@@ -170,6 +170,7 @@ a {
 .profile-footer { display: flex; justify-content: center; gap: 16px; margin: 0; padding: 16px 24px; border-top: 1px solid #9dcce8; background: #b9e3f8; }
 .profile-footer .button { background: transparent; color: #166da5; padding: 0; margin: 0; font-size: 13px; }
 .profile-page { display: block; padding: 0; }
+.profile-custom-content { display: contents; }
 .profile-page .profile-sheet { width: 100%; min-height: 100vh; border: 0; border-radius: 0; }
 .profile-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
 .profile-sidebar { position: relative; min-width: 0; border-right: 1px solid #9dcce8; background: #f6fcff; }

@@ -36,6 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Use valid UTF-8 text.';
         } elseif (strlen($templateHtml) > 50000 || strlen($customCss) > 30000) {
             $error = 'HTML must be under 50 KB and CSS must be under 30 KB.';
+        } elseif (trim($customCss) !== '' && sanitizeAndScopeProfileCss($customCss) === '') {
+            $error = 'CSS must use profile selectors without external URLs, @ rules, or fixed positioning.';
         } else {
             saveProfileCustomization($conn, $currentUserId, $templateHtml, $customCss);
             header('Location: customize-profile.php?saved=1');
