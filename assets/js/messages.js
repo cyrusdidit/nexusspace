@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const colorOption = document.querySelector('[data-message-color-option]');
     const imageOption = document.querySelector('[data-message-image-option]');
     const backgroundImage = document.querySelector('[data-message-background-image]');
+    const backgroundSurface = document.querySelector('[data-message-list]');
     let backgroundThumbnail = document.querySelector('[data-message-background-thumbnail]');
     let previewImageUrl = '';
     let setCustomizationOpen = () => {};
@@ -37,9 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (open) profileClose?.focus();
     };
     const applyBackground = (type, color, imageUrl = '') => {
-        document.body.style.setProperty('--messages-background-color', color);
         const escapedImageUrl = imageUrl.replace(/["\\]/g, '\\$&');
-        document.body.style.setProperty('--messages-background-image', type === 'image' && imageUrl ? `url("${escapedImageUrl}")` : 'none');
+        if (backgroundSurface) {
+            backgroundSurface.style.backgroundColor = color;
+            backgroundSurface.style.backgroundImage = type === 'image' && imageUrl ? `url("${escapedImageUrl}")` : 'none';
+        }
         if (backgroundValue) backgroundValue.value = color.toUpperCase();
     };
     const showBackgroundThumbnail = (imageUrl) => {
