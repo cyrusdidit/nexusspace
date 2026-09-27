@@ -17,10 +17,16 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/background_customization.php';
 $currentUserId = (int) $_SESSION['user_id'];
 $_SESSION['message_token'] ??= bin2hex(random_bytes(32));
 $token = $_SESSION['message_token'];
 session_write_close();
+$backgroundSettings = readUserBackgroundSettings($conn, $currentUserId);
+$messagesBackground = resolveUserBackground($backgroundSettings, 'messages');
+$messagesBackgroundColor = $messagesBackground['background_type'] === 'color'
+    ? $messagesBackground['color_value']
+    : USER_BACKGROUND_DEFAULTS['messages'];
 
 function conversationListTimestamp(?string $value): string
 {
@@ -63,6 +69,8 @@ foreach ($friends as $friend) {
     if ((int) $friend['id'] === $selectedId) $selectedFriend = $friend;
 }
 $error = '';
+$appearanceError = '';
+$appearancePanelOpen = isset($_GET['customize']);
 $content = '';
 if (isset($_GET['user']) && !$selectedFriend) {
     http_response_code(403);
@@ -71,10 +79,27 @@ if (isset($_GET['user']) && !$selectedFriend) {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $submittedToken = $_POST['token'] ?? '';
-    if (!$selectedFriend || !is_string($submittedToken) || !hash_equals($token, $submittedToken)) {
+    $action = $_POST['action'] ?? '';
+    if (!is_string($submittedToken) || !hash_equals($token, $submittedToken)) {
         http_response_code(403);
         $error = 'Could not send. Refresh the page and choose a friend.';
-    } elseif (($_POST['action'] ?? '') === 'update_nickname') {
+    } elseif ($action === 'update_messages_background') {
+        $appearancePanelOpen = true;
+        $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
+        if (!preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
+            http_response_code(422);
+            $appearanceError = 'Choose a valid background color.';
+        } else {
+            saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, null, null);
+            $redirect = 'messages.php?customize=1&appearance_saved=1';
+            if ($selectedId) $redirect .= '&user=' . $selectedId;
+            header('Location: ' . $redirect);
+            exit;
+        }
+    } elseif (!$selectedFriend) {
+        http_response_code(403);
+        $error = 'Could not send. Refresh the page and choose a friend.';
+    } elseif ($action === 'update_nickname') {
         $nickname = is_string($_POST['nickname'] ?? null) ? trim($_POST['nickname']) : '';
         $nickname = preg_replace('/\s+/u', ' ', $nickname) ?? '';
         if (!mb_check_encoding($nickname, 'UTF-8') || mb_strlen($nickname, 'UTF-8') > 50) {
@@ -224,7 +249,7 @@ if ($selectedFriend) {
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/messages.js?v=<?= filemtime(__DIR__ . '/../assets/js/messages.js') ?>" defer></script>
 </head>
-<body class="messages-body">
+<body class="messages-body" style="--messages-background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>">
     <main class="messages-page<?= $selectedFriend ? ' has-selected-conversation' : '' ?>" data-messages-page>
         <section class="messages-sidebar" aria-label="Messages navigation">
             <header class="messages-sidebar-header">
@@ -279,6 +304,7 @@ if ($selectedFriend) {
                 <?php else: ?>
                     <h2>Conversation</h2>
                 <?php endif; ?>
+                <button class="conversation-customize-toggle" type="button" aria-label="Customize Messages background" title="Customize Messages background" aria-controls="messages-customization" aria-expanded="false" data-message-customization-toggle>&#9681;</button>
             </header>
             <?php if ($selectedFriend): ?>
                 <div class="conversation-content">
@@ -323,6 +349,24 @@ if ($selectedFriend) {
                 </div>
             <?php endif; ?>
         </section>
+        <aside class="messages-customization-panel" id="messages-customization" data-message-customization data-open="<?= $appearancePanelOpen ? 'true' : 'false' ?>" data-saved-color="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" aria-label="Messages customization" hidden>
+            <header class="messages-customization-header">
+                <h2>Appearance</h2>
+                <button type="button" aria-label="Close Messages customization" title="Close" data-message-customization-close>&times;</button>
+            </header>
+            <form class="messages-customization-form" method="post" action="messages.php?customize=1<?= $selectedId ? '&amp;user=' . $selectedId : '' ?>">
+                <input type="hidden" name="action" value="update_messages_background">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                <label for="messages-background-color">Conversation background</label>
+                <div class="messages-background-color-row">
+                    <input id="messages-background-color" type="color" name="background_color" value="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-message-background-color>
+                    <output for="messages-background-color" data-message-background-value><?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                </div>
+                <?php if ($appearanceError !== ''): ?><p class="messages-customization-status is-error" role="alert"><?= htmlspecialchars($appearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                <?php if (isset($_GET['appearance_saved'])): ?><p class="messages-customization-status" role="status">Background saved.</p><?php endif; ?>
+                <button type="submit">Save</button>
+            </form>
+        </aside>
         <aside class="conversation-profile" id="conversation-profile" data-conversation-profile aria-label="Conversation profile" hidden>
             <?php if ($selectedFriend): ?>
                 <header class="conversation-profile-header">

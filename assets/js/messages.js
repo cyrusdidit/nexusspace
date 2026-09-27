@@ -16,20 +16,57 @@ document.addEventListener('DOMContentLoaded', () => {
     const profilePanel = document.querySelector('[data-conversation-profile]');
     const profileToggle = document.querySelector('[data-conversation-profile-toggle]');
     const profileClose = document.querySelector('[data-conversation-profile-close]');
+    const customizationPanel = document.querySelector('[data-message-customization]');
+    const customizationToggle = document.querySelector('[data-message-customization-toggle]');
+    const customizationClose = document.querySelector('[data-message-customization-close]');
+    const backgroundColor = document.querySelector('[data-message-background-color]');
+    const backgroundValue = document.querySelector('[data-message-background-value]');
+    let setCustomizationOpen = () => {};
     const setProfileOpen = (open) => {
         if (!page || !profilePanel || !profileToggle) return;
+        if (open) setCustomizationOpen(false);
         page.classList.toggle('is-profile-open', open);
         profilePanel.hidden = !open;
         profileToggle.setAttribute('aria-expanded', String(open));
         if (open) profileClose?.focus();
+    };
+    const applyBackgroundColor = (color) => {
+        document.body.style.setProperty('--messages-background-color', color);
+        if (backgroundValue) backgroundValue.value = color.toUpperCase();
+    };
+    setCustomizationOpen = (open, restoreColor = true) => {
+        if (!page || !customizationPanel || !customizationToggle) return;
+        if (open) setProfileOpen(false);
+        page.classList.toggle('is-customization-open', open);
+        customizationPanel.hidden = !open;
+        customizationToggle.setAttribute('aria-expanded', String(open));
+        if (!open && restoreColor && backgroundColor) {
+            backgroundColor.value = customizationPanel.dataset.savedColor;
+            applyBackgroundColor(customizationPanel.dataset.savedColor);
+        }
+        if (open) customizationClose?.focus();
     };
     profileToggle?.addEventListener('click', () => setProfileOpen(profilePanel.hidden));
     profileClose?.addEventListener('click', () => {
         setProfileOpen(false);
         profileToggle.focus();
     });
+    customizationToggle?.addEventListener('click', () => setCustomizationOpen(customizationPanel.hidden));
+    customizationClose?.addEventListener('click', () => {
+        setCustomizationOpen(false);
+        customizationToggle.focus();
+    });
+    backgroundColor?.addEventListener('input', () => applyBackgroundColor(backgroundColor.value));
+    if (customizationPanel?.dataset.open === 'true') setCustomizationOpen(true, false);
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && profilePanel && !profilePanel.hidden) setProfileOpen(false);
+        if (event.key !== 'Escape') return;
+        if (customizationPanel && !customizationPanel.hidden) {
+            setCustomizationOpen(false);
+            customizationToggle?.focus();
+        } else if (profilePanel && !profilePanel.hidden) {
+            setProfileOpen(false);
+            profileToggle?.focus();
+        }
     });
 
     const shareProfile = document.querySelector('[data-share-profile]');
