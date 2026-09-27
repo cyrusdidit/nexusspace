@@ -25,7 +25,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const colorOption = document.querySelector('[data-message-color-option]');
     const imageOption = document.querySelector('[data-message-image-option]');
     const backgroundImage = document.querySelector('[data-message-background-image]');
+    const imageFits = Array.from(document.querySelectorAll('[data-message-image-fit]'));
+    const imageBlur = document.querySelector('[data-message-image-blur]');
+    const imageBlurValue = document.querySelector('[data-message-image-blur-value]');
+    const imageCropDialog = document.querySelector('[data-message-image-crop-dialog]');
+    const imageCropCanvas = imageCropDialog?.querySelector('[data-message-image-crop-canvas]');
+    const imageCropZoom = imageCropDialog?.querySelector('[data-message-image-crop-zoom]');
+    const imageCropSave = imageCropDialog?.querySelector('[data-message-image-crop-save]');
+    const imageCropStatus = imageCropDialog?.querySelector('[data-message-image-crop-status]');
+    const imageCropCancel = imageCropDialog?.querySelectorAll('[data-message-image-crop-cancel]') || [];
     const backgroundSurface = document.querySelector('[data-message-list]');
+    const backgroundShell = document.querySelector('[data-message-background-shell]');
+    const backgroundVisual = document.querySelector('[data-message-background-surface]');
     let backgroundThumbnail = document.querySelector('[data-message-background-thumbnail]');
     let previewImageUrl = '';
     let setCustomizationOpen = () => {};
@@ -37,13 +48,19 @@ document.addEventListener('DOMContentLoaded', () => {
         profileToggle.setAttribute('aria-expanded', String(open));
         if (open) profileClose?.focus();
     };
-    const applyBackground = (type, color, imageUrl = '') => {
+    const selectedImageFit = () => imageFits.find((control) => control.checked)?.value || 'cover';
+    const applyBackground = (type, color, imageUrl = '', fit = selectedImageFit(), blur = imageBlur?.value || '0') => {
         const escapedImageUrl = imageUrl.replace(/["\\]/g, '\\$&');
-        if (backgroundSurface) {
-            backgroundSurface.style.backgroundColor = color;
-            backgroundSurface.style.backgroundImage = type === 'image' && imageUrl ? `url("${escapedImageUrl}")` : 'none';
+        if (backgroundShell) backgroundShell.style.backgroundColor = color;
+        if (backgroundVisual) {
+            backgroundVisual.style.backgroundColor = color;
+            backgroundVisual.style.backgroundImage = type === 'image' && imageUrl ? `url("${escapedImageUrl}")` : 'none';
+            backgroundVisual.style.backgroundSize = fit === 'tile' ? 'auto' : fit;
+            backgroundVisual.style.backgroundRepeat = fit === 'tile' ? 'repeat' : 'no-repeat';
+            backgroundVisual.style.filter = `blur(${blur}px)`;
         }
         if (backgroundValue) backgroundValue.value = color.toUpperCase();
+        if (imageBlurValue) imageBlurValue.value = `${blur}px`;
     };
     const showBackgroundThumbnail = (imageUrl) => {
         if (!backgroundThumbnail) return;
@@ -82,6 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
         previewImageUrl = '';
         if (backgroundImage) backgroundImage.value = '';
         if (backgroundColor) backgroundColor.value = customizationPanel.dataset.savedColor;
+        imageFits.forEach((control) => { control.checked = control.value === customizationPanel.dataset.savedFit; });
+        if (imageBlur) imageBlur.value = customizationPanel.dataset.savedBlur;
         showBackgroundThumbnail(customizationPanel.dataset.savedImage);
         setBackgroundMode(customizationPanel.dataset.savedType);
     };
@@ -105,18 +124,147 @@ document.addEventListener('DOMContentLoaded', () => {
         customizationToggle.focus();
     });
     backgroundModes.forEach((control) => control.addEventListener('change', () => setBackgroundMode(selectedBackgroundMode())));
+    imageFits.forEach((control) => control.addEventListener('change', () => setBackgroundMode(selectedBackgroundMode())));
+    imageBlur?.addEventListener('input', () => setBackgroundMode(selectedBackgroundMode()));
     backgroundColor?.addEventListener('input', () => applyBackground('color', backgroundColor.value));
-    backgroundImage?.addEventListener('change', () => {
-        if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
-        const file = backgroundImage.files?.[0];
-        previewImageUrl = file ? URL.createObjectURL(file) : '';
-        const imageUrl = previewImageUrl || customizationPanel?.dataset.savedImage || '';
-        showBackgroundThumbnail(imageUrl);
-        applyBackground('image', backgroundColor?.value || '#f6fcff', imageUrl);
-    });
+
+    if (backgroundImage && imageCropDialog && imageCropCanvas && imageCropZoom && imageCropSave) {
+        const cropContext = imageCropCanvas.getContext('2d');
+        const cropImage = new Image();
+        let cropSourceUrl = '';
+        let cropBaseScale = 1;
+        let cropZoom = 1;
+        let cropCenterX = imageCropCanvas.width / 2;
+        let cropCenterY = imageCropCanvas.height / 2;
+        let cropPointer = null;
+
+        const constrainCrop = () => {
+            const width = cropImage.naturalWidth * cropBaseScale * cropZoom;
+            const height = cropImage.naturalHeight * cropBaseScale * cropZoom;
+            cropCenterX = Math.min(width / 2, Math.max(imageCropCanvas.width - width / 2, cropCenterX));
+            cropCenterY = Math.min(height / 2, Math.max(imageCropCanvas.height - height / 2, cropCenterY));
+            if (width <= imageCropCanvas.width) cropCenterX = imageCropCanvas.width / 2;
+            if (height <= imageCropCanvas.height) cropCenterY = imageCropCanvas.height / 2;
+        };
+        const drawCrop = () => {
+            constrainCrop();
+            const width = cropImage.naturalWidth * cropBaseScale * cropZoom;
+            const height = cropImage.naturalHeight * cropBaseScale * cropZoom;
+            cropContext.clearRect(0, 0, imageCropCanvas.width, imageCropCanvas.height);
+            cropContext.drawImage(cropImage, cropCenterX - width / 2, cropCenterY - height / 2, width, height);
+        };
+        const releaseCropSource = () => {
+            if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl);
+            cropSourceUrl = '';
+            cropImage.removeAttribute('src');
+        };
+        const cancelCrop = () => {
+            imageCropDialog.close();
+            backgroundImage.value = '';
+            imageCropSave.disabled = false;
+            releaseCropSource();
+            const imageUrl = previewImageUrl || customizationPanel?.dataset.savedImage || '';
+            showBackgroundThumbnail(imageUrl);
+            setBackgroundMode(selectedBackgroundMode());
+        };
+
+        backgroundImage.addEventListener('change', () => {
+            const file = backgroundImage.files?.[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                backgroundImage.value = '';
+                return;
+            }
+            releaseCropSource();
+            cropSourceUrl = URL.createObjectURL(file);
+            imageCropSave.disabled = true;
+            if (imageCropStatus) {
+                imageCropStatus.textContent = 'Loading preview...';
+                imageCropStatus.hidden = false;
+            }
+            if (!imageCropDialog.open) imageCropDialog.showModal();
+            cropImage.onload = () => {
+                cropBaseScale = Math.max(imageCropCanvas.width / cropImage.naturalWidth, imageCropCanvas.height / cropImage.naturalHeight);
+                cropZoom = 1;
+                imageCropZoom.value = '1';
+                cropCenterX = imageCropCanvas.width / 2;
+                cropCenterY = imageCropCanvas.height / 2;
+                drawCrop();
+                if (imageCropStatus) imageCropStatus.hidden = true;
+                imageCropSave.disabled = false;
+            };
+            cropImage.onerror = () => {
+                if (imageCropStatus) imageCropStatus.textContent = 'This image could not be opened. Choose a JPG, PNG, WebP, or GIF image.';
+            };
+            cropImage.src = cropSourceUrl;
+        });
+        imageCropZoom.addEventListener('input', () => {
+            cropZoom = Number(imageCropZoom.value);
+            drawCrop();
+        });
+        imageCropCanvas.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            const bounds = imageCropCanvas.getBoundingClientRect();
+            const scale = imageCropCanvas.width / bounds.width;
+            const cursorX = (event.clientX - bounds.left) * scale;
+            const cursorY = (event.clientY - bounds.top) * scale;
+            const previousZoom = cropZoom;
+            const nextZoom = Math.min(3, Math.max(1, cropZoom + (event.deltaY < 0 ? 0.1 : -0.1)));
+            if (nextZoom === previousZoom) return;
+            const ratio = nextZoom / previousZoom;
+            cropCenterX = cursorX - (cursorX - cropCenterX) * ratio;
+            cropCenterY = cursorY - (cursorY - cropCenterY) * ratio;
+            cropZoom = nextZoom;
+            imageCropZoom.value = String(cropZoom);
+            drawCrop();
+        }, { passive: false });
+        imageCropCanvas.addEventListener('pointerdown', (event) => {
+            cropPointer = { x: event.clientX, y: event.clientY, centerX: cropCenterX, centerY: cropCenterY };
+            imageCropCanvas.setPointerCapture(event.pointerId);
+        });
+        imageCropCanvas.addEventListener('pointermove', (event) => {
+            if (!cropPointer) return;
+            const scale = imageCropCanvas.width / imageCropCanvas.getBoundingClientRect().width;
+            cropCenterX = cropPointer.centerX + (event.clientX - cropPointer.x) * scale;
+            cropCenterY = cropPointer.centerY + (event.clientY - cropPointer.y) * scale;
+            drawCrop();
+        });
+        imageCropCanvas.addEventListener('pointerup', () => { cropPointer = null; });
+        imageCropCanvas.addEventListener('pointercancel', () => { cropPointer = null; });
+        imageCropCancel.forEach((button) => button.addEventListener('click', cancelCrop));
+        imageCropDialog.addEventListener('cancel', (event) => {
+            event.preventDefault();
+            cancelCrop();
+        });
+        imageCropDialog.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || imageCropSave.disabled) return;
+            event.preventDefault();
+            imageCropSave.click();
+        });
+        imageCropSave.addEventListener('click', () => {
+            imageCropSave.disabled = true;
+            imageCropCanvas.toBlob((blob) => {
+                if (!blob) {
+                    imageCropSave.disabled = false;
+                    return;
+                }
+                const transfer = new DataTransfer();
+                transfer.items.add(new File([blob], 'messages-background.jpg', { type: 'image/jpeg' }));
+                backgroundImage.files = transfer.files;
+                if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+                previewImageUrl = URL.createObjectURL(blob);
+                showBackgroundThumbnail(previewImageUrl);
+                applyBackground('image', backgroundColor?.value || '#f6fcff', previewImageUrl);
+                imageCropDialog.close();
+                releaseCropSource();
+                imageCropSave.disabled = false;
+            }, 'image/jpeg', 0.92);
+        });
+    }
     if (customizationPanel?.dataset.open === 'true') setCustomizationOpen(true, false);
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
+        if (imageCropDialog?.open) return;
         if (customizationPanel && !customizationPanel.hidden) {
             setCustomizationOpen(false);
             customizationToggle?.focus();

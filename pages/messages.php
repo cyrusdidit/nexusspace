@@ -30,6 +30,10 @@ $messagesBackgroundImagePath = $messagesBackground['image_path'];
 $messagesBackgroundImageUrl = $messagesBackgroundImagePath ? '../' . $messagesBackgroundImagePath : '';
 $messagesBackgroundType = $messagesBackground['background_type'] === 'image' && $messagesBackgroundImageUrl !== '' ? 'image' : 'color';
 $messagesBackgroundImageCss = $messagesBackgroundType === 'image' ? 'url("' . $messagesBackgroundImageUrl . '")' : 'none';
+$messagesBackgroundFit = $messagesBackground['image_fit'];
+$messagesBackgroundBlur = $messagesBackground['image_blur'];
+$messagesBackgroundSize = $messagesBackgroundFit === 'tile' ? 'auto' : $messagesBackgroundFit;
+$messagesBackgroundRepeat = $messagesBackgroundFit === 'tile' ? 'repeat' : 'no-repeat';
 $messagesSavedBackgroundType = $messagesBackgroundType;
 
 function conversationListTimestamp(?string $value): string
@@ -96,6 +100,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $appearancePanelOpen = true;
         $submittedType = is_string($_POST['background_type'] ?? null) ? $_POST['background_type'] : '';
         $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
+        $submittedFit = is_string($_POST['image_fit'] ?? null) ? $_POST['image_fit'] : '';
+        $submittedBlur = filter_var($_POST['image_blur'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 20]]);
         $messagesBackgroundType = $submittedType;
         if (!in_array($submittedType, ['color', 'image'], true)) {
             http_response_code(422);
@@ -103,6 +109,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($submittedType === 'color' && !preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
             http_response_code(422);
             $appearanceError = 'Choose a valid background color.';
+        } elseif (!in_array($submittedFit, USER_BACKGROUND_IMAGE_FITS, true) || $submittedBlur === false) {
+            http_response_code(422);
+            $appearanceError = 'Choose valid image display settings.';
         } else {
             $previousImagePath = $messagesOwnBackground['image_path'];
             $savedImagePath = $previousImagePath;
@@ -115,9 +124,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } elseif (!$savedImagePath) {
                         throw new InvalidArgumentException('Choose an image to upload.');
                     }
-                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'image', $savedColor, $savedImagePath, null);
+                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'image', $savedColor, $savedImagePath, null, $submittedFit, $submittedBlur);
                 } else {
-                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, $savedImagePath, null);
+                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, $savedImagePath, null, $submittedFit, $submittedBlur);
                 }
                 if ($previousImagePath && $savedImagePath !== $previousImagePath) {
                     deleteUserBackgroundImage($previousImagePath, $currentUserId);
@@ -134,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'reset_messages_background') {
         $previousImagePath = $messagesOwnBackground['image_path'];
-        saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', USER_BACKGROUND_DEFAULTS['messages'], null, null);
+        saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', USER_BACKGROUND_DEFAULTS['messages'], null, null, 'cover');
         deleteUserBackgroundImage($previousImagePath, $currentUserId);
         $redirect = 'messages.php?customize=1&appearance_reset=1';
         if ($selectedId) $redirect .= '&user=' . $selectedId;
@@ -354,7 +363,9 @@ if ($selectedFriend) {
                 <div class="conversation-content">
                     <?php if ($hasOlder): ?><a href="messages.php?user=<?= $selectedId ?>&amp;before=<?= (int) $messages[0]['id'] ?>">Older messages</a><?php endif; ?>
                     <?php if ($before): ?><p><a href="messages.php?user=<?= $selectedId ?>">Back to latest messages</a></p><?php endif; ?>
-                    <div class="conversation-messages" style="background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>; background-image: <?= htmlspecialchars($messagesBackgroundImageCss, ENT_QUOTES, 'UTF-8') ?>" data-message-list data-viewer="<?= $currentUserId ?>" data-viewer-avatar="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" data-viewer-initial="<?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?>" data-viewer-profile="profile.php?id=<?= $currentUserId ?>" data-viewer-name="<?= htmlspecialchars($viewer['username'], ENT_QUOTES, 'UTF-8') ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
+                    <div class="conversation-messages-shell" style="background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-message-background-shell>
+                        <div class="conversation-background" style="background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>; background-image: <?= htmlspecialchars($messagesBackgroundImageCss, ENT_QUOTES, 'UTF-8') ?>; background-size: <?= htmlspecialchars($messagesBackgroundSize, ENT_QUOTES, 'UTF-8') ?>; background-repeat: <?= $messagesBackgroundRepeat ?>; filter: blur(<?= $messagesBackgroundBlur ?>px)" data-message-background-surface aria-hidden="true"></div>
+                        <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-viewer-avatar="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" data-viewer-initial="<?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?>" data-viewer-profile="profile.php?id=<?= $currentUserId ?>" data-viewer-name="<?= htmlspecialchars($viewer['username'], ENT_QUOTES, 'UTF-8') ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
                         <?php if (!$messages): ?><p data-empty-messages>No messages yet. Say hello!</p><?php endif; ?>
                         <?php foreach ($messages as $messageIndex => $message): ?>
                             <?php
@@ -375,6 +386,7 @@ if ($selectedFriend) {
                                 <small><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $message['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationMessageTime($message['created_at']), ENT_QUOTES, 'UTF-8') ?></time><?php if ($messageIsMine): ?><span class="message-read-receipt<?= (int) $message['is_read'] === 1 ? ' is-read' : '' ?>" data-read-receipt aria-label="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" title="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" aria-hidden="false"><?= (int) $message['is_read'] === 1 ? '&#10003;&#10003;' : '&#10003;' ?></span><?php endif; ?></small>
                             </article>
                         <?php endforeach; ?>
+                        </div>
                     </div>
                     <?php if (!$before): ?>
                     <form method="post" action="messages.php?user=<?= $selectedId ?>" data-message-form data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>">
@@ -393,7 +405,7 @@ if ($selectedFriend) {
                 </div>
             <?php endif; ?>
         </section>
-        <aside class="messages-customization-panel" id="messages-customization" data-message-customization data-open="<?= $appearancePanelOpen ? 'true' : 'false' ?>" data-saved-type="<?= htmlspecialchars($messagesSavedBackgroundType, ENT_QUOTES, 'UTF-8') ?>" data-saved-color="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-saved-image="<?= htmlspecialchars($messagesBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Messages customization" hidden>
+        <aside class="messages-customization-panel" id="messages-customization" data-message-customization data-open="<?= $appearancePanelOpen ? 'true' : 'false' ?>" data-saved-type="<?= htmlspecialchars($messagesSavedBackgroundType, ENT_QUOTES, 'UTF-8') ?>" data-saved-color="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-saved-image="<?= htmlspecialchars($messagesBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" data-saved-fit="<?= htmlspecialchars($messagesBackgroundFit, ENT_QUOTES, 'UTF-8') ?>" data-saved-blur="<?= $messagesBackgroundBlur ?>" aria-label="Messages customization" hidden>
             <header class="messages-customization-header">
                 <h2>Appearance</h2>
                 <button type="button" aria-label="Close Messages customization" title="Close" data-message-customization-close>&times;</button>
@@ -417,6 +429,16 @@ if ($selectedFriend) {
                     <?php if ($messagesBackgroundImageUrl !== ''): ?><img class="messages-background-thumbnail" src="<?= htmlspecialchars($messagesBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Current Messages background" data-message-background-thumbnail><?php else: ?><div class="messages-background-thumbnail is-empty" data-message-background-thumbnail>No image selected</div><?php endif; ?>
                     <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
                     <input id="messages-background-image" type="file" name="background_image" accept="image/jpeg,image/png,image/webp,image/gif" data-message-background-image>
+                    <fieldset class="messages-image-fit">
+                        <legend>Display</legend>
+                        <label><input type="radio" name="image_fit" value="cover"<?= $messagesBackgroundFit === 'cover' ? ' checked' : '' ?> data-message-image-fit> Fill</label>
+                        <label><input type="radio" name="image_fit" value="contain"<?= $messagesBackgroundFit === 'contain' ? ' checked' : '' ?> data-message-image-fit> Fit</label>
+                        <label><input type="radio" name="image_fit" value="tile"<?= $messagesBackgroundFit === 'tile' ? ' checked' : '' ?> data-message-image-fit> Tile</label>
+                    </fieldset>
+                    <label class="messages-image-blur-control" for="messages-image-blur">
+                        <span>Blur <output for="messages-image-blur" data-message-image-blur-value><?= $messagesBackgroundBlur ?>px</output></span>
+                        <input id="messages-image-blur" type="range" name="image_blur" min="0" max="20" step="1" value="<?= $messagesBackgroundBlur ?>" data-message-image-blur>
+                    </label>
                 </div>
                 <?php if ($appearanceError !== ''): ?><p class="messages-customization-status is-error" role="alert"><?= htmlspecialchars($appearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 <?php if (isset($_GET['appearance_saved'])): ?><p class="messages-customization-status" role="status">Background saved.</p><?php endif; ?>
@@ -498,5 +520,23 @@ if ($selectedFriend) {
             <?php endif; ?>
         </aside>
     </main>
+    <dialog class="messages-image-crop-dialog" data-message-image-crop-dialog>
+        <div class="messages-image-crop-heading">
+            <h2>Frame background image</h2>
+            <button type="button" data-message-image-crop-cancel aria-label="Close background image editor">&times;</button>
+        </div>
+        <div class="messages-image-crop-stage">
+            <canvas width="1280" height="720" data-message-image-crop-canvas aria-label="Messages background crop preview"></canvas>
+            <p data-message-image-crop-status role="status">Loading preview...</p>
+        </div>
+        <label class="messages-image-zoom-control" for="messages-image-crop-zoom">
+            <span>Zoom</span>
+            <input id="messages-image-crop-zoom" type="range" min="1" max="3" step="0.01" value="1" data-message-image-crop-zoom>
+        </label>
+        <div class="messages-image-crop-actions">
+            <button type="button" class="button-secondary" data-message-image-crop-cancel>Cancel</button>
+            <button type="button" data-message-image-crop-save aria-label="Use framed background image">&#10003;</button>
+        </div>
+    </dialog>
 </body>
 </html>
