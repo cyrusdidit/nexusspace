@@ -25,13 +25,11 @@ session_write_close();
 $backgroundSettings = readUserBackgroundSettings($conn, $currentUserId);
 $messagesOwnBackground = $backgroundSettings['messages'];
 $messagesBackground = resolveUserBackground($backgroundSettings, 'messages');
-$messagesBackgroundColor = $messagesBackground['background_type'] === 'color'
-    ? $messagesBackground['color_value']
-    : USER_BACKGROUND_DEFAULTS['messages'];
-$messagesBackgroundImagePath = $messagesBackground['background_type'] === 'image' ? $messagesBackground['image_path'] : null;
+$messagesBackgroundColor = $messagesBackground['color_value'];
+$messagesBackgroundImagePath = $messagesBackground['image_path'];
 $messagesBackgroundImageUrl = $messagesBackgroundImagePath ? '../' . $messagesBackgroundImagePath : '';
-$messagesBackgroundImageCss = $messagesBackgroundImageUrl !== '' ? 'url("' . $messagesBackgroundImageUrl . '")' : 'none';
-$messagesBackgroundType = $messagesBackground['background_type'] === 'image' ? 'image' : 'color';
+$messagesBackgroundType = $messagesBackground['background_type'] === 'image' && $messagesBackgroundImageUrl !== '' ? 'image' : 'color';
+$messagesBackgroundImageCss = $messagesBackgroundType === 'image' ? 'url("' . $messagesBackgroundImageUrl . '")' : 'none';
 $messagesSavedBackgroundType = $messagesBackgroundType;
 
 function conversationListTimestamp(?string $value): string
@@ -106,8 +104,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(422);
             $appearanceError = 'Choose a valid background color.';
         } else {
-            $previousImagePath = $messagesOwnBackground['background_type'] === 'image' ? $messagesOwnBackground['image_path'] : null;
+            $previousImagePath = $messagesOwnBackground['image_path'];
             $savedImagePath = $previousImagePath;
+            $savedColor = $messagesOwnBackground['color_value'];
             try {
                 if ($submittedType === 'image') {
                     $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
@@ -116,11 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } elseif (!$savedImagePath) {
                         throw new InvalidArgumentException('Choose an image to upload.');
                     }
-                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'image', null, $savedImagePath, null);
+                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'image', $savedColor, $savedImagePath, null);
                 } else {
-                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, null, null);
+                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, $savedImagePath, null);
                 }
-                if ($previousImagePath && ($submittedType === 'color' || $savedImagePath !== $previousImagePath)) {
+                if ($previousImagePath && $savedImagePath !== $previousImagePath) {
                     deleteUserBackgroundImage($previousImagePath, $currentUserId);
                 }
                 $redirect = 'messages.php?customize=1&appearance_saved=1';
@@ -134,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } elseif ($action === 'reset_messages_background') {
-        $previousImagePath = $messagesOwnBackground['background_type'] === 'image' ? $messagesOwnBackground['image_path'] : null;
+        $previousImagePath = $messagesOwnBackground['image_path'];
         saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', USER_BACKGROUND_DEFAULTS['messages'], null, null);
         deleteUserBackgroundImage($previousImagePath, $currentUserId);
         $redirect = 'messages.php?customize=1&appearance_reset=1';

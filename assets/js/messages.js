@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
         backgroundModes.forEach((control) => { control.checked = control.value === type; });
         if (colorOption) colorOption.hidden = type !== 'color';
         if (imageOption) imageOption.hidden = type !== 'image';
-        const imageUrl = previewImageUrl || (customizationPanel?.dataset.savedType === 'image' ? customizationPanel.dataset.savedImage : '');
+        const imageUrl = previewImageUrl || customizationPanel?.dataset.savedImage || '';
         applyBackground(type, backgroundColor?.value || customizationPanel?.dataset.savedColor || '#f6fcff', imageUrl);
     };
     const resetBackgroundControls = () => {
@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
         const file = backgroundImage.files?.[0];
         previewImageUrl = file ? URL.createObjectURL(file) : '';
-        const imageUrl = previewImageUrl || (customizationPanel?.dataset.savedType === 'image' ? customizationPanel.dataset.savedImage : '');
+        const imageUrl = previewImageUrl || customizationPanel?.dataset.savedImage || '';
         showBackgroundThumbnail(imageUrl);
         applyBackground('image', backgroundColor?.value || '#f6fcff', imageUrl);
     });

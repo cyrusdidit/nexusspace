@@ -52,14 +52,15 @@ function saveUserBackgroundSetting(mysqli $conn, int $userId, string $region, st
 {
     if (!in_array($region, USER_BACKGROUND_REGIONS, true)) throw new InvalidArgumentException('Unknown background region.');
     if (!in_array($type, ['color', 'image', 'linked'], true)) throw new InvalidArgumentException('Unknown background type.');
-    if ($type === 'color' && !preg_match('/^#[0-9a-f]{6}$/i', $color ?? '')) throw new InvalidArgumentException('Invalid background color.');
-    if ($type === 'image' && !preg_match('~^uploads/backgrounds/[a-z0-9._-]+$~i', $imagePath ?? '')) throw new InvalidArgumentException('Invalid background image path.');
+    if ($color !== null && !preg_match('/^#[0-9a-f]{6}$/i', $color)) throw new InvalidArgumentException('Invalid background color.');
+    if ($imagePath !== null && !preg_match('~^uploads/backgrounds/[a-z0-9._-]+$~i', $imagePath)) throw new InvalidArgumentException('Invalid background image path.');
+    if ($type === 'color' && $color === null) throw new InvalidArgumentException('Invalid background color.');
+    if ($type === 'image' && $imagePath === null) throw new InvalidArgumentException('Invalid background image path.');
     if ($type === 'linked' && (!in_array($linkedRegion, USER_BACKGROUND_REGIONS, true) || $linkedRegion === $region)) {
         throw new InvalidArgumentException('Invalid linked background region.');
     }
 
-    $color = $type === 'color' ? strtolower((string) $color) : null;
-    $imagePath = $type === 'image' ? $imagePath : null;
+    $color = $color !== null ? strtolower($color) : null;
     $linkedRegion = $type === 'linked' ? $linkedRegion : null;
     $statement = mysqli_prepare($conn, 'INSERT INTO user_backgrounds (user_id, region, background_type, color_value, image_path, linked_region) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE background_type = VALUES(background_type), color_value = VALUES(color_value), image_path = VALUES(image_path), linked_region = VALUES(linked_region)');
     mysqli_stmt_bind_param($statement, 'isssss', $userId, $region, $type, $color, $imagePath, $linkedRegion);
