@@ -109,11 +109,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $messages = [];
+$lastReadOutgoingId = 0;
 $before = filter_var($_GET['before'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
 $after = filter_var($_GET['after'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
 $hasOlder = false;
 if ($selectedFriend && $error === '') {
-    $sql = 'SELECT id, sender_id, content, created_at FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))';
+    $sql = 'SELECT id, sender_id, content, created_at, is_read FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))';
     if ($after) {
         $sql .= ' AND id > ? ORDER BY id ASC LIMIT 100';
         $boundary = $after;
@@ -139,9 +140,15 @@ if ($selectedFriend && $error === '') {
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
     }
+
+    $statement = mysqli_prepare($conn, 'SELECT COALESCE(MAX(id), 0) AS last_read_id FROM messages WHERE sender_id = ? AND receiver_id = ? AND is_read = 1');
+    mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $selectedId);
+    mysqli_stmt_execute($statement);
+    $lastReadOutgoingId = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['last_read_id'] ?? 0);
+    mysqli_stmt_close($statement);
 }
 if ($isJson) {
-    echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'viewerId' => $currentUserId, 'token' => $token]);
+    echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token]);
     exit;
 }
 $selectedAvatar = '';
@@ -251,7 +258,7 @@ if ($selectedFriend) {
                                 <?php if ($showsViewerAvatar): ?><a class="conversation-message-avatar is-viewer" href="profile.php?id=<?= $currentUserId ?>" aria-label="View your profile"><span><?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($viewerAvatar): ?><img src="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
                                 <strong><?= $messageIsMine ? 'You' : htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
                                 <p><?= htmlspecialchars($message['content'], ENT_QUOTES, 'UTF-8') ?></p>
-                                <small><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $message['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationMessageTime($message['created_at']), ENT_QUOTES, 'UTF-8') ?></time></small>
+                                <small><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $message['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationMessageTime($message['created_at']), ENT_QUOTES, 'UTF-8') ?></time><?php if ($messageIsMine): ?><span class="message-read-receipt<?= (int) $message['is_read'] === 1 ? ' is-read' : '' ?>" data-read-receipt aria-label="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" title="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" aria-hidden="false"><?= (int) $message['is_read'] === 1 ? '&#10003;&#10003;' : '&#10003;' ?></span><?php endif; ?></small>
                             </article>
                         <?php endforeach; ?>
                     </div>

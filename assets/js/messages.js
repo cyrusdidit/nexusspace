@@ -141,6 +141,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return avatar;
     };
+    const createReadReceipt = (isRead) => {
+        const receipt = document.createElement('span');
+        receipt.className = `message-read-receipt${isRead ? ' is-read' : ''}`;
+        receipt.dataset.readReceipt = '';
+        receipt.textContent = isRead ? '\u2713\u2713' : '\u2713';
+        receipt.setAttribute('aria-label', isRead ? 'Read' : 'Sent');
+        receipt.title = isRead ? 'Read' : 'Sent';
+        return receipt;
+    };
+    const updateReadReceipts = (lastReadOutgoingId) => {
+        const boundary = Number(lastReadOutgoingId || 0);
+        list.querySelectorAll('.conversation-message.is-mine[data-message-id]').forEach((message) => {
+            if (Number(message.dataset.messageId) > boundary) return;
+            const receipt = message.querySelector('[data-read-receipt]');
+            if (!receipt || receipt.classList.contains('is-read')) return;
+            receipt.classList.add('is-read');
+            receipt.textContent = '\u2713\u2713';
+            receipt.setAttribute('aria-label', 'Read');
+            receipt.title = 'Read';
+        });
+    };
 
     const refresh = () => {
         if (refreshing) return refreshing;
@@ -174,6 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 timeValue.dateTime = message.created_at.replace(' ', 'T');
                 timeValue.textContent = messageTimestamp(message.created_at);
                 time.append(timeValue);
+                if (mine) time.append(createReadReceipt(Number(message.is_read) === 1 || Number(message.id) <= Number(data.lastReadOutgoingId)));
                 if (mine) {
                     if (!startsNewDay && previousMessage?.classList.contains('is-mine')) {
                         previousMessage.classList.remove('has-avatar');
@@ -192,6 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.append(item);
                 lastId = Number(message.id);
             });
+            updateReadReceipts(data.lastReadOutgoingId);
             if (nearBottom) list.scrollTop = list.scrollHeight;
         })().finally(() => { refreshing = null; });
         return refreshing;
