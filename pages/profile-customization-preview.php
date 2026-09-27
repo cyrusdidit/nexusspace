@@ -11,6 +11,30 @@ if (!isset($_SESSION['user_id'])) {
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/profile_customization.php';
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $draftTemplate = $_POST['template_html'] ?? null;
+    $draftCss = $_POST['custom_css'] ?? null;
+    if (!is_string($draftTemplate) || !is_string($draftCss) || !mb_check_encoding($draftTemplate, 'UTF-8') || !mb_check_encoding($draftCss, 'UTF-8')) {
+        http_response_code(422);
+        exit('Invalid preview content.');
+    }
+    if (strlen($draftTemplate) > 50000 || strlen($draftCss) > 30000) {
+        http_response_code(413);
+        exit('Preview content is too large.');
+    }
+
+    $draftToken = bin2hex(random_bytes(12));
+    $_SESSION['profile_preview_drafts'] ??= [];
+    $_SESSION['profile_preview_drafts'][$draftToken] = [
+        'template_html' => $draftTemplate,
+        'custom_css' => $draftCss,
+    ];
+    $_SESSION['profile_preview_drafts'] = array_slice($_SESSION['profile_preview_drafts'], -5, null, true);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo $draftToken;
+    exit;
+}
+
 function previewEscape(string $value): string
 {
     return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
@@ -99,7 +123,17 @@ ob_start();
 $profilePosts = ob_get_clean();
 
 $customization = readProfileCustomization($conn, $currentUserId);
-$safeTemplate = sanitizeProfileTemplate($customization['template_html']);
+$templateHtml = $customization['template_html'];
+$customCssSource = $customization['custom_css'];
+$draftToken = is_string($_GET['draft'] ?? null) ? $_GET['draft'] : '';
+if (preg_match('/^[a-f0-9]{24}$/', $draftToken) && isset($_SESSION['profile_preview_drafts'][$draftToken])) {
+    $draft = $_SESSION['profile_preview_drafts'][$draftToken];
+    unset($_SESSION['profile_preview_drafts'][$draftToken]);
+    $templateHtml = $draft['template_html'];
+    $customCssSource = $draft['custom_css'];
+}
+
+$safeTemplate = sanitizeProfileTemplate($templateHtml);
 $renderedTemplate = strtr($safeTemplate, [
     '{{profile_header}}' => $profileHeader,
     '{{bio}}' => $bio,
@@ -107,7 +141,7 @@ $renderedTemplate = strtr($safeTemplate, [
     '{{posts}}' => $profilePosts,
 ]);
 $baseCss = str_replace('</style', '<\/style', file_get_contents(__DIR__ . '/../assets/css/style.css'));
-$customCss = sanitizeAndScopeProfileCss($customization['custom_css']);
+$customCss = sanitizeAndScopeProfileCss($customCssSource);
 
 header('Content-Type: text/html; charset=utf-8');
 header("Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'");

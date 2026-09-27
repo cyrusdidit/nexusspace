@@ -80,8 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <textarea id="profile-custom-css" name="custom_css" spellcheck="false" maxlength="30000"><?= htmlspecialchars($customCss, ENT_QUOTES, 'UTF-8') ?></textarea>
                 </section>
                 <section class="profile-customization-preview">
-                    <h2>Saved Preview</h2>
-                    <iframe src="profile-customization-preview.php" title="Saved profile customization preview" sandbox></iframe>
+                    <h2>Live Preview</h2>
+                    <iframe src="profile-customization-preview.php" title="Live profile customization preview" sandbox data-customization-preview></iframe>
                 </section>
             </div>
         </form>
