@@ -32,6 +32,20 @@ function conversationListTimestamp(?string $value): string
     return $date->format('M j, Y');
 }
 
+function conversationMessageTime(string $value): string
+{
+    return (new DateTimeImmutable($value))->format('g:i A');
+}
+
+function conversationDateLabel(string $value): string
+{
+    $date = new DateTimeImmutable($value);
+    $today = new DateTimeImmutable('today');
+    if ($date->format('Y-m-d') === $today->format('Y-m-d')) return 'Today';
+    if ($date->format('Y-m-d') === $today->modify('-1 day')->format('Y-m-d')) return 'Yesterday';
+    return $date->format($date->format('Y') === $today->format('Y') ? 'F j' : 'F j, Y');
+}
+
 $statement = mysqli_prepare($conn, 'SELECT username, avatar_path FROM users WHERE id = ? LIMIT 1');
 mysqli_stmt_bind_param($statement, 'i', $currentUserId);
 mysqli_stmt_execute($statement);
@@ -224,16 +238,20 @@ if ($selectedFriend) {
                         <?php foreach ($messages as $messageIndex => $message): ?>
                             <?php
                             $messageIsMine = (int) $message['sender_id'] === $currentUserId;
+                            $messageDate = substr($message['created_at'], 0, 10);
+                            $previousMessage = $messages[$messageIndex - 1] ?? null;
                             $nextMessage = $messages[$messageIndex + 1] ?? null;
-                            $showsFriendAvatar = !$messageIsMine && (!$nextMessage || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
-                            $showsViewerAvatar = $messageIsMine && (!$nextMessage || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
+                            $nextStartsNewDay = $nextMessage && substr($nextMessage['created_at'], 0, 10) !== $messageDate;
+                            $showsFriendAvatar = !$messageIsMine && (!$nextMessage || $nextStartsNewDay || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
+                            $showsViewerAvatar = $messageIsMine && (!$nextMessage || $nextStartsNewDay || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
                             ?>
-                            <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= ($showsFriendAvatar || $showsViewerAvatar) ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>">
+                            <?php if (!$previousMessage || substr($previousMessage['created_at'], 0, 10) !== $messageDate): ?><div class="conversation-date-separator" data-message-date-separator="<?= htmlspecialchars($messageDate, ENT_QUOTES, 'UTF-8') ?>"><span><?= htmlspecialchars(conversationDateLabel($message['created_at']), ENT_QUOTES, 'UTF-8') ?></span></div><?php endif; ?>
+                            <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= ($showsFriendAvatar || $showsViewerAvatar) ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>" data-message-date="<?= htmlspecialchars($messageDate, ENT_QUOTES, 'UTF-8') ?>">
                                 <?php if ($showsFriendAvatar): ?><a class="conversation-message-avatar" href="profile.php?id=<?= $selectedId ?>" aria-label="View <?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>'s profile"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
                                 <?php if ($showsViewerAvatar): ?><a class="conversation-message-avatar is-viewer" href="profile.php?id=<?= $currentUserId ?>" aria-label="View your profile"><span><?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($viewerAvatar): ?><img src="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
                                 <strong><?= $messageIsMine ? 'You' : htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
                                 <p><?= htmlspecialchars($message['content'], ENT_QUOTES, 'UTF-8') ?></p>
-                                <small><?= htmlspecialchars($message['created_at'], ENT_QUOTES, 'UTF-8') ?></small>
+                                <small><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $message['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationMessageTime($message['created_at']), ENT_QUOTES, 'UTF-8') ?></time></small>
                             </article>
                         <?php endforeach; ?>
                     </div>

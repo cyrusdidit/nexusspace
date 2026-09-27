@@ -51,6 +51,36 @@ document.addEventListener('DOMContentLoaded', () => {
         if (date.getFullYear() === today.getFullYear()) return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
         return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     };
+    const messageDateKey = (value) => value.slice(0, 10);
+    const messageTimestamp = (value) => new Date(value.replace(' ', 'T')).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const localDateKey = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+    const messageDateLabel = (dateKey) => {
+        const date = new Date(`${dateKey}T00:00:00`);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        if (dateKey === localDateKey(today)) return 'Today';
+        if (dateKey === localDateKey(yesterday)) return 'Yesterday';
+        return date.toLocaleDateString(undefined, {
+            month: 'long',
+            day: 'numeric',
+            ...(date.getFullYear() === today.getFullYear() ? {} : { year: 'numeric' }),
+        });
+    };
+    const createDateSeparator = (dateKey) => {
+        const separator = document.createElement('div');
+        separator.className = 'conversation-date-separator';
+        separator.dataset.messageDateSeparator = dateKey;
+        const label = document.createElement('span');
+        label.textContent = messageDateLabel(dateKey);
+        separator.append(label);
+        return separator;
+    };
     const updateActivity = (friend) => {
         if (!friend) return;
         let label = 'Offline';
@@ -128,30 +158,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.querySelector('[data-empty-messages]')?.remove();
                 const item = document.createElement('article');
                 const mine = Number(message.sender_id) === Number(list.dataset.viewer);
+                const dateKey = messageDateKey(message.created_at);
+                const previousMessage = Array.from(list.querySelectorAll('.conversation-message')).at(-1);
+                const startsNewDay = previousMessage?.dataset.messageDate !== dateKey;
                 updateSidebarPreview(message, mine);
                 item.className = `conversation-message ${mine ? 'is-mine' : 'is-incoming'} has-avatar`;
                 item.dataset.messageId = message.id;
+                item.dataset.messageDate = dateKey;
                 const author = document.createElement('strong');
                 author.textContent = mine ? 'You' : form.dataset.friendName;
                 const content = document.createElement('p');
                 content.textContent = message.content;
                 const time = document.createElement('small');
-                time.textContent = message.created_at;
-                const previousMessage = Array.from(list.querySelectorAll('.conversation-message')).at(-1);
+                const timeValue = document.createElement('time');
+                timeValue.dateTime = message.created_at.replace(' ', 'T');
+                timeValue.textContent = messageTimestamp(message.created_at);
+                time.append(timeValue);
                 if (mine) {
-                    if (previousMessage?.classList.contains('is-mine')) {
+                    if (!startsNewDay && previousMessage?.classList.contains('is-mine')) {
                         previousMessage.classList.remove('has-avatar');
                         previousMessage.querySelector('.conversation-message-avatar')?.remove();
                     }
                     item.append(createViewerAvatar());
                 } else {
-                    if (previousMessage?.classList.contains('is-incoming')) {
+                    if (!startsNewDay && previousMessage?.classList.contains('is-incoming')) {
                         previousMessage.classList.remove('has-avatar');
                         previousMessage.querySelector('.conversation-message-avatar')?.remove();
                     }
                     item.append(createFriendAvatar());
                 }
                 item.append(author, content, time);
+                if (startsNewDay) list.append(createDateSeparator(dateKey));
                 list.append(item);
                 lastId = Number(message.id);
             });
