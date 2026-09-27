@@ -67,6 +67,47 @@ function saveUserBackgroundSetting(mysqli $conn, int $userId, string $region, st
     mysqli_stmt_close($statement);
 }
 
+function storeUserBackgroundImage(array $upload, int $userId): string
+{
+    $error = $upload['error'] ?? UPLOAD_ERR_NO_FILE;
+    if ($error !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException(match ($error) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Use an image smaller than 5 MB.',
+            UPLOAD_ERR_NO_FILE => 'Choose an image to upload.',
+            default => 'The image upload failed. Please try again.',
+        });
+    }
+    if (($upload['size'] ?? 0) > 5 * 1024 * 1024) throw new InvalidArgumentException('Use an image smaller than 5 MB.');
+    $temporaryPath = is_string($upload['tmp_name'] ?? null) ? $upload['tmp_name'] : '';
+    if ($temporaryPath === '' || !is_uploaded_file($temporaryPath)) throw new InvalidArgumentException('The uploaded image could not be verified.');
+
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($temporaryPath);
+    $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+    $dimensions = @getimagesize($temporaryPath);
+    if (!isset($extensions[$mime]) || $dimensions === false) throw new InvalidArgumentException('Upload a JPG, PNG, WebP, or GIF image.');
+    if ($dimensions[0] > 8000 || $dimensions[1] > 8000 || $dimensions[0] * $dimensions[1] > 40000000) {
+        throw new InvalidArgumentException('Use an image under 40 megapixels and 8000 pixels per side.');
+    }
+
+    $uploadDirectory = __DIR__ . '/../uploads/backgrounds';
+    if ((!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0755, true)) || !is_writable($uploadDirectory)) {
+        throw new RuntimeException('The background image could not be saved.');
+    }
+    $filename = 'background-' . $userId . '-' . bin2hex(random_bytes(8)) . '.' . $extensions[$mime];
+    if (!move_uploaded_file($temporaryPath, $uploadDirectory . '/' . $filename)) {
+        throw new RuntimeException('The background image could not be saved.');
+    }
+    return 'uploads/backgrounds/' . $filename;
+}
+
+function deleteUserBackgroundImage(?string $imagePath, int $userId): void
+{
+    $filename = basename($imagePath ?? '');
+    if (!preg_match('/^background-' . preg_quote((string) $userId, '/') . '-[a-f0-9]{16}\.(?:jpg|png|webp|gif)$/', $filename)) return;
+    $absolutePath = __DIR__ . '/../uploads/backgrounds/' . $filename;
+    if (is_file($absolutePath)) @unlink($absolutePath);
+}
+
 function resolveUserBackground(array $settings, string $region): array
 {
     if (!in_array($region, USER_BACKGROUND_REGIONS, true)) throw new InvalidArgumentException('Unknown background region.');

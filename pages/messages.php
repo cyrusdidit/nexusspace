@@ -23,10 +23,16 @@ $_SESSION['message_token'] ??= bin2hex(random_bytes(32));
 $token = $_SESSION['message_token'];
 session_write_close();
 $backgroundSettings = readUserBackgroundSettings($conn, $currentUserId);
+$messagesOwnBackground = $backgroundSettings['messages'];
 $messagesBackground = resolveUserBackground($backgroundSettings, 'messages');
 $messagesBackgroundColor = $messagesBackground['background_type'] === 'color'
     ? $messagesBackground['color_value']
     : USER_BACKGROUND_DEFAULTS['messages'];
+$messagesBackgroundImagePath = $messagesBackground['background_type'] === 'image' ? $messagesBackground['image_path'] : null;
+$messagesBackgroundImageUrl = $messagesBackgroundImagePath ? '../' . $messagesBackgroundImagePath : '';
+$messagesBackgroundImageCss = $messagesBackgroundImageUrl !== '' ? 'url("' . $messagesBackgroundImageUrl . '")' : 'none';
+$messagesBackgroundType = $messagesBackground['background_type'] === 'image' ? 'image' : 'color';
+$messagesSavedBackgroundType = $messagesBackgroundType;
 
 function conversationListTimestamp(?string $value): string
 {
@@ -82,20 +88,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if (!is_string($submittedToken) || !hash_equals($token, $submittedToken)) {
         http_response_code(403);
-        $error = 'Could not send. Refresh the page and choose a friend.';
+        if (in_array($action, ['update_messages_background', 'reset_messages_background'], true)) {
+            $appearancePanelOpen = true;
+            $appearanceError = 'Refresh the page and try again.';
+        } else {
+            $error = 'Could not send. Refresh the page and choose a friend.';
+        }
     } elseif ($action === 'update_messages_background') {
         $appearancePanelOpen = true;
+        $submittedType = is_string($_POST['background_type'] ?? null) ? $_POST['background_type'] : '';
         $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
-        if (!preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
+        $messagesBackgroundType = $submittedType;
+        if (!in_array($submittedType, ['color', 'image'], true)) {
+            http_response_code(422);
+            $appearanceError = 'Choose a background type.';
+        } elseif ($submittedType === 'color' && !preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
             http_response_code(422);
             $appearanceError = 'Choose a valid background color.';
         } else {
-            saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, null, null);
-            $redirect = 'messages.php?customize=1&appearance_saved=1';
-            if ($selectedId) $redirect .= '&user=' . $selectedId;
-            header('Location: ' . $redirect);
-            exit;
+            $previousImagePath = $messagesOwnBackground['background_type'] === 'image' ? $messagesOwnBackground['image_path'] : null;
+            $savedImagePath = $previousImagePath;
+            try {
+                if ($submittedType === 'image') {
+                    $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
+                    if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                        $savedImagePath = storeUserBackgroundImage($upload, $currentUserId);
+                    } elseif (!$savedImagePath) {
+                        throw new InvalidArgumentException('Choose an image to upload.');
+                    }
+                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'image', null, $savedImagePath, null);
+                } else {
+                    saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, null, null);
+                }
+                if ($previousImagePath && ($submittedType === 'color' || $savedImagePath !== $previousImagePath)) {
+                    deleteUserBackgroundImage($previousImagePath, $currentUserId);
+                }
+                $redirect = 'messages.php?customize=1&appearance_saved=1';
+                if ($selectedId) $redirect .= '&user=' . $selectedId;
+                header('Location: ' . $redirect);
+                exit;
+            } catch (InvalidArgumentException | RuntimeException $exception) {
+                if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
+                http_response_code(422);
+                $appearanceError = $exception->getMessage();
+            }
         }
+    } elseif ($action === 'reset_messages_background') {
+        $previousImagePath = $messagesOwnBackground['background_type'] === 'image' ? $messagesOwnBackground['image_path'] : null;
+        saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', USER_BACKGROUND_DEFAULTS['messages'], null, null);
+        deleteUserBackgroundImage($previousImagePath, $currentUserId);
+        $redirect = 'messages.php?customize=1&appearance_reset=1';
+        if ($selectedId) $redirect .= '&user=' . $selectedId;
+        header('Location: ' . $redirect);
+        exit;
     } elseif (!$selectedFriend) {
         http_response_code(403);
         $error = 'Could not send. Refresh the page and choose a friend.';
@@ -249,7 +294,7 @@ if ($selectedFriend) {
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/messages.js?v=<?= filemtime(__DIR__ . '/../assets/js/messages.js') ?>" defer></script>
 </head>
-<body class="messages-body" style="--messages-background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>">
+<body class="messages-body" style="--messages-background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>; --messages-background-image: <?= htmlspecialchars($messagesBackgroundImageCss, ENT_QUOTES, 'UTF-8') ?>">
     <main class="messages-page<?= $selectedFriend ? ' has-selected-conversation' : '' ?>" data-messages-page>
         <section class="messages-sidebar" aria-label="Messages navigation">
             <header class="messages-sidebar-header">
@@ -349,22 +394,38 @@ if ($selectedFriend) {
                 </div>
             <?php endif; ?>
         </section>
-        <aside class="messages-customization-panel" id="messages-customization" data-message-customization data-open="<?= $appearancePanelOpen ? 'true' : 'false' ?>" data-saved-color="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" aria-label="Messages customization" hidden>
+        <aside class="messages-customization-panel" id="messages-customization" data-message-customization data-open="<?= $appearancePanelOpen ? 'true' : 'false' ?>" data-saved-type="<?= htmlspecialchars($messagesSavedBackgroundType, ENT_QUOTES, 'UTF-8') ?>" data-saved-color="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-saved-image="<?= htmlspecialchars($messagesBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Messages customization" hidden>
             <header class="messages-customization-header">
                 <h2>Appearance</h2>
                 <button type="button" aria-label="Close Messages customization" title="Close" data-message-customization-close>&times;</button>
             </header>
-            <form class="messages-customization-form" method="post" action="messages.php?customize=1<?= $selectedId ? '&amp;user=' . $selectedId : '' ?>">
-                <input type="hidden" name="action" value="update_messages_background">
+            <form class="messages-customization-form" method="post" action="messages.php?customize=1<?= $selectedId ? '&amp;user=' . $selectedId : '' ?>" enctype="multipart/form-data">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                <label for="messages-background-color">Conversation background</label>
-                <div class="messages-background-color-row">
-                    <input id="messages-background-color" type="color" name="background_color" value="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-message-background-color>
-                    <output for="messages-background-color" data-message-background-value><?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                <fieldset class="messages-background-modes">
+                    <legend>Conversation background</legend>
+                    <label><input type="radio" name="background_type" value="color"<?= $messagesBackgroundType === 'color' ? ' checked' : '' ?> data-message-background-mode> Color</label>
+                    <label><input type="radio" name="background_type" value="image"<?= $messagesBackgroundType === 'image' ? ' checked' : '' ?> data-message-background-mode> Image</label>
+                </fieldset>
+                <div class="messages-background-option" data-message-color-option<?= $messagesBackgroundType === 'color' ? '' : ' hidden' ?>>
+                    <label for="messages-background-color">Background color</label>
+                    <div class="messages-background-color-row">
+                        <input id="messages-background-color" type="color" name="background_color" value="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-message-background-color>
+                        <output for="messages-background-color" data-message-background-value><?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                    </div>
+                </div>
+                <div class="messages-background-option" data-message-image-option<?= $messagesBackgroundType === 'image' ? '' : ' hidden' ?>>
+                    <label for="messages-background-image">Background image</label>
+                    <?php if ($messagesBackgroundImageUrl !== ''): ?><img class="messages-background-thumbnail" src="<?= htmlspecialchars($messagesBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Current Messages background" data-message-background-thumbnail><?php else: ?><div class="messages-background-thumbnail is-empty" data-message-background-thumbnail>No image selected</div><?php endif; ?>
+                    <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
+                    <input id="messages-background-image" type="file" name="background_image" accept="image/jpeg,image/png,image/webp,image/gif" data-message-background-image>
                 </div>
                 <?php if ($appearanceError !== ''): ?><p class="messages-customization-status is-error" role="alert"><?= htmlspecialchars($appearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 <?php if (isset($_GET['appearance_saved'])): ?><p class="messages-customization-status" role="status">Background saved.</p><?php endif; ?>
-                <button type="submit">Save</button>
+                <?php if (isset($_GET['appearance_reset'])): ?><p class="messages-customization-status" role="status">Default background restored.</p><?php endif; ?>
+                <div class="messages-customization-actions">
+                    <button type="submit" name="action" value="update_messages_background">Save</button>
+                    <button type="submit" class="button-secondary" name="action" value="reset_messages_background" formnovalidate>Reset</button>
+                </div>
             </form>
         </aside>
         <aside class="conversation-profile" id="conversation-profile" data-conversation-profile aria-label="Conversation profile" hidden>

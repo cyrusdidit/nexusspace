@@ -339,7 +339,7 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .conversation-mobile-back { display: none; }
 .conversation-content { display: flex; flex: 1; min-height: 0; flex-direction: column; padding: 14px 18px; }
 .conversation-empty { display: grid; flex: 1; min-height: 0; place-items: center; padding: 24px; text-align: center; }
-.conversation-messages { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; border: 1px solid #b9e3f8; background: var(--messages-background-color, #f6fcff); }
+.conversation-messages { flex: 1; min-height: 0; overflow-y: auto; padding: 14px; border: 1px solid #b9e3f8; background-color: var(--messages-background-color, #f6fcff); background-image: var(--messages-background-image, none); background-position: center; background-repeat: no-repeat; background-size: cover; }
 .conversation-date-separator { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: #47728f; font-size: 11px; font-weight: 700; text-align: center; }
 .conversation-date-separator::before, .conversation-date-separator::after { flex: 1; height: 1px; background: #cce7f5; content: ''; }
 .conversation-date-separator span { flex: 0 0 auto; padding: 3px 8px; border: 1px solid #b9e3f8; border-radius: 8px; background: #e8f7ff; }
@@ -410,11 +410,24 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .messages-customization-header h2 { margin: 0; font-size: 17px; }
 .messages-customization-header button { display: grid; place-items: center; width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 0; font-size: 20px; }
 .messages-customization-form { display: flex; align-items: stretch; flex-direction: column; gap: 12px; padding: 18px; }
-.messages-customization-form > label { font-size: 13px; font-weight: 700; }
+.messages-background-modes { display: grid; grid-template-columns: 1fr 1fr; margin: 0; padding: 0; border: 1px solid #79b9dd; }
+.messages-background-modes legend { width: 100%; padding: 0 0 8px; border: 0; font-size: 13px; font-weight: 700; }
+.messages-background-modes label { position: relative; display: grid; place-items: center; min-height: 34px; padding: 0 8px; background: #eaf7ff; color: #166da5; font-size: 12px; font-weight: 700; cursor: pointer; }
+.messages-background-modes label + label { border-left: 1px solid #79b9dd; }
+.messages-background-modes label:has(input:checked) { background: #238bc5; color: #fff; }
+.messages-background-modes input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.messages-background-modes label:focus-within { outline: 2px solid #166da5; outline-offset: -2px; }
+.messages-background-option { display: flex; flex-direction: column; gap: 9px; }
+.messages-background-option[hidden] { display: none; }
+.messages-background-option > label { font-size: 12px; font-weight: 700; }
 .messages-background-color-row { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 10px; }
 .messages-background-color-row input[type="color"] { width: 48px; height: 38px; padding: 2px; border: 1px solid #79b9dd; border-radius: 3px; background: #fff; cursor: pointer; }
 .messages-background-color-row output { font: 12px Consolas, "Courier New", monospace; text-transform: uppercase; }
-.messages-customization-form > button { min-height: 38px; margin: 4px 0 0; }
+.messages-background-thumbnail { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid #9dcce8; background: #eaf7ff; }
+.messages-background-thumbnail.is-empty { display: grid; place-items: center; color: #6d8799; font-size: 11px; }
+.messages-background-option input[type="file"] { min-width: 0; width: 100%; padding: 6px; border: 1px solid #9dcce8; border-radius: 3px; background: #fff; font-size: 11px; }
+.messages-customization-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+.messages-customization-actions button { min-width: 0; min-height: 38px; margin: 0; }
 .messages-customization-status { margin: 0; color: #22633a; font-size: 12px; }
 .messages-customization-status.is-error { color: #8b1d1d; }
 

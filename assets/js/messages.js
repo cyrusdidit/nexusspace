@@ -21,6 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const customizationClose = document.querySelector('[data-message-customization-close]');
     const backgroundColor = document.querySelector('[data-message-background-color]');
     const backgroundValue = document.querySelector('[data-message-background-value]');
+    const backgroundModes = Array.from(document.querySelectorAll('[data-message-background-mode]'));
+    const colorOption = document.querySelector('[data-message-color-option]');
+    const imageOption = document.querySelector('[data-message-image-option]');
+    const backgroundImage = document.querySelector('[data-message-background-image]');
+    let backgroundThumbnail = document.querySelector('[data-message-background-thumbnail]');
+    let previewImageUrl = '';
     let setCustomizationOpen = () => {};
     const setProfileOpen = (open) => {
         if (!page || !profilePanel || !profileToggle) return;
@@ -30,20 +36,59 @@ document.addEventListener('DOMContentLoaded', () => {
         profileToggle.setAttribute('aria-expanded', String(open));
         if (open) profileClose?.focus();
     };
-    const applyBackgroundColor = (color) => {
+    const applyBackground = (type, color, imageUrl = '') => {
         document.body.style.setProperty('--messages-background-color', color);
+        const escapedImageUrl = imageUrl.replace(/["\\]/g, '\\$&');
+        document.body.style.setProperty('--messages-background-image', type === 'image' && imageUrl ? `url("${escapedImageUrl}")` : 'none');
         if (backgroundValue) backgroundValue.value = color.toUpperCase();
     };
-    setCustomizationOpen = (open, restoreColor = true) => {
+    const showBackgroundThumbnail = (imageUrl) => {
+        if (!backgroundThumbnail) return;
+        if (imageUrl) {
+            if (!(backgroundThumbnail instanceof HTMLImageElement)) {
+                const image = document.createElement('img');
+                image.className = 'messages-background-thumbnail';
+                image.dataset.messageBackgroundThumbnail = '';
+                backgroundThumbnail.replaceWith(image);
+                backgroundThumbnail = image;
+            }
+            backgroundThumbnail.src = imageUrl;
+            backgroundThumbnail.alt = 'Selected Messages background';
+        } else {
+            if (backgroundThumbnail instanceof HTMLImageElement) {
+                const empty = document.createElement('div');
+                empty.className = 'messages-background-thumbnail is-empty';
+                empty.dataset.messageBackgroundThumbnail = '';
+                backgroundThumbnail.replaceWith(empty);
+                backgroundThumbnail = empty;
+            }
+            backgroundThumbnail.textContent = 'No image selected';
+        }
+    };
+    const selectedBackgroundMode = () => backgroundModes.find((control) => control.checked)?.value || 'color';
+    const setBackgroundMode = (type) => {
+        backgroundModes.forEach((control) => { control.checked = control.value === type; });
+        if (colorOption) colorOption.hidden = type !== 'color';
+        if (imageOption) imageOption.hidden = type !== 'image';
+        const imageUrl = previewImageUrl || (customizationPanel?.dataset.savedType === 'image' ? customizationPanel.dataset.savedImage : '');
+        applyBackground(type, backgroundColor?.value || customizationPanel?.dataset.savedColor || '#f6fcff', imageUrl);
+    };
+    const resetBackgroundControls = () => {
+        if (!customizationPanel) return;
+        if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+        previewImageUrl = '';
+        if (backgroundImage) backgroundImage.value = '';
+        if (backgroundColor) backgroundColor.value = customizationPanel.dataset.savedColor;
+        showBackgroundThumbnail(customizationPanel.dataset.savedImage);
+        setBackgroundMode(customizationPanel.dataset.savedType);
+    };
+    setCustomizationOpen = (open, restoreBackground = true) => {
         if (!page || !customizationPanel || !customizationToggle) return;
         if (open) setProfileOpen(false);
         page.classList.toggle('is-customization-open', open);
         customizationPanel.hidden = !open;
         customizationToggle.setAttribute('aria-expanded', String(open));
-        if (!open && restoreColor && backgroundColor) {
-            backgroundColor.value = customizationPanel.dataset.savedColor;
-            applyBackgroundColor(customizationPanel.dataset.savedColor);
-        }
+        if (!open && restoreBackground) resetBackgroundControls();
         if (open) customizationClose?.focus();
     };
     profileToggle?.addEventListener('click', () => setProfileOpen(profilePanel.hidden));
@@ -56,7 +101,16 @@ document.addEventListener('DOMContentLoaded', () => {
         setCustomizationOpen(false);
         customizationToggle.focus();
     });
-    backgroundColor?.addEventListener('input', () => applyBackgroundColor(backgroundColor.value));
+    backgroundModes.forEach((control) => control.addEventListener('change', () => setBackgroundMode(selectedBackgroundMode())));
+    backgroundColor?.addEventListener('input', () => applyBackground('color', backgroundColor.value));
+    backgroundImage?.addEventListener('change', () => {
+        if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+        const file = backgroundImage.files?.[0];
+        previewImageUrl = file ? URL.createObjectURL(file) : '';
+        const imageUrl = previewImageUrl || (customizationPanel?.dataset.savedType === 'image' ? customizationPanel.dataset.savedImage : '');
+        showBackgroundThumbnail(imageUrl);
+        applyBackground('image', backgroundColor?.value || '#f6fcff', imageUrl);
+    });
     if (customizationPanel?.dataset.open === 'true') setCustomizationOpen(true, false);
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
