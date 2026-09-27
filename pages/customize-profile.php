@@ -72,12 +72,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <section>
                     <label for="profile-template-html">HTML Template</label>
                     <div class="profile-customization-warnings" data-html-warnings role="status" hidden></div>
-                    <textarea id="profile-template-html" name="template_html" spellcheck="false" maxlength="50000"><?= htmlspecialchars($templateHtml, ENT_QUOTES, 'UTF-8') ?></textarea>
+                    <div class="profile-code-editor">
+                        <pre aria-hidden="true" data-html-highlight></pre>
+                        <textarea id="profile-template-html" name="template_html" spellcheck="false" wrap="off" maxlength="50000"><?= htmlspecialchars($templateHtml, ENT_QUOTES, 'UTF-8') ?></textarea>
+                    </div>
                 </section>
                 <section>
                     <label for="profile-custom-css">CSS</label>
                     <div class="profile-customization-warnings" data-css-warnings role="status" hidden></div>
-                    <textarea id="profile-custom-css" name="custom_css" spellcheck="false" maxlength="30000"><?= htmlspecialchars($customCss, ENT_QUOTES, 'UTF-8') ?></textarea>
+                    <div class="profile-code-editor">
+                        <pre aria-hidden="true" data-css-highlight></pre>
+                        <textarea id="profile-custom-css" name="custom_css" spellcheck="false" wrap="off" maxlength="30000"><?= htmlspecialchars($customCss, ENT_QUOTES, 'UTF-8') ?></textarea>
+                    </div>
                 </section>
                 <section class="profile-customization-preview">
                     <h2>Live Preview</h2>

@@ -48,6 +48,13 @@ function resetProfileCustomization(mysqli $conn, int $userId): void
 
 function sanitizeProfileTemplate(string $templateHtml): string
 {
+    $allowedPlaceholders = ['{{profile_header}}', '{{bio}}', '{{top_eight}}', '{{posts}}'];
+    $templateHtml = preg_replace_callback(
+        '/{{\s*[^{}]+?\s*}}/',
+        static fn (array $match): string => in_array($match[0], $allowedPlaceholders, true) ? $match[0] : '',
+        $templateHtml
+    ) ?? '';
+
     $document = new DOMDocument('1.0', 'UTF-8');
     $previousErrors = libxml_use_internal_errors(true);
     $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $templateHtml . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
@@ -144,6 +151,13 @@ function validateProfileTemplate(string $templateHtml): array
     $knownPlaceholders = ['profile_header', 'bio', 'top_eight', 'posts'];
     preg_match_all('/{{\s*([^{}]+?)\s*}}/', $templateHtml, $placeholderMatches);
     $placeholders = array_count_values($placeholderMatches[1] ?? []);
+
+    foreach ($placeholderMatches[0] ?? [] as $index => $placeholderMarkup) {
+        $placeholder = $placeholderMatches[1][$index];
+        if (in_array($placeholder, $knownPlaceholders, true) && $placeholderMarkup !== '{{' . $placeholder . '}}') {
+            $warnings[] = $placeholderMarkup . ' must not contain spaces and will be removed.';
+        }
+    }
 
     foreach ($placeholders as $placeholder => $count) {
         if (!in_array($placeholder, $knownPlaceholders, true)) {
