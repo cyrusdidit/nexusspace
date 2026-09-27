@@ -19,6 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const customizationPanel = document.querySelector('[data-message-customization]');
     const customizationToggle = document.querySelector('[data-message-customization-toggle]');
     const customizationClose = document.querySelector('[data-message-customization-close]');
+    const resetDialog = document.querySelector('[data-message-reset-dialog]');
+    const resetOpen = document.querySelector('[data-message-reset-open]');
+    const resetCancel = resetDialog?.querySelectorAll('[data-message-reset-cancel]') || [];
+    const customizationToast = document.querySelector('[data-message-customization-toast]');
+    const customizationToastClose = document.querySelector('[data-message-customization-toast-close]');
     const backgroundColor = document.querySelector('[data-message-background-color]');
     const backgroundValue = document.querySelector('[data-message-background-value]');
     const backgroundModes = Array.from(document.querySelectorAll('[data-message-background-mode]'));
@@ -123,6 +128,26 @@ document.addEventListener('DOMContentLoaded', () => {
         setCustomizationOpen(false);
         customizationToggle.focus();
     });
+    resetOpen?.addEventListener('click', () => resetDialog?.showModal());
+    resetCancel.forEach((button) => button.addEventListener('click', () => {
+        resetDialog.close();
+        resetOpen?.focus();
+    }));
+    resetDialog?.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        resetDialog.close();
+        resetOpen?.focus();
+    });
+    if (customizationToast) {
+        let toastTimer = 0;
+        const closeToast = () => {
+            window.clearTimeout(toastTimer);
+            customizationToast.classList.add('is-hiding');
+            window.setTimeout(() => customizationToast.remove(), 170);
+        };
+        customizationToastClose?.addEventListener('click', closeToast);
+        toastTimer = window.setTimeout(closeToast, 3000);
+    }
     backgroundModes.forEach((control) => control.addEventListener('change', () => setBackgroundMode(selectedBackgroundMode())));
     imageFits.forEach((control) => control.addEventListener('change', () => setBackgroundMode(selectedBackgroundMode())));
     imageBlur?.addEventListener('input', () => setBackgroundMode(selectedBackgroundMode()));

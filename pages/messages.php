@@ -79,6 +79,11 @@ foreach ($friends as $friend) {
 $error = '';
 $appearanceError = '';
 $appearancePanelOpen = isset($_GET['customize']);
+$appearanceNotice = isset($_GET['appearance_saved'])
+    ? 'Background saved.'
+    : (isset($_GET['appearance_image_removed'])
+        ? 'Background image removed. Your color was kept.'
+        : (isset($_GET['appearance_reset']) ? 'Settings reset, no going back now!' : ''));
 $content = '';
 if (isset($_GET['user']) && !$selectedFriend) {
     http_response_code(403);
@@ -90,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if (!is_string($submittedToken) || !hash_equals($token, $submittedToken)) {
         http_response_code(403);
-        if (in_array($action, ['update_messages_background', 'reset_messages_background'], true)) {
+        if (in_array($action, ['update_messages_background', 'remove_messages_background_image', 'reset_messages_background'], true)) {
             $appearancePanelOpen = true;
             $appearanceError = 'Refresh the page and try again.';
         } else {
@@ -141,6 +146,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $appearanceError = $exception->getMessage();
             }
         }
+    } elseif ($action === 'remove_messages_background_image') {
+        $appearancePanelOpen = true;
+        $previousImagePath = $messagesOwnBackground['image_path'];
+        saveUserBackgroundSetting(
+            $conn,
+            $currentUserId,
+            'messages',
+            'color',
+            $messagesOwnBackground['color_value'],
+            null,
+            null,
+            $messagesOwnBackground['image_fit'],
+            $messagesOwnBackground['image_blur']
+        );
+        deleteUserBackgroundImage($previousImagePath, $currentUserId);
+        $redirect = 'messages.php?customize=1&appearance_image_removed=1';
+        if ($selectedId) $redirect .= '&user=' . $selectedId;
+        header('Location: ' . $redirect);
+        exit;
     } elseif ($action === 'reset_messages_background') {
         $previousImagePath = $messagesOwnBackground['image_path'];
         saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', USER_BACKGROUND_DEFAULTS['messages'], null, null, 'cover');
@@ -358,6 +382,12 @@ if ($selectedFriend) {
                     <h2>Conversation</h2>
                 <?php endif; ?>
                 <button class="conversation-customize-toggle" type="button" aria-label="Customize Messages background" title="Customize Messages background" aria-controls="messages-customization" aria-expanded="false" data-message-customization-toggle>&#9681;</button>
+                <?php if ($appearanceNotice !== ''): ?>
+                    <div class="messages-customization-toast" data-message-customization-toast role="status">
+                        <span><?= htmlspecialchars($appearanceNotice, ENT_QUOTES, 'UTF-8') ?></span>
+                        <button type="button" data-message-customization-toast-close aria-label="Close notification">&times;</button>
+                    </div>
+                <?php endif; ?>
             </header>
             <?php if ($selectedFriend): ?>
                 <div class="conversation-content">
@@ -410,7 +440,7 @@ if ($selectedFriend) {
                 <h2>Appearance</h2>
                 <button type="button" aria-label="Close Messages customization" title="Close" data-message-customization-close>&times;</button>
             </header>
-            <form class="messages-customization-form" method="post" action="messages.php?customize=1<?= $selectedId ? '&amp;user=' . $selectedId : '' ?>" enctype="multipart/form-data">
+            <form class="messages-customization-form" id="messages-customization-form" method="post" action="messages.php?customize=1<?= $selectedId ? '&amp;user=' . $selectedId : '' ?>" enctype="multipart/form-data">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
                 <fieldset class="messages-background-modes">
                     <legend>Conversation background</legend>
@@ -425,10 +455,13 @@ if ($selectedFriend) {
                     </div>
                 </div>
                 <div class="messages-background-option" data-message-image-option<?= $messagesBackgroundType === 'image' ? '' : ' hidden' ?>>
-                    <label for="messages-background-image">Background image</label>
+                    <label for="messages-background-image"><?= $messagesBackgroundImageUrl !== '' ? 'Replace background image' : 'Choose background image' ?></label>
                     <?php if ($messagesBackgroundImageUrl !== ''): ?><img class="messages-background-thumbnail" src="<?= htmlspecialchars($messagesBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Current Messages background" data-message-background-thumbnail><?php else: ?><div class="messages-background-thumbnail is-empty" data-message-background-thumbnail>No image selected</div><?php endif; ?>
                     <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
                     <input id="messages-background-image" type="file" name="background_image" accept="image/jpeg,image/png,image/webp,image/gif" data-message-background-image>
+                    <?php if ($messagesBackgroundImageUrl !== ''): ?>
+                        <button type="submit" class="button-secondary messages-image-remove" name="action" value="remove_messages_background_image" formnovalidate>Remove image</button>
+                    <?php endif; ?>
                     <fieldset class="messages-image-fit">
                         <legend>Display</legend>
                         <label><input type="radio" name="image_fit" value="cover"<?= $messagesBackgroundFit === 'cover' ? ' checked' : '' ?> data-message-image-fit> Fill</label>
@@ -441,11 +474,9 @@ if ($selectedFriend) {
                     </label>
                 </div>
                 <?php if ($appearanceError !== ''): ?><p class="messages-customization-status is-error" role="alert"><?= htmlspecialchars($appearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
-                <?php if (isset($_GET['appearance_saved'])): ?><p class="messages-customization-status" role="status">Background saved.</p><?php endif; ?>
-                <?php if (isset($_GET['appearance_reset'])): ?><p class="messages-customization-status" role="status">Default background restored.</p><?php endif; ?>
                 <div class="messages-customization-actions">
                     <button type="submit" name="action" value="update_messages_background">Save</button>
-                    <button type="submit" class="button-secondary" name="action" value="reset_messages_background" formnovalidate>Reset</button>
+                    <button type="button" class="button-secondary" data-message-reset-open>Reset</button>
                 </div>
             </form>
         </aside>
@@ -536,6 +567,17 @@ if ($selectedFriend) {
         <div class="messages-image-crop-actions">
             <button type="button" class="button-secondary" data-message-image-crop-cancel>Cancel</button>
             <button type="button" data-message-image-crop-save aria-label="Use framed background image">&#10003;</button>
+        </div>
+    </dialog>
+    <dialog class="messages-reset-dialog" data-message-reset-dialog>
+        <div class="messages-reset-heading">
+            <h2>Reset appearance?</h2>
+            <button type="button" data-message-reset-cancel aria-label="Close reset confirmation">&times;</button>
+        </div>
+        <p>Are you sure you want to reset your settings completely? Your settings will go into the void and never return.</p>
+        <div class="messages-reset-actions">
+            <button type="button" class="button-secondary" data-message-reset-cancel>Cancel</button>
+            <button type="submit" form="messages-customization-form" name="action" value="reset_messages_background" formnovalidate>Reset everything</button>
         </div>
     </dialog>
 </body>
