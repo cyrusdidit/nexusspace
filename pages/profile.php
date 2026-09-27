@@ -403,6 +403,7 @@ if ($user) {
         </form>
         <nav class="profile-sidebar-actions" aria-label="Profile actions">
             <a class="profile-icon-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
+            <?php if ($isOwnProfile): ?><a class="profile-icon-button" href="customize-profile.php" aria-label="Customize profile" title="Customize profile">&#9998;</a><?php endif; ?>
             <a class="profile-icon-button" href="coming-soon.php?feature=settings" aria-label="Settings" title="Settings">&#9881;</a>
         </nav>
         <?php if ($friendError !== ''): ?>
