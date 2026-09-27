@@ -352,6 +352,10 @@ if ($selectedFriend) {
                         </div>
                     </details>
                 </div>
+                <div class="conversation-profile-actions">
+                    <button type="button" class="conversation-profile-share" data-share-profile data-profile-url="profile.php?id=<?= $selectedId ?>">Share profile</button>
+                    <p data-share-profile-status role="status" aria-live="polite"></p>
+                </div>
             <?php endif; ?>
         </aside>
     </main>

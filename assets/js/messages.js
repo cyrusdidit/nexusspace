@@ -32,6 +32,46 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key === 'Escape' && profilePanel && !profilePanel.hidden) setProfileOpen(false);
     });
 
+    const shareProfile = document.querySelector('[data-share-profile]');
+    const shareProfileStatus = document.querySelector('[data-share-profile-status]');
+    const fallbackCopy = (value) => {
+        const field = document.createElement('textarea');
+        field.value = value;
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        document.body.append(field);
+        field.select();
+        const copied = document.execCommand('copy');
+        field.remove();
+        if (!copied) throw new Error('Copy failed');
+    };
+    shareProfile?.addEventListener('click', async () => {
+        const profileUrl = new URL(shareProfile.dataset.profileUrl, window.location.href).href;
+        shareProfile.disabled = true;
+        try {
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(profileUrl);
+                } catch {
+                    fallbackCopy(profileUrl);
+                }
+            } else {
+                fallbackCopy(profileUrl);
+            }
+            shareProfile.textContent = 'Copied';
+            if (shareProfileStatus) shareProfileStatus.textContent = 'Profile link copied.';
+        } catch {
+            if (shareProfileStatus) shareProfileStatus.textContent = 'Could not copy the profile link.';
+        } finally {
+            window.setTimeout(() => {
+                shareProfile.textContent = 'Share profile';
+                shareProfile.disabled = false;
+                if (shareProfileStatus) shareProfileStatus.textContent = '';
+            }, 1800);
+        }
+    });
+
     const list = document.querySelector('[data-message-list]');
     const form = document.querySelector('[data-message-form]');
     if (!list || !form || list.dataset.poll !== 'true') return;
