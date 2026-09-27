@@ -275,8 +275,7 @@ if ($user) {
             <h1>Profile not found</h1>
             <p>This user does not exist.</p>
         <?php else: ?>
-        <div class="profile-layout">
-        <aside class="profile-sidebar">
+        <?php ob_start(); ?>
         <div class="profile-cover" aria-hidden="true"></div>
         <section class="profile-identity" aria-label="Profile">
             <?php if ($isOwnProfile): ?>
@@ -312,6 +311,7 @@ if ($user) {
                 </form>
             <?php endif; ?>
         </section>
+        <?php $profileHeaderFragment = ob_get_clean(); ob_start(); ?>
         <section class="profile-bio-section" aria-label="Bio">
             <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <?php if ($isOwnProfile): ?>
@@ -328,6 +328,7 @@ if ($user) {
                 </details>
             <?php endif; ?>
         </section>
+        <?php $profileBioFragment = ob_get_clean(); ob_start(); ?>
         <form class="profile-top-eight" method="post" action="profile.php?id=<?= $userId ?>" aria-labelledby="profile-top-eight-heading" data-top-eight-form data-profile-id="<?= $userId ?>">
             <input type="hidden" name="action" value="update_top_eight">
             <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['top_eight_token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -401,6 +402,7 @@ if ($user) {
                 </div>
             <?php endif; ?>
         </form>
+        <?php $profileTopEightFragment = ob_get_clean(); ob_start(); ?>
         <nav class="profile-sidebar-actions" aria-label="Profile actions">
             <a class="profile-icon-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
             <?php if ($isOwnProfile): ?><a class="profile-icon-button" href="customize-profile.php" aria-label="Customize profile" title="Customize profile">&#9998;</a><?php endif; ?>
@@ -409,7 +411,7 @@ if ($user) {
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
-        </aside>
+        <?php $profileControlsFragment = ob_get_clean(); ob_start(); ?>
         <section class="profile-posts" aria-labelledby="profile-posts-heading">
             <h2 id="profile-posts-heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
             <?php if (!$profilePosts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
@@ -426,6 +428,23 @@ if ($user) {
                 </article>
             <?php endforeach; ?>
         </section>
+        <?php $profilePostsFragment = ob_get_clean(); ?>
+        <?php
+        $profileFragments = [
+            'profile_header' => $profileHeaderFragment,
+            'bio' => $profileBioFragment,
+            'top_eight' => $profileTopEightFragment,
+            'posts' => $profilePostsFragment,
+        ];
+        ?>
+        <div class="profile-layout">
+            <aside class="profile-sidebar">
+                <?= $profileFragments['profile_header'] ?>
+                <?= $profileFragments['bio'] ?>
+                <?= $profileFragments['top_eight'] ?>
+                <?= $profileControlsFragment ?>
+            </aside>
+            <?= $profileFragments['posts'] ?>
         </div>
         <?php endif; ?>
 
