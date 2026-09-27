@@ -95,6 +95,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return avatar;
     };
+    const createViewerAvatar = () => {
+        const avatar = document.createElement('a');
+        avatar.className = 'conversation-message-avatar is-viewer';
+        avatar.href = list.dataset.viewerProfile;
+        avatar.setAttribute('aria-label', 'View your profile');
+        const initial = document.createElement('span');
+        initial.textContent = list.dataset.viewerInitial;
+        avatar.append(initial);
+        if (list.dataset.viewerAvatar) {
+            const image = document.createElement('img');
+            image.src = list.dataset.viewerAvatar;
+            image.alt = '';
+            avatar.append(image);
+        }
+        return avatar;
+    };
 
     const refresh = () => {
         if (refreshing) return refreshing;
@@ -113,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const item = document.createElement('article');
                 const mine = Number(message.sender_id) === Number(list.dataset.viewer);
                 updateSidebarPreview(message, mine);
-                item.className = `conversation-message ${mine ? 'is-mine' : 'is-incoming has-avatar'}`;
+                item.className = `conversation-message ${mine ? 'is-mine' : 'is-incoming'} has-avatar`;
                 item.dataset.messageId = message.id;
                 const author = document.createElement('strong');
                 author.textContent = mine ? 'You' : form.dataset.friendName;
@@ -121,8 +137,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 content.textContent = message.content;
                 const time = document.createElement('small');
                 time.textContent = message.created_at;
-                if (!mine) {
-                    const previousMessage = Array.from(list.querySelectorAll('.conversation-message')).at(-1);
+                const previousMessage = Array.from(list.querySelectorAll('.conversation-message')).at(-1);
+                if (mine) {
+                    if (previousMessage?.classList.contains('is-mine')) {
+                        previousMessage.classList.remove('has-avatar');
+                        previousMessage.querySelector('.conversation-message-avatar')?.remove();
+                    }
+                    item.append(createViewerAvatar());
+                } else {
                     if (previousMessage?.classList.contains('is-incoming')) {
                         previousMessage.classList.remove('has-avatar');
                         previousMessage.querySelector('.conversation-message-avatar')?.remove();

@@ -32,6 +32,12 @@ function conversationListTimestamp(?string $value): string
     return $date->format('M j, Y');
 }
 
+$statement = mysqli_prepare($conn, 'SELECT username, avatar_path FROM users WHERE id = ? LIMIT 1');
+mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+mysqli_stmt_execute($statement);
+$viewer = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: ['username' => 'You', 'avatar_path' => ''];
+mysqli_stmt_close($statement);
+
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
 $statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
 mysqli_stmt_bind_param($statement, 'iiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
@@ -127,6 +133,11 @@ if ($isJson) {
 $selectedAvatar = '';
 $selectedInitial = '';
 $activityLabel = '';
+$viewerAvatar = trim($viewer['avatar_path'] ?? '');
+if ($viewerAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $viewerAvatar)) {
+    $viewerAvatar = str_starts_with($viewerAvatar, '/') ? $viewerAvatar : '../' . $viewerAvatar;
+} else { $viewerAvatar = ''; }
+$viewerInitial = mb_strtoupper(mb_substr($viewer['username'], 0, 1));
 if ($selectedFriend) {
     $selectedAvatar = trim($selectedFriend['avatar_path'] ?? '');
     if ($selectedAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $selectedAvatar)) {
@@ -208,16 +219,18 @@ if ($selectedFriend) {
                 <div class="conversation-content">
                     <?php if ($hasOlder): ?><a href="messages.php?user=<?= $selectedId ?>&amp;before=<?= (int) $messages[0]['id'] ?>">Older messages</a><?php endif; ?>
                     <?php if ($before): ?><p><a href="messages.php?user=<?= $selectedId ?>">Back to latest messages</a></p><?php endif; ?>
-                    <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
+                    <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-viewer-avatar="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" data-viewer-initial="<?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?>" data-viewer-profile="profile.php?id=<?= $currentUserId ?>" data-viewer-name="<?= htmlspecialchars($viewer['username'], ENT_QUOTES, 'UTF-8') ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
                         <?php if (!$messages): ?><p data-empty-messages>No messages yet. Say hello!</p><?php endif; ?>
                         <?php foreach ($messages as $messageIndex => $message): ?>
                             <?php
                             $messageIsMine = (int) $message['sender_id'] === $currentUserId;
                             $nextMessage = $messages[$messageIndex + 1] ?? null;
                             $showsFriendAvatar = !$messageIsMine && (!$nextMessage || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
+                            $showsViewerAvatar = $messageIsMine && (!$nextMessage || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
                             ?>
-                            <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= $showsFriendAvatar ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>">
+                            <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= ($showsFriendAvatar || $showsViewerAvatar) ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>">
                                 <?php if ($showsFriendAvatar): ?><a class="conversation-message-avatar" href="profile.php?id=<?= $selectedId ?>" aria-label="View <?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>'s profile"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
+                                <?php if ($showsViewerAvatar): ?><a class="conversation-message-avatar is-viewer" href="profile.php?id=<?= $currentUserId ?>" aria-label="View your profile"><span><?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($viewerAvatar): ?><img src="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
                                 <strong><?= $messageIsMine ? 'You' : htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></strong>
                                 <p><?= htmlspecialchars($message['content'], ENT_QUOTES, 'UTF-8') ?></p>
                                 <small><?= htmlspecialchars($message['created_at'], ENT_QUOTES, 'UTF-8') ?></small>
