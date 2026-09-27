@@ -151,6 +151,28 @@ if ($isJson) {
     echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token]);
     exit;
 }
+$sharedLinks = [];
+$mutualFriends = [];
+if ($selectedFriend) {
+    $statement = mysqli_prepare($conn, "SELECT content FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND (content LIKE '%http://%' OR content LIKE '%https://%') ORDER BY id DESC");
+    mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $selectedId, $selectedId, $currentUserId);
+    mysqli_stmt_execute($statement);
+    foreach (mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC) as $linkMessage) {
+        if (!preg_match_all('~https?://[^\s<>\x22\x27]+~iu', $linkMessage['content'], $matches)) continue;
+        foreach ($matches[0] as $url) {
+            $url = rtrim($url, '.,!?;:)]}');
+            if (filter_var($url, FILTER_VALIDATE_URL)) $sharedLinks[$url] = $url;
+        }
+    }
+    mysqli_stmt_close($statement);
+    $sharedLinks = array_values($sharedLinks);
+
+    $statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path FROM friends viewer_friend JOIN friends selected_friend ON selected_friend.friend_id = viewer_friend.friend_id AND selected_friend.user_id = ? JOIN users u ON u.id = viewer_friend.friend_id WHERE viewer_friend.user_id = ? AND viewer_friend.friend_id NOT IN (?, ?) ORDER BY u.username, u.id');
+    mysqli_stmt_bind_param($statement, 'iiii', $selectedId, $currentUserId, $currentUserId, $selectedId);
+    mysqli_stmt_execute($statement);
+    $mutualFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+    mysqli_stmt_close($statement);
+}
 $selectedAvatar = '';
 $selectedInitial = '';
 $activityLabel = '';
@@ -291,6 +313,45 @@ if ($selectedFriend) {
                     <small data-conversation-activity><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
                 </div>
                 <?php if (trim($selectedFriend['status_text'] ?? '') !== ''): ?><p class="conversation-profile-status"><?= htmlspecialchars($selectedFriend['status_text'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                <div class="conversation-profile-sections">
+                    <div class="conversation-profile-section-row" aria-disabled="true">
+                        <span>Media</span>
+                        <strong>0</strong>
+                    </div>
+                    <details class="conversation-profile-section">
+                        <summary><span>Shared links</span><strong><?= count($sharedLinks) ?></strong><span class="conversation-profile-chevron" aria-hidden="true">&gt;</span></summary>
+                        <div class="conversation-profile-section-content">
+                            <?php if (!$sharedLinks): ?>
+                                <p>No links shared yet.</p>
+                            <?php else: ?>
+                                <ul class="conversation-shared-links">
+                                    <?php foreach ($sharedLinks as $url): ?><li><a href="<?= htmlspecialchars($url, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><?= htmlspecialchars($url, ENT_QUOTES, 'UTF-8') ?></a></li><?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </div>
+                    </details>
+                    <details class="conversation-profile-section">
+                        <summary><span>Mutual friends</span><strong><?= count($mutualFriends) ?></strong><span class="conversation-profile-chevron" aria-hidden="true">&gt;</span></summary>
+                        <div class="conversation-profile-section-content">
+                            <?php if (!$mutualFriends): ?>
+                                <p>No mutual friends.</p>
+                            <?php else: ?>
+                                <ul class="conversation-mutual-friends">
+                                    <?php foreach ($mutualFriends as $mutualFriend): ?>
+                                        <?php
+                                        $mutualAvatar = trim($mutualFriend['avatar_path'] ?? '');
+                                        if ($mutualAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $mutualAvatar)) {
+                                            $mutualAvatar = str_starts_with($mutualAvatar, '/') ? $mutualAvatar : '../' . $mutualAvatar;
+                                        } else { $mutualAvatar = ''; }
+                                        $mutualInitial = mb_strtoupper(mb_substr($mutualFriend['username'], 0, 1));
+                                        ?>
+                                        <li><a href="profile.php?id=<?= (int) $mutualFriend['id'] ?>"><span class="conversation-mutual-avatar" aria-hidden="true"><span><?= htmlspecialchars($mutualInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($mutualAvatar): ?><img src="<?= htmlspecialchars($mutualAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span><span><?= htmlspecialchars($mutualFriend['username'], ENT_QUOTES, 'UTF-8') ?></span></a></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </div>
+                    </details>
+                </div>
             <?php endif; ?>
         </aside>
     </main>
