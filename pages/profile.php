@@ -634,6 +634,7 @@ if ($isOwnProfile) {
             <?php endif; ?>
         </section>
         <?php $profileHeaderFragment = ob_get_clean(); ob_start(); ?>
+        <?php if ($isOwnProfile || trim($user['bio'] ?? '') !== ''): ?>
         <section class="profile-bio-section" aria-label="Bio">
             <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <?php if ($isOwnProfile): ?>
@@ -650,13 +651,14 @@ if ($isOwnProfile) {
                 </details>
             <?php endif; ?>
         </section>
+        <?php endif; ?>
         <?php $profileBioFragment = ob_get_clean(); ob_start(); ?>
         <form class="profile-top-eight" method="post" action="profile.php?id=<?= $userId ?>" aria-labelledby="profile-top-eight-heading" data-top-eight-form data-profile-id="<?= $userId ?>">
             <input type="hidden" name="action" value="update_top_eight">
             <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['top_eight_token'], ENT_QUOTES, 'UTF-8') ?>">
             <span data-top-eight-inputs></span>
             <div class="panel-heading">
-                <h2 class="friends-link" id="profile-top-eight-heading"><?= $isOwnProfile ? 'My top 8 friends' : htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') . "'s top 8 friends" ?></h2>
+                <h2 class="friends-link" id="profile-top-eight-heading" data-fit-top-eight-heading><?= $isOwnProfile ? 'My top 8 friends' : htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') . "'s top 8 friends" ?></h2>
                 <?php if ($isOwnProfile): ?><button class="friends-reorder" type="button" aria-label="Reorder Top 8 friends" title="Reorder Top 8 friends" data-top-eight-edit><img src="../assets/images/arrows.png" alt=""></button><?php endif; ?>
             </div>
             <ol class="friends-list" data-top-eight-list>

@@ -444,7 +444,7 @@ if (isset($_SESSION['user_id'])) {
                         <span class="mini-avatar"><span><?= $initial ?></span><?php if ($dashboardAvatar !== ''): ?><img src="<?= $dashboardAvatar ?>" alt=""><?php endif; ?></span>
                         <span class="activity-diamond" data-activity-indicator data-state="online"></span>
                     </span>
-                    <span><?= $username ?></span>
+                    <span>@<?= $username ?></span>
                 </a>
 
                 <form class="status-form" method="post">
@@ -454,11 +454,11 @@ if (isset($_SESSION['user_id'])) {
                             <label class="sr-only" for="basic-status">Basic status</label>
                             <input id="basic-status" name="status" type="text" value="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" maxlength="160" autocomplete="off" placeholder="your status???" data-status-input>
                         </div>
-                        <div class="status-item">
-                            <p>currently music</p>
+                        <div class="status-item" data-current-music hidden>
+                            <p></p>
                         </div>
-                        <div class="status-item">
-                            <p>current game</p>
+                        <div class="status-item" data-current-game hidden>
+                            <p></p>
                         </div>
                     </section>
                     <?php if ($statusError): ?>

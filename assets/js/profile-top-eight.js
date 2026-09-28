@@ -1,6 +1,7 @@
 const topEightForm = document.querySelector('[data-top-eight-form]');
 
 if (topEightForm) {
+    const heading = topEightForm.querySelector('[data-fit-top-eight-heading]');
     const editButton = topEightForm.querySelector('[data-top-eight-edit]');
     const list = topEightForm.querySelector('[data-top-eight-list]');
     const picker = topEightForm.querySelector('[data-top-eight-picker]');
@@ -15,7 +16,25 @@ if (topEightForm) {
     let originalTop = [];
     let originalPool = [];
     let draggedItem = null;
+    let headingFitFrame = null;
     const storageKey = `nexusspace-top-eight-${topEightForm.dataset.profileId}`;
+
+    const fitHeading = () => {
+        if (!heading) return;
+        heading.style.fontSize = '22px';
+        let fontSize = 22;
+        while (heading.scrollWidth > heading.clientWidth && fontSize > 11) {
+            fontSize--;
+            heading.style.fontSize = `${fontSize}px`;
+        }
+    };
+    const scheduleHeadingFit = () => {
+        if (headingFitFrame !== null) cancelAnimationFrame(headingFitFrame);
+        headingFitFrame = requestAnimationFrame(() => {
+            headingFitFrame = null;
+            fitHeading();
+        });
+    };
 
     const itemsIn = (container) => Array.from(container?.querySelectorAll(':scope > [data-top-eight-item]') || []);
     const itemKey = (item) => item.dataset.friendId ? `friend:${item.dataset.friendId}` : `temp:${item.dataset.tempUser}`;
@@ -220,6 +239,14 @@ if (topEightForm) {
             inputs.append(input);
         }
     });
-    window.addEventListener('resize', positionPicker);
+    window.addEventListener('resize', () => {
+        positionPicker();
+        scheduleHeadingFit();
+    });
+    if ('ResizeObserver' in window) {
+        new ResizeObserver(scheduleHeadingFit).observe(topEightForm);
+    }
+    document.fonts?.ready.then(scheduleHeadingFit);
+    scheduleHeadingFit();
     filterPool();
 }
