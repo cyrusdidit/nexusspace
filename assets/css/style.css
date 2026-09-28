@@ -868,8 +868,10 @@ body.dashboard-page {
 .top-eight-form select { width: 100%; font: inherit; padding: 7px; border: 1px solid #79b9dd; border-radius: 4px; }
 
 .sidebar-actions {
+    display: flex;
     flex: 0 0 auto;
-    margin-top: 8px;
+    gap: 4px;
+    margin: 8px 10px 0;
     position: static;
 }
 
@@ -879,15 +881,17 @@ body.dashboard-page {
     color: #000;
     display: flex;
     font-size: 14px;
-    gap: 4px;
-    margin: 5px 10px 0;
-    padding: 3px 6px;
+    justify-content: center;
+    height: 30px;
+    margin: 0;
+    padding: 0;
     text-decoration: none;
-    width: calc(100% - 20px);
+    width: 30px;
 }
 
-.sidebar-actions button { justify-content: center; }
-.sidebar-actions a { background: #f600b8; justify-content: center; }
+.sidebar-actions a { background: #f600b8; }
+.sidebar-action-icon { display: grid; place-items: center; width: 17px; height: 17px; overflow: hidden; font-size: 15px; line-height: 1; }
+.sidebar-action-icon img { display: block; width: 16px; height: 16px; object-fit: contain; filter: invert(1); }
 .copyright {
     color: #000;
     flex: 0 0 auto;
@@ -1047,6 +1051,19 @@ main.dashboard {
 
 .dashboard-right-rail { position: relative; z-index: 20; width: auto; gap: 0; border: 0; background: #dff2ff; }
 .dashboard-right-rail .notifications-panel { width: 100%; border-top: 0; border-right: 0; box-shadow: none; }
+.dashboard-appearance-panel { position: absolute; z-index: 30; inset: 0; overflow-y: auto; border-left: 1px solid #9dcce8; background: #f6fcff; color: #163b5c; }
+.dashboard-appearance-panel[hidden] { display: none; }
+.dashboard-appearance-header { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 10px 14px; border-bottom: 1px solid #9dcce8; }
+.dashboard-appearance-header h2 { margin: 0; font-size: 17px; }
+.dashboard-appearance-header button { display: grid; place-items: center; width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 0; font-size: 20px; }
+.dashboard-appearance-form { display: flex; flex-direction: column; gap: 20px; padding: 18px; }
+.dashboard-appearance-form h3 { margin: 0 0 18px; font-size: 13px; }
+.dashboard-appearance-form label { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 700; }
+.dashboard-background-color-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); align-items: center; gap: 10px; }
+.dashboard-background-color-row input { width: 52px; height: 36px; padding: 2px; border-radius: 0; cursor: pointer; }
+.dashboard-background-color-row output { font: 12px Consolas, "Courier New", monospace; text-transform: uppercase; }
+.dashboard-appearance-form > button { min-height: 38px; margin: 0; border-radius: 0; }
+.dashboard-appearance-error { margin: 0; color: #a12c42; font-size: 12px; }
 
 .chat-preview { background: #dff2ff; border: 1px solid #9dcce8; }
 .chat-heading { background: #166da5; color: #ffffff; }

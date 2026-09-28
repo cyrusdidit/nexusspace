@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/db_connect.php';
+require_once __DIR__ . '/includes/background_customization.php';
 
 session_start();
 
@@ -62,6 +63,42 @@ $postContent = '';
 $postVisibility = 'friends';
 $posts = [];
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
+$_SESSION['dashboard_appearance_csrf'] ??= bin2hex(random_bytes(32));
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_dashboard_background') {
+    if (!isset($_SESSION['user_id'])) {
+        header('Location: pages/login.php');
+        exit;
+    }
+
+    $token = $_POST['csrf_token'] ?? '';
+    $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
+    if (!is_string($token) || !hash_equals($_SESSION['dashboard_appearance_csrf'], $token)) {
+        $dashboardAppearanceError = 'Your session changed. Please refresh the page and try again.';
+    } elseif (!preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
+        $dashboardAppearanceError = 'Choose a valid background color.';
+    } else {
+        $appearanceUserId = (int) $_SESSION['user_id'];
+        $appearanceSettings = readUserBackgroundSettings($conn, $appearanceUserId);
+        $currentDashboardSetting = $appearanceSettings['dashboard_feed'];
+        saveUserBackgroundSetting(
+            $conn,
+            $appearanceUserId,
+            'dashboard_feed',
+            'color',
+            $submittedColor,
+            $currentDashboardSetting['image_path'],
+            null,
+            $currentDashboardSetting['image_fit'],
+            $currentDashboardSetting['image_blur'],
+            $currentDashboardSetting['image_position_x'],
+            $currentDashboardSetting['image_position_y'],
+            $currentDashboardSetting['image_zoom']
+        );
+        header('Location: index.php');
+        exit;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['create_post', 'delete_post'], true)) {
     if (!isset($_SESSION['user_id'])) {
@@ -105,6 +142,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
 
 if (isset($_SESSION['user_id'])) {
     $userId = (int) $_SESSION['user_id'];
+    $dashboardBackgroundSettings = readUserBackgroundSettings($conn, $userId);
+    $dashboardBackground = resolveUserBackground($dashboardBackgroundSettings, 'dashboard_feed');
+    $dashboardBackgroundColor = $dashboardBackground['color_value'];
+    if (isset($submittedColor) && preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
+        $dashboardBackgroundColor = $submittedColor;
+    }
     $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     mysqli_stmt_bind_param($feedStatement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($feedStatement);
@@ -224,13 +267,14 @@ if (isset($_SESSION['user_id'])) {
                 </section>
 
                 <nav class="sidebar-actions" aria-label="Account actions">
-                    <a class="settings-link" href="pages/coming-soon.php?feature=settings"><span aria-hidden="true">&#9881;</span> settings</a>
-                    <a href="logout.php">log out</a>
+                    <a class="logout-link" href="logout.php" aria-label="Log out" title="Log out"><span class="sidebar-action-icon" aria-hidden="true"><img src="assets/images/logout-door.png" alt=""></span></a>
+                    <a class="settings-link" href="pages/coming-soon.php?feature=settings" aria-label="Settings" title="Settings"><span class="sidebar-action-icon" aria-hidden="true">&#9881;</span></a>
+                    <button type="button" data-dashboard-appearance-toggle aria-controls="dashboard-appearance-panel" aria-expanded="false" aria-label="Appearance" title="Appearance"><span class="sidebar-action-icon" aria-hidden="true">&#9998;</span></button>
                 </nav>
                 <small class="copyright">mini copyright</small>
             </aside>
 
-            <section class="dashboard-feed" aria-label="Post feed">
+            <section class="dashboard-feed" aria-label="Post feed" style="background-color: <?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-dashboard-background>
                 <form class="user-search" role="search" action="pages/search.php" method="get" data-live-user-search>
                     <label class="sr-only" for="user-search">Search for users</label>
                     <input id="user-search" name="q" type="search" placeholder="Find users" maxlength="50" autocomplete="off" aria-controls="live-user-results" required>
@@ -311,6 +355,27 @@ if (isset($_SESSION['user_id'])) {
                         <button type="submit" aria-label="Send message">&gt;</button>
                     </form>
                 </section>
+
+                <aside class="dashboard-appearance-panel" id="dashboard-appearance-panel" data-dashboard-appearance-panel aria-label="Dashboard appearance" hidden>
+                    <header class="dashboard-appearance-header">
+                        <h2>Appearance</h2>
+                        <button type="button" aria-label="Close dashboard appearance" title="Close" data-dashboard-appearance-close>&times;</button>
+                    </header>
+                    <form class="dashboard-appearance-form" method="post">
+                        <input type="hidden" name="action" value="update_dashboard_background">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['dashboard_appearance_csrf'], ENT_QUOTES, 'UTF-8') ?>">
+                        <section>
+                            <h3>Dashboard background</h3>
+                            <label for="dashboard-background-color">Background color</label>
+                            <div class="dashboard-background-color-row">
+                                <input id="dashboard-background-color" type="color" name="background_color" value="<?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-dashboard-background-color>
+                                <output for="dashboard-background-color" data-dashboard-background-value><?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                            </div>
+                        </section>
+                        <button type="submit">Save</button>
+                        <?php if (!empty($dashboardAppearanceError)): ?><p class="dashboard-appearance-error" role="alert"><?= htmlspecialchars($dashboardAppearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                    </form>
+                </aside>
             </aside>
         </main>
         <aside class="zoom-layout-warning" role="status" data-zoom-warning>

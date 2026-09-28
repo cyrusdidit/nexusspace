@@ -291,4 +291,36 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const appearanceToggle = document.querySelector('[data-dashboard-appearance-toggle]');
+    const appearancePanel = document.querySelector('[data-dashboard-appearance-panel]');
+    const appearanceClose = document.querySelector('[data-dashboard-appearance-close]');
+    const dashboardBackground = document.querySelector('[data-dashboard-background]');
+    const backgroundColor = document.querySelector('[data-dashboard-background-color]');
+    const backgroundValue = document.querySelector('[data-dashboard-background-value]');
+
+    if (appearanceToggle && appearancePanel) {
+        const setAppearanceOpen = (open) => {
+            appearancePanel.hidden = !open;
+            appearanceToggle.setAttribute('aria-expanded', String(open));
+            if (open) backgroundColor?.focus();
+        };
+
+        setAppearanceOpen(false);
+        appearanceToggle.addEventListener('click', () => setAppearanceOpen(appearancePanel.hidden));
+        appearanceClose?.addEventListener('click', () => setAppearanceOpen(false));
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !appearancePanel.hidden) {
+                setAppearanceOpen(false);
+                appearanceToggle.focus();
+            }
+        });
+    }
+
+    if (backgroundColor && dashboardBackground) {
+        backgroundColor.addEventListener('input', () => {
+            dashboardBackground.style.backgroundColor = backgroundColor.value;
+            if (backgroundValue) backgroundValue.value = backgroundColor.value.toUpperCase();
+        });
+    }
+
 });
