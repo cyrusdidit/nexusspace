@@ -79,11 +79,22 @@ foreach ($friends as $friend) {
 $error = '';
 $appearanceError = '';
 $appearancePanelOpen = isset($_GET['customize']);
-$appearanceNotice = isset($_GET['appearance_saved'])
-    ? 'Background saved.'
-    : (isset($_GET['appearance_image_removed'])
-        ? 'Background image removed. Your color was kept.'
-        : (isset($_GET['appearance_reset']) ? 'Settings reset, no going back now!' : ''));
+$backgroundSourceLabels = [
+    'profile_cover' => 'Profile cover',
+    'profile_posts' => 'Profile posts',
+    'dashboard_feed' => 'Dashboard feed',
+];
+$copiedSource = is_string($_GET['appearance_copied'] ?? null) ? $_GET['appearance_copied'] : '';
+$appearanceNotice = '';
+if (isset($_GET['appearance_saved'])) {
+    $appearanceNotice = 'Background saved.';
+} elseif (isset($_GET['appearance_image_removed'])) {
+    $appearanceNotice = 'Background image removed. Your color was kept.';
+} elseif (isset($_GET['appearance_reset'])) {
+    $appearanceNotice = 'Settings reset, no going back now!';
+} elseif (isset($backgroundSourceLabels[$copiedSource])) {
+    $appearanceNotice = 'Settings copied from ' . $backgroundSourceLabels[$copiedSource] . '.';
+}
 $content = '';
 if (isset($_GET['user']) && !$selectedFriend) {
     http_response_code(403);
@@ -95,11 +106,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     if (!is_string($submittedToken) || !hash_equals($token, $submittedToken)) {
         http_response_code(403);
-        if (in_array($action, ['update_messages_background', 'remove_messages_background_image', 'reset_messages_background'], true)) {
+        if (in_array($action, ['copy_messages_background', 'update_messages_background', 'remove_messages_background_image', 'reset_messages_background'], true)) {
             $appearancePanelOpen = true;
             $appearanceError = 'Refresh the page and try again.';
         } else {
             $error = 'Could not send. Refresh the page and choose a friend.';
+        }
+    } elseif ($action === 'copy_messages_background') {
+        $appearancePanelOpen = true;
+        $sourceRegion = is_string($_POST['source_region'] ?? null) ? $_POST['source_region'] : '';
+        if (!isset($backgroundSourceLabels[$sourceRegion])) {
+            http_response_code(422);
+            $appearanceError = 'Choose a section to copy settings from.';
+        } else {
+            $sourceBackground = resolveUserBackground($backgroundSettings, $sourceRegion);
+            $previousImagePath = $messagesOwnBackground['image_path'];
+            $copiedImagePath = null;
+            try {
+                $copiedImagePath = duplicateUserBackgroundImage($sourceBackground['image_path'], $currentUserId);
+                $copiedType = $sourceBackground['background_type'] === 'image' && $copiedImagePath !== null ? 'image' : 'color';
+                saveUserBackgroundSetting(
+                    $conn,
+                    $currentUserId,
+                    'messages',
+                    $copiedType,
+                    $sourceBackground['color_value'],
+                    $copiedImagePath,
+                    null,
+                    $sourceBackground['image_fit'],
+                    $sourceBackground['image_blur']
+                );
+                if ($previousImagePath !== $copiedImagePath) {
+                    deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+                }
+                $redirect = 'messages.php?customize=1&appearance_copied=' . rawurlencode($sourceRegion);
+                if ($selectedId) $redirect .= '&user=' . $selectedId;
+                header('Location: ' . $redirect);
+                exit;
+            } catch (InvalidArgumentException | RuntimeException $exception) {
+                if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $currentUserId);
+                http_response_code(422);
+                $appearanceError = $exception->getMessage();
+            }
         }
     } elseif ($action === 'update_messages_background') {
         $appearancePanelOpen = true;
@@ -134,7 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', $submittedColor, $savedImagePath, null, $submittedFit, $submittedBlur);
                 }
                 if ($previousImagePath && $savedImagePath !== $previousImagePath) {
-                    deleteUserBackgroundImage($previousImagePath, $currentUserId);
+                    deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
                 }
                 $redirect = 'messages.php?customize=1&appearance_saved=1';
                 if ($selectedId) $redirect .= '&user=' . $selectedId;
@@ -160,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $messagesOwnBackground['image_fit'],
             $messagesOwnBackground['image_blur']
         );
-        deleteUserBackgroundImage($previousImagePath, $currentUserId);
+        deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
         $redirect = 'messages.php?customize=1&appearance_image_removed=1';
         if ($selectedId) $redirect .= '&user=' . $selectedId;
         header('Location: ' . $redirect);
@@ -168,7 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'reset_messages_background') {
         $previousImagePath = $messagesOwnBackground['image_path'];
         saveUserBackgroundSetting($conn, $currentUserId, 'messages', 'color', USER_BACKGROUND_DEFAULTS['messages'], null, null, 'cover');
-        deleteUserBackgroundImage($previousImagePath, $currentUserId);
+        deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
         $redirect = 'messages.php?customize=1&appearance_reset=1';
         if ($selectedId) $redirect .= '&user=' . $selectedId;
         header('Location: ' . $redirect);
@@ -473,6 +521,17 @@ if ($selectedFriend) {
                         <input id="messages-image-blur" type="range" name="image_blur" min="0" max="20" step="1" value="<?= $messagesBackgroundBlur ?>" data-message-image-blur>
                     </label>
                 </div>
+                <section class="messages-copy-settings">
+                    <label for="messages-copy-source">Copy settings from</label>
+                    <div>
+                        <select id="messages-copy-source" name="source_region">
+                            <?php foreach ($backgroundSourceLabels as $region => $label): ?>
+                                <option value="<?= htmlspecialchars($region, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" name="action" value="copy_messages_background" formnovalidate>Copy</button>
+                    </div>
+                </section>
                 <?php if ($appearanceError !== ''): ?><p class="messages-customization-status is-error" role="alert"><?= htmlspecialchars($appearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 <div class="messages-customization-actions">
                     <button type="submit" name="action" value="update_messages_background">Save</button>

@@ -116,6 +116,38 @@ function deleteUserBackgroundImage(?string $imagePath, int $userId): void
     if (is_file($absolutePath)) @unlink($absolutePath);
 }
 
+function duplicateUserBackgroundImage(?string $imagePath, int $userId): ?string
+{
+    if ($imagePath === null) return null;
+    $filename = basename($imagePath);
+    if (!preg_match('/^background-' . preg_quote((string) $userId, '/') . '-[a-f0-9]{16}\.(jpg|png|webp|gif)$/', $filename, $matches)) {
+        throw new InvalidArgumentException('The source background image is invalid.');
+    }
+
+    $uploadDirectory = __DIR__ . '/../uploads/backgrounds';
+    $sourcePath = $uploadDirectory . '/' . $filename;
+    if (!is_file($sourcePath) || !is_readable($sourcePath)) {
+        throw new RuntimeException('The source background image could not be read.');
+    }
+
+    $newFilename = 'background-' . $userId . '-' . bin2hex(random_bytes(8)) . '.' . $matches[1];
+    if (!copy($sourcePath, $uploadDirectory . '/' . $newFilename)) {
+        throw new RuntimeException('The background image could not be copied.');
+    }
+    return 'uploads/backgrounds/' . $newFilename;
+}
+
+function deleteUserBackgroundImageIfUnused(mysqli $conn, ?string $imagePath, int $userId): void
+{
+    if ($imagePath === null) return;
+    $statement = mysqli_prepare($conn, 'SELECT COUNT(*) FROM user_backgrounds WHERE user_id = ? AND image_path = ?');
+    mysqli_stmt_bind_param($statement, 'is', $userId, $imagePath);
+    mysqli_stmt_execute($statement);
+    $references = (int) mysqli_fetch_row(mysqli_stmt_get_result($statement))[0];
+    mysqli_stmt_close($statement);
+    if ($references === 0) deleteUserBackgroundImage($imagePath, $userId);
+}
+
 function resolveUserBackground(array $settings, string $region): array
 {
     if (!in_array($region, USER_BACKGROUND_REGIONS, true)) throw new InvalidArgumentException('Unknown background region.');

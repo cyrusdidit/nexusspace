@@ -140,6 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     if (customizationToast) {
         let toastTimer = 0;
+        const cleanUrl = new URL(window.location.href);
+        ['customize', 'appearance_saved', 'appearance_image_removed', 'appearance_reset', 'appearance_copied'].forEach((parameter) => cleanUrl.searchParams.delete(parameter));
+        window.history.replaceState(null, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
         const closeToast = () => {
             window.clearTimeout(toastTimer);
             customizationToast.classList.add('is-hiding');

@@ -443,6 +443,11 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .messages-image-blur-control input::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border: 0; border-radius: 50%; background: #238bc5; cursor: pointer; }
 .messages-image-blur-control input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #238bc5; cursor: pointer; }
 .messages-image-blur-control input::-moz-range-track { height: 6px; border: 0; border-radius: 3px; background: #c7d7df; }
+.messages-copy-settings { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid #cce7f5; }
+.messages-copy-settings > label { font-size: 12px; font-weight: 700; }
+.messages-copy-settings > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.messages-copy-settings select { min-width: 0; min-height: 36px; padding: 6px 8px; border: 1px solid #79b9dd; border-radius: 3px; background: #fff; color: #163b5c; }
+.messages-copy-settings button { min-height: 36px; margin: 0; border-radius: 3px; }
 .messages-customization-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
 .messages-customization-actions button { min-width: 0; min-height: 38px; margin: 0; }
 .messages-customization-status { margin: 0; color: #22633a; font-size: 12px; }
