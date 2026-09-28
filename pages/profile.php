@@ -13,6 +13,7 @@ require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/profile_customization.php';
 require_once __DIR__ . '/../includes/background_customization.php';
 require_once __DIR__ . '/../includes/activity.php';
+require_once __DIR__ . '/../includes/blocks.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
@@ -30,6 +31,9 @@ $result = mysqli_stmt_get_result($statement);
 $user = mysqli_fetch_assoc($result);
 mysqli_stmt_close($statement);
 
+if ($user && !$isOwnProfile && usersAreBlocked($conn, $currentUserId, $userId)) {
+    $user = null;
+}
 if (!$user) {
     http_response_code(404);
 }
@@ -475,12 +479,12 @@ $readFriendState = static function () use ($conn, $currentUserId, $userId): stri
 };
 
 if ($user && !$isOwnProfile) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend'], true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend', 'block'], true)) {
         $token = $_POST['token'] ?? '';
         if (!is_string($token) || !hash_equals($_SESSION['friend_request_token'], $token)) {
             http_response_code(403);
             $friendError = 'Please refresh the page and try again.';
-        } elseif (in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend'], true)) {
+        } elseif (in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend', 'block'], true)) {
             $action = $_POST['action'];
             mysqli_begin_transaction($conn);
             try {
@@ -528,7 +532,17 @@ if ($user && !$isOwnProfile) {
                     mysqli_stmt_execute($statement);
                     mysqli_stmt_close($statement);
                 }
+                if ($action === 'block') {
+                    $statement = mysqli_prepare($conn, 'INSERT INTO user_blocks (blocker_id, blocked_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE created_at = created_at');
+                    mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+                }
                 mysqli_commit($conn);
+                if ($action === 'block') {
+                    header('Location: ../index.php?blocked=1');
+                    exit;
+                }
                 header('Location: profile.php?id=' . $userId);
                 exit;
             } catch (mysqli_sql_exception $exception) {
@@ -552,8 +566,8 @@ if ($user) {
     mysqli_stmt_execute($statement);
     $profilePosts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);
-    $statement = mysqli_prepare($conn, "SELECT u.id, u.username, u.avatar_path, f.top_eight_position, GREATEST(f.created_at, COALESCE(MAX(m.created_at), f.created_at)) AS last_interaction_at FROM friends f JOIN users u ON u.id = f.friend_id LEFT JOIN messages m ON ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id)) AND m.deleted_at IS NULL WHERE f.user_id = ? GROUP BY u.id, u.username, u.avatar_path, f.top_eight_position, f.created_at ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, last_interaction_at DESC, u.username, u.id");
-    mysqli_stmt_bind_param($statement, 'iii', $userId, $userId, $userId);
+    $statement = mysqli_prepare($conn, "SELECT u.id, u.username, u.avatar_path, f.top_eight_position, GREATEST(f.created_at, COALESCE(MAX(m.created_at), f.created_at)) AS last_interaction_at FROM friends f JOIN users u ON u.id = f.friend_id LEFT JOIN messages m ON ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id)) AND m.deleted_at IS NULL WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) GROUP BY u.id, u.username, u.avatar_path, f.top_eight_position, f.created_at ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, last_interaction_at DESC, u.username, u.id");
+    mysqli_stmt_bind_param($statement, 'iiiii', $userId, $userId, $userId, $currentUserId, $currentUserId);
     mysqli_stmt_execute($statement);
     $allFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     $topFriends = array_values(array_filter($allFriends, static fn (array $friend): bool => (int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8));
@@ -662,6 +676,7 @@ if ($isOwnProfile) {
                             <button type="submit" name="action" value="befriend">Befriend</button>
                         <?php endif; ?>
                     <?php endif; ?>
+                    <button class="button-secondary" type="submit" name="action" value="block" data-block-button>Block</button>
                 </form>
             <?php endif; ?>
         </section>
@@ -762,7 +777,7 @@ if ($isOwnProfile) {
         <nav class="profile-sidebar-actions" aria-label="Profile actions">
             <a class="profile-icon-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
             <?php if ($isOwnProfile): ?><button class="profile-icon-button" type="button" aria-label="Customize profile appearance" title="Customize profile appearance" aria-controls="profile-appearance-panel" aria-expanded="false" data-profile-appearance-toggle>&#9998;</button><?php endif; ?>
-            <a class="profile-icon-button" href="coming-soon.php?feature=settings" aria-label="Settings" title="Settings">&#9881;</a>
+            <a class="profile-icon-button" href="settings.php" aria-label="Settings" title="Settings">&#9881;</a>
         </nav>
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>

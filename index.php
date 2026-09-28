@@ -362,13 +362,13 @@ if (isset($_SESSION['user_id'])) {
     if (isset($submittedColor) && preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         $dashboardBackgroundColor = $submittedColor;
     }
-    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
-    mysqli_stmt_bind_param($feedStatement, 'iii', $userId, $userId, $userId);
+    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    mysqli_stmt_bind_param($feedStatement, 'iiiii', $userId, $userId, $userId, $userId, $userId);
     mysqli_stmt_execute($feedStatement);
     $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($feedStatement);
-    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
-    mysqli_stmt_bind_param($topStatement, 'i', $userId);
+    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
+    mysqli_stmt_bind_param($topStatement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($topStatement);
     $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($topStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($topStatement);
@@ -488,7 +488,7 @@ if (isset($_SESSION['user_id'])) {
 
                 <nav class="sidebar-actions" aria-label="Account actions">
                     <a class="logout-link" href="logout.php" aria-label="Log out" title="Log out"><span class="sidebar-action-icon" aria-hidden="true"><img src="assets/images/logout-door.png" alt=""></span></a>
-                    <a class="settings-link" href="pages/coming-soon.php?feature=settings" aria-label="Settings" title="Settings"><span class="sidebar-action-icon" aria-hidden="true">&#9881;</span></a>
+                    <a class="settings-link" href="pages/settings.php" aria-label="Settings" title="Settings"><span class="sidebar-action-icon" aria-hidden="true">&#9881;</span></a>
                     <button type="button" data-dashboard-appearance-toggle aria-controls="dashboard-appearance-panel" aria-expanded="false" aria-label="Appearance" title="Appearance"><span class="sidebar-action-icon" aria-hidden="true">&#9998;</span></button>
                 </nav>
                 <small class="copyright">mini copyright</small>

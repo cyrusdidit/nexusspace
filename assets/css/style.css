@@ -358,6 +358,19 @@ a {
     .profile-appearance-panel,
     .profile-cover-panel { width: 100%; border-left: 0; }
 }
+
+.settings-page { width: min(100%, 720px); }
+.settings-header { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #9dcce8; padding-bottom: 14px; }
+.settings-header h1 { margin: 0; }
+.settings-header a { display: grid; place-items: center; width: 34px; height: 34px; background: #238bc5; color: #fff; text-decoration: none; }
+.settings-notice { border: 1px solid #75c69a; background: #edfff4; color: #17613a; padding: 10px 12px; }
+.blocked-users h2 { font-size: 18px; }
+.blocked-users ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid #cce7f5; }
+.blocked-users li { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; border-bottom: 1px solid #cce7f5; padding: 8px 0; }
+.blocked-user-identity { display: flex; align-items: center; min-width: 0; gap: 10px; }
+.blocked-user-identity strong { overflow-wrap: anywhere; }
+.blocked-users form { flex: 0 0 auto; }
+.blocked-users button { margin: 0; }
 @media (max-width: 480px) {
     .profile-page { padding: 0; }
     .profile-cover { height: 145px; }

@@ -23,14 +23,14 @@ require_once __DIR__ . '/includes/db_connect.php';
 // Use a single snapshot so counts and the incoming-message cursor agree.
 mysqli_begin_transaction($conn, MYSQLI_TRANS_START_READ_ONLY | MYSQLI_TRANS_START_WITH_CONSISTENT_SNAPSHOT);
 try {
-    $statement = mysqli_prepare($conn, 'SELECT COALESCE(MAX(id), 0) AS latest_id FROM messages WHERE receiver_id = ? AND deleted_at IS NULL');
-    mysqli_stmt_bind_param($statement, 'i', $userId);
+    $statement = mysqli_prepare($conn, 'SELECT COALESCE(MAX(m.id), 0) AS latest_id FROM messages m WHERE m.receiver_id = ? AND m.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = m.sender_id) OR (b.blocker_id = m.sender_id AND b.blocked_id = ?))');
+    mysqli_stmt_bind_param($statement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($statement);
     $latestId = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['latest_id'];
     mysqli_stmt_close($statement);
 
-    $statement = mysqli_prepare($conn, 'SELECT u.id AS sender_id, u.username, u.avatar_path, COUNT(*) AS unread_count, MAX(m.id) AS latest_unread_id, (SELECT f.top_eight_position FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id) AS top_eight_position FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.receiver_id = ? AND m.is_read = 0 AND m.deleted_at IS NULL GROUP BY u.id, u.username, u.avatar_path ORDER BY latest_unread_id DESC');
-    mysqli_stmt_bind_param($statement, 'ii', $userId, $userId);
+    $statement = mysqli_prepare($conn, 'SELECT u.id AS sender_id, u.username, u.avatar_path, COUNT(*) AS unread_count, MAX(m.id) AS latest_unread_id, (SELECT f.top_eight_position FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id) AS top_eight_position FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.receiver_id = ? AND m.is_read = 0 AND m.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) GROUP BY u.id, u.username, u.avatar_path ORDER BY latest_unread_id DESC');
+    mysqli_stmt_bind_param($statement, 'iiii', $userId, $userId, $userId, $userId);
     mysqli_stmt_execute($statement);
     $senders = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);

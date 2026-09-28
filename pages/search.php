@@ -32,10 +32,10 @@ if (strlen($query) > 50) {
     // Match a literal part of a username, including underscores, without SQL wildcards.
     $statement = mysqli_prepare(
         $conn,
-        'SELECT id, username, avatar_path FROM users WHERE LOCATE(LOWER(?), LOWER(username)) > 0 AND id <> ? ORDER BY username, id LIMIT 51'
+        'SELECT id, username, avatar_path FROM users u WHERE LOCATE(LOWER(?), LOWER(username)) > 0 AND id <> ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY username, id LIMIT 51'
     );
     $currentUserId = (int) $_SESSION['user_id'];
-    mysqli_stmt_bind_param($statement, 'si', $query, $currentUserId);
+    mysqli_stmt_bind_param($statement, 'siii', $query, $currentUserId, $currentUserId, $currentUserId);
     mysqli_stmt_execute($statement);
     $users = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);
