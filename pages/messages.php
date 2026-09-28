@@ -486,8 +486,18 @@ if ($selectedFriend) {
         <aside class="messages-customization-panel" id="messages-customization" data-message-customization data-open="<?= $appearancePanelOpen ? 'true' : 'false' ?>" data-saved-type="<?= htmlspecialchars($messagesSavedBackgroundType, ENT_QUOTES, 'UTF-8') ?>" data-saved-color="<?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-saved-image="<?= htmlspecialchars($messagesBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" data-saved-fit="<?= htmlspecialchars($messagesBackgroundFit, ENT_QUOTES, 'UTF-8') ?>" data-saved-blur="<?= $messagesBackgroundBlur ?>" aria-label="Messages customization" hidden>
             <header class="messages-customization-header">
                 <h2>Appearance</h2>
-                <button type="button" aria-label="Close Messages customization" title="Close" data-message-customization-close>&times;</button>
+                <div class="messages-customization-header-actions">
+                    <button type="button" class="messages-css-toggle" aria-controls="messages-css-editor" aria-pressed="false" data-message-css-toggle>CSS</button>
+                    <button type="button" aria-label="Close Messages customization" title="Close" data-message-customization-close>&times;</button>
+                </div>
             </header>
+            <section class="messages-css-editor" id="messages-css-editor" data-message-css-editor hidden>
+                <div>
+                    <label for="messages-custom-css">Custom CSS</label>
+                    <span>Coming soon</span>
+                </div>
+                <textarea id="messages-custom-css" readonly spellcheck="false" aria-label="Custom Messages CSS editor">/* Custom Messages CSS */</textarea>
+            </section>
             <form class="messages-customization-form" id="messages-customization-form" method="post" action="messages.php?customize=1<?= $selectedId ? '&amp;user=' . $selectedId : '' ?>" enctype="multipart/form-data">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
                 <fieldset class="messages-background-modes">
