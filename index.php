@@ -62,40 +62,244 @@ $postError = '';
 $postContent = '';
 $postVisibility = 'friends';
 $posts = [];
+$dashboardAppearanceError = '';
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['dashboard_appearance_csrf'] ??= bin2hex(random_bytes(32));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_dashboard_background') {
+    $dashboardAppearanceJson = ($_POST['response_format'] ?? '') === 'json'
+        || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
     if (!isset($_SESSION['user_id'])) {
+        if ($dashboardAppearanceJson) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Log in again to save your background.']);
+            exit;
+        }
         header('Location: pages/login.php');
         exit;
     }
 
     $token = $_POST['csrf_token'] ?? '';
+    $submittedType = is_string($_POST['background_type'] ?? null) ? $_POST['background_type'] : '';
     $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
+    $submittedFit = is_string($_POST['image_fit'] ?? null) ? $_POST['image_fit'] : '';
+    $submittedBlur = filter_var($_POST['image_blur'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 20]]);
+    $submittedPositionX = is_numeric($_POST['image_position_x'] ?? null) ? (float) $_POST['image_position_x'] : -1;
+    $submittedPositionY = is_numeric($_POST['image_position_y'] ?? null) ? (float) $_POST['image_position_y'] : -1;
+    $submittedZoom = is_numeric($_POST['image_zoom'] ?? null) ? (float) $_POST['image_zoom'] : -1;
     if (!is_string($token) || !hash_equals($_SESSION['dashboard_appearance_csrf'], $token)) {
         $dashboardAppearanceError = 'Your session changed. Please refresh the page and try again.';
+    } elseif (!in_array($submittedType, ['color', 'image'], true)) {
+        $dashboardAppearanceError = 'Choose a background type.';
     } elseif (!preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         $dashboardAppearanceError = 'Choose a valid background color.';
+    } elseif (!in_array($submittedFit, USER_BACKGROUND_IMAGE_FITS, true) || $submittedBlur === false) {
+        $dashboardAppearanceError = 'Choose valid image display settings.';
+    } elseif ($submittedPositionX < 0 || $submittedPositionX > 100 || $submittedPositionY < 0 || $submittedPositionY > 100 || $submittedZoom < 1 || $submittedZoom > 3) {
+        $dashboardAppearanceError = 'Choose valid image crop settings.';
     } else {
         $appearanceUserId = (int) $_SESSION['user_id'];
         $appearanceSettings = readUserBackgroundSettings($conn, $appearanceUserId);
         $currentDashboardSetting = $appearanceSettings['dashboard_feed'];
-        saveUserBackgroundSetting(
-            $conn,
-            $appearanceUserId,
-            'dashboard_feed',
-            'color',
-            $submittedColor,
-            $currentDashboardSetting['image_path'],
-            null,
-            $currentDashboardSetting['image_fit'],
-            $currentDashboardSetting['image_blur'],
-            $currentDashboardSetting['image_position_x'],
-            $currentDashboardSetting['image_position_y'],
-            $currentDashboardSetting['image_zoom']
-        );
+        $previousImagePath = $currentDashboardSetting['image_path'];
+        $savedImagePath = $previousImagePath;
+        try {
+            if ($submittedType === 'image') {
+                $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
+                if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                    $savedImagePath = storeUserBackgroundImage($upload, $appearanceUserId);
+                } elseif (!$savedImagePath) {
+                    throw new InvalidArgumentException('Choose an image to upload.');
+                }
+            }
+            saveUserBackgroundSetting(
+                $conn,
+                $appearanceUserId,
+                'dashboard_feed',
+                $submittedType,
+                $submittedColor,
+                $savedImagePath,
+                null,
+                $submittedFit,
+                $submittedBlur,
+                $submittedPositionX,
+                $submittedPositionY,
+                $submittedZoom
+            );
+            if ($previousImagePath && $savedImagePath !== $previousImagePath) {
+                deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $appearanceUserId);
+            }
+            if ($dashboardAppearanceJson) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'ok' => true,
+                    'backgroundType' => $submittedType,
+                    'backgroundColor' => $submittedColor,
+                    'imageUrl' => $savedImagePath ?? '',
+                    'imageFit' => $submittedFit,
+                    'imageBlur' => $submittedBlur,
+                    'positionX' => $submittedPositionX,
+                    'positionY' => $submittedPositionY,
+                    'zoom' => $submittedZoom,
+                ]);
+                exit;
+            }
+            header('Location: index.php');
+            exit;
+        } catch (InvalidArgumentException | RuntimeException $exception) {
+            if ($savedImagePath && $savedImagePath !== $previousImagePath) {
+                deleteUserBackgroundImage($savedImagePath, $appearanceUserId);
+            }
+            $dashboardAppearanceError = $exception->getMessage();
+        }
+    }
+    if ($dashboardAppearanceJson && $dashboardAppearanceError !== '') {
+        http_response_code(422);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => $dashboardAppearanceError]);
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['remove_dashboard_background_image', 'reset_dashboard_background'], true)) {
+    $dashboardAppearanceJson = ($_POST['response_format'] ?? '') === 'json'
+        || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
+    if (!isset($_SESSION['user_id'])) {
+        if ($dashboardAppearanceJson) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Log in again to update your background.']);
+            exit;
+        }
+        header('Location: pages/login.php');
+        exit;
+    }
+
+    $token = $_POST['csrf_token'] ?? '';
+    if (!is_string($token) || !hash_equals($_SESSION['dashboard_appearance_csrf'], $token)) {
+        if ($dashboardAppearanceJson) {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Your session changed. Please refresh the page and try again.']);
+            exit;
+        }
+        $dashboardAppearanceError = 'Your session changed. Please refresh the page and try again.';
+    } else {
+        $appearanceUserId = (int) $_SESSION['user_id'];
+        $appearanceSettings = readUserBackgroundSettings($conn, $appearanceUserId);
+        $currentDashboardSetting = $appearanceSettings['dashboard_feed'];
+        $previousImagePath = $currentDashboardSetting['image_path'];
+        $isReset = $_POST['action'] === 'reset_dashboard_background';
+        $nextColor = $isReset ? USER_BACKGROUND_DEFAULTS['dashboard_feed'] : $currentDashboardSetting['color_value'];
+        $nextFit = $isReset ? 'cover' : $currentDashboardSetting['image_fit'];
+        $nextBlur = $isReset ? 0 : $currentDashboardSetting['image_blur'];
+        $nextPositionX = $isReset ? 50.0 : $currentDashboardSetting['image_position_x'];
+        $nextPositionY = $isReset ? 50.0 : $currentDashboardSetting['image_position_y'];
+        $nextZoom = $isReset ? 1.0 : $currentDashboardSetting['image_zoom'];
+        saveUserBackgroundSetting($conn, $appearanceUserId, 'dashboard_feed', 'color', $nextColor, null, null, $nextFit, $nextBlur, $nextPositionX, $nextPositionY, $nextZoom);
+        deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $appearanceUserId);
+
+        if ($dashboardAppearanceJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'ok' => true,
+                'backgroundType' => 'color',
+                'backgroundColor' => $nextColor,
+                'imageUrl' => '',
+                'imageFit' => $nextFit,
+                'imageBlur' => $nextBlur,
+                'positionX' => $nextPositionX,
+                'positionY' => $nextPositionY,
+                'zoom' => $nextZoom,
+                'notice' => $isReset ? 'Settings reset, no going back now!' : 'Background image removed. Your color was kept.',
+            ]);
+            exit;
+        }
         header('Location: index.php');
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_dashboard_background') {
+    $dashboardAppearanceJson = ($_POST['response_format'] ?? '') === 'json'
+        || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
+    $copySources = [
+        'messages' => 'Messages',
+        'profile_posts' => 'Profile wallpaper',
+        'profile_cover' => 'Profile cover',
+    ];
+    if (!isset($_SESSION['user_id'])) {
+        if ($dashboardAppearanceJson) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Log in again to copy appearance settings.']);
+            exit;
+        }
+        header('Location: pages/login.php');
+        exit;
+    }
+
+    $token = $_POST['csrf_token'] ?? '';
+    $sourceRegion = is_string($_POST['source_region'] ?? null) ? $_POST['source_region'] : '';
+    if (!is_string($token) || !hash_equals($_SESSION['dashboard_appearance_csrf'], $token)) {
+        $dashboardAppearanceError = 'Your session changed. Please refresh the page and try again.';
+    } elseif (!isset($copySources[$sourceRegion])) {
+        $dashboardAppearanceError = 'Choose a section to copy settings from.';
+    } else {
+        $appearanceUserId = (int) $_SESSION['user_id'];
+        $appearanceSettings = readUserBackgroundSettings($conn, $appearanceUserId);
+        $sourceBackground = resolveUserBackground($appearanceSettings, $sourceRegion);
+        $previousImagePath = $appearanceSettings['dashboard_feed']['image_path'];
+        $copiedImagePath = null;
+        try {
+            $copiedImagePath = duplicateUserBackgroundImage($sourceBackground['image_path'], $appearanceUserId);
+            $copiedType = $sourceBackground['background_type'] === 'image' && $copiedImagePath !== null ? 'image' : 'color';
+            saveUserBackgroundSetting(
+                $conn,
+                $appearanceUserId,
+                'dashboard_feed',
+                $copiedType,
+                $sourceBackground['color_value'],
+                $copiedImagePath,
+                null,
+                $sourceBackground['image_fit'],
+                $sourceBackground['image_blur'],
+                $sourceBackground['image_position_x'],
+                $sourceBackground['image_position_y'],
+                $sourceBackground['image_zoom']
+            );
+            if ($previousImagePath !== $copiedImagePath) {
+                deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $appearanceUserId);
+            }
+            if ($dashboardAppearanceJson) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'ok' => true,
+                    'backgroundType' => $copiedType,
+                    'backgroundColor' => $sourceBackground['color_value'],
+                    'imageUrl' => $copiedImagePath ?? '',
+                    'imageFit' => $sourceBackground['image_fit'],
+                    'imageBlur' => $sourceBackground['image_blur'],
+                    'positionX' => $sourceBackground['image_position_x'],
+                    'positionY' => $sourceBackground['image_position_y'],
+                    'zoom' => $sourceBackground['image_zoom'],
+                    'notice' => 'Settings copied from ' . $copySources[$sourceRegion] . '.',
+                ]);
+                exit;
+            }
+            header('Location: index.php');
+            exit;
+        } catch (InvalidArgumentException | RuntimeException $exception) {
+            if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $appearanceUserId);
+            $dashboardAppearanceError = $exception->getMessage();
+        }
+    }
+
+    if ($dashboardAppearanceJson && $dashboardAppearanceError !== '') {
+        http_response_code(422);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => $dashboardAppearanceError]);
         exit;
     }
 }
@@ -145,6 +349,16 @@ if (isset($_SESSION['user_id'])) {
     $dashboardBackgroundSettings = readUserBackgroundSettings($conn, $userId);
     $dashboardBackground = resolveUserBackground($dashboardBackgroundSettings, 'dashboard_feed');
     $dashboardBackgroundColor = $dashboardBackground['color_value'];
+    $dashboardBackgroundType = $dashboardBackground['background_type'] === 'image' ? 'image' : 'color';
+    $dashboardBackgroundImageUrl = $dashboardBackground['image_path'] ?? '';
+    $dashboardBackgroundFit = $dashboardBackground['image_fit'];
+    $dashboardBackgroundBlur = $dashboardBackground['image_blur'];
+    $dashboardBackgroundPositionX = $dashboardBackground['image_position_x'];
+    $dashboardBackgroundPositionY = $dashboardBackground['image_position_y'];
+    $dashboardBackgroundZoom = $dashboardBackground['image_zoom'];
+    if (isset($submittedType) && in_array($submittedType, ['color', 'image'], true)) {
+        $dashboardBackgroundType = $submittedType;
+    }
     if (isset($submittedColor) && preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         $dashboardBackgroundColor = $submittedColor;
     }
@@ -217,6 +431,11 @@ if (isset($_SESSION['user_id'])) {
         $initial = htmlspecialchars(strtoupper(substr($_SESSION['username'], 0, 1)), ENT_QUOTES, 'UTF-8');
         ?>
         <main class="dashboard" aria-label="NexusSpace dashboard">
+            <span class="dashboard-main-background" style="background-color: <?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-dashboard-background aria-hidden="true">
+                <span class="dashboard-background-surface" data-dashboard-background-surface<?= $dashboardBackgroundType === 'image' && $dashboardBackgroundImageUrl !== '' ? '' : ' hidden' ?> style="filter: blur(<?= $dashboardBackgroundBlur ?>px)<?php if ($dashboardBackgroundType === 'image' && $dashboardBackgroundFit === 'tile' && $dashboardBackgroundImageUrl !== ''): ?>; background-image: url(&quot;<?= htmlspecialchars($dashboardBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>&quot;); background-repeat: repeat; background-size: auto<?php endif; ?>">
+                    <img src="<?= htmlspecialchars($dashboardBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="" data-dashboard-background-preview style="object-fit: <?= $dashboardBackgroundFit === 'contain' ? 'contain' : 'cover' ?>; object-position: <?= $dashboardBackgroundPositionX ?>% <?= $dashboardBackgroundPositionY ?>%; transform: scale(<?= $dashboardBackgroundZoom ?>); transform-origin: <?= $dashboardBackgroundPositionX ?>% <?= $dashboardBackgroundPositionY ?>%"<?= $dashboardBackgroundFit === 'tile' ? ' hidden' : '' ?>>
+                </span>
+            </span>
             <aside class="dashboard-sidebar">
                 <a class="dashboard-user" href="pages/profile.php">
                     <span class="dashboard-avatar" aria-hidden="true">
@@ -274,7 +493,7 @@ if (isset($_SESSION['user_id'])) {
                 <small class="copyright">mini copyright</small>
             </aside>
 
-            <section class="dashboard-feed" aria-label="Post feed" style="background-color: <?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-dashboard-background>
+            <section class="dashboard-feed" aria-label="Post feed">
                 <form class="user-search" role="search" action="pages/search.php" method="get" data-live-user-search>
                     <label class="sr-only" for="user-search">Search for users</label>
                     <input id="user-search" name="q" type="search" placeholder="Find users" maxlength="50" autocomplete="off" aria-controls="live-user-results" required>
@@ -356,28 +575,102 @@ if (isset($_SESSION['user_id'])) {
                     </form>
                 </section>
 
-                <aside class="dashboard-appearance-panel" id="dashboard-appearance-panel" data-dashboard-appearance-panel aria-label="Dashboard appearance" hidden>
+                <aside class="dashboard-appearance-panel" id="dashboard-appearance-panel" data-dashboard-appearance-panel data-open="<?= $dashboardAppearanceError !== '' ? 'true' : 'false' ?>" data-saved-image="<?= htmlspecialchars($dashboardBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Dashboard appearance" hidden>
                     <header class="dashboard-appearance-header">
                         <h2>Appearance</h2>
                         <button type="button" aria-label="Close dashboard appearance" title="Close" data-dashboard-appearance-close>&times;</button>
                     </header>
-                    <form class="dashboard-appearance-form" method="post">
+                    <form class="dashboard-appearance-form" method="post" action="index.php" enctype="multipart/form-data" data-dashboard-appearance-form>
                         <input type="hidden" name="action" value="update_dashboard_background">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['dashboard_appearance_csrf'], ENT_QUOTES, 'UTF-8') ?>">
                         <section>
                             <h3>Dashboard background</h3>
-                            <label for="dashboard-background-color">Background color</label>
-                            <div class="dashboard-background-color-row">
-                                <input id="dashboard-background-color" type="color" name="background_color" value="<?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-dashboard-background-color>
-                                <output for="dashboard-background-color" data-dashboard-background-value><?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                            <fieldset class="dashboard-background-modes">
+                                <legend class="sr-only">Background type</legend>
+                                <label><input type="radio" name="background_type" value="color"<?= $dashboardBackgroundType === 'color' ? ' checked' : '' ?> data-dashboard-background-mode> Color</label>
+                                <label><input type="radio" name="background_type" value="image"<?= $dashboardBackgroundType === 'image' ? ' checked' : '' ?> data-dashboard-background-mode> Image</label>
+                            </fieldset>
+                            <div class="dashboard-background-option" data-dashboard-color-option<?= $dashboardBackgroundType === 'color' ? '' : ' hidden' ?>>
+                                <label for="dashboard-background-color">Background color</label>
+                                <div class="dashboard-background-color-row">
+                                    <input id="dashboard-background-color" type="color" name="background_color" value="<?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-dashboard-background-color>
+                                    <output for="dashboard-background-color" data-dashboard-background-value><?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                                </div>
+                            </div>
+                            <div class="dashboard-background-option" data-dashboard-image-option<?= $dashboardBackgroundType === 'image' ? '' : ' hidden' ?>>
+                                <label for="dashboard-background-image"><?= $dashboardBackgroundImageUrl !== '' ? 'Replace background image' : 'Choose background image' ?></label>
+                                <?php if ($dashboardBackgroundImageUrl !== ''): ?><img class="dashboard-background-thumbnail" src="<?= htmlspecialchars($dashboardBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Current dashboard background" data-dashboard-background-thumbnail><?php else: ?><div class="dashboard-background-thumbnail is-empty" data-dashboard-background-thumbnail>No image selected</div><?php endif; ?>
+                                <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
+                                <input type="hidden" name="image_position_x" value="<?= $dashboardBackgroundPositionX ?>" data-dashboard-position-x>
+                                <input type="hidden" name="image_position_y" value="<?= $dashboardBackgroundPositionY ?>" data-dashboard-position-y>
+                                <input type="hidden" name="image_zoom" value="<?= $dashboardBackgroundZoom ?>" data-dashboard-image-zoom-value>
+                                <input id="dashboard-background-image" type="file" name="background_image" accept="image/jpeg,image/png,image/webp,image/gif" data-dashboard-background-image>
+                                <button type="button" class="button-secondary dashboard-image-remove" data-dashboard-image-remove<?= $dashboardBackgroundImageUrl === '' ? ' hidden' : '' ?>>Remove image</button>
+                                <fieldset class="dashboard-image-fit">
+                                    <legend>Display</legend>
+                                    <label><input type="radio" name="image_fit" value="cover"<?= $dashboardBackgroundFit === 'cover' ? ' checked' : '' ?> data-dashboard-image-fit> Fill</label>
+                                    <label><input type="radio" name="image_fit" value="contain"<?= $dashboardBackgroundFit === 'contain' ? ' checked' : '' ?> data-dashboard-image-fit> Fit</label>
+                                    <label><input type="radio" name="image_fit" value="tile"<?= $dashboardBackgroundFit === 'tile' ? ' checked' : '' ?> data-dashboard-image-fit> Tile</label>
+                                </fieldset>
+                                <label class="dashboard-image-blur" for="dashboard-image-blur">
+                                    <span>Blur <output for="dashboard-image-blur" data-dashboard-image-blur-value><?= $dashboardBackgroundBlur ?>px</output></span>
+                                    <input id="dashboard-image-blur" type="range" name="image_blur" min="0" max="20" step="1" value="<?= $dashboardBackgroundBlur ?>" data-dashboard-image-blur>
+                                </label>
                             </div>
                         </section>
-                        <button type="submit">Save</button>
-                        <?php if (!empty($dashboardAppearanceError)): ?><p class="dashboard-appearance-error" role="alert"><?= htmlspecialchars($dashboardAppearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                        <section class="dashboard-copy-settings">
+                            <label for="dashboard-copy-source">Copy settings from</label>
+                            <div>
+                                <select id="dashboard-copy-source" name="source_region">
+                                    <option value="messages">Messages</option>
+                                    <option value="profile_posts">Profile wallpaper</option>
+                                    <option value="profile_cover">Profile cover</option>
+                                </select>
+                                <button type="button" data-dashboard-copy-settings>Copy</button>
+                            </div>
+                        </section>
+                        <div class="dashboard-appearance-actions">
+                            <button type="submit">Save</button>
+                            <button type="button" class="button-secondary" data-dashboard-reset-open>Reset</button>
+                        </div>
+                        <p class="dashboard-appearance-status<?= $dashboardAppearanceError !== '' ? ' is-error' : '' ?>" data-dashboard-appearance-status role="status"><?= htmlspecialchars($dashboardAppearanceError, ENT_QUOTES, 'UTF-8') ?></p>
                     </form>
                 </aside>
             </aside>
         </main>
+        <div class="dashboard-customization-toast" data-dashboard-toast role="status" hidden>
+            <span data-dashboard-toast-message></span>
+            <button type="button" data-dashboard-toast-close aria-label="Close notification">&times;</button>
+        </div>
+        <dialog class="messages-image-crop-dialog dashboard-image-crop-dialog" data-dashboard-crop-dialog>
+            <div class="messages-image-crop-heading">
+                <h2>Frame dashboard background</h2>
+                <button type="button" data-dashboard-crop-cancel aria-label="Close dashboard background editor">&times;</button>
+            </div>
+            <div class="messages-image-crop-stage dashboard-image-crop-stage">
+                <canvas width="1280" height="720" data-dashboard-crop-canvas aria-label="Dashboard background crop preview"></canvas>
+                <p data-dashboard-crop-status role="status">Loading preview...</p>
+            </div>
+            <label class="messages-image-zoom-control" for="dashboard-crop-zoom">
+                <span>Zoom</span>
+                <input id="dashboard-crop-zoom" type="range" min="1" max="3" step="0.01" value="1" data-dashboard-crop-zoom>
+            </label>
+            <div class="messages-image-crop-actions">
+                <button type="button" class="button-secondary" data-dashboard-crop-cancel>Cancel</button>
+                <button type="button" data-dashboard-crop-save aria-label="Use framed dashboard background">&#10003;</button>
+            </div>
+        </dialog>
+        <dialog class="messages-reset-dialog" data-dashboard-reset-dialog>
+            <div class="messages-reset-heading">
+                <h2>Reset dashboard appearance?</h2>
+                <button type="button" data-dashboard-reset-cancel aria-label="Close reset confirmation">&times;</button>
+            </div>
+            <p>Are you sure you want to reset your dashboard settings completely? Your settings will go into the void and never return.</p>
+            <div class="messages-reset-actions">
+                <button type="button" class="button-secondary" data-dashboard-reset-cancel>Cancel</button>
+                <button type="button" data-dashboard-reset-confirm>Reset everything</button>
+            </div>
+        </dialog>
         <aside class="zoom-layout-warning" role="status" data-zoom-warning>
             <span>This layout works best at 200% zoom or lower. Please zoom out for the full experience.</span>
             <button type="button" data-dismiss-zoom-warning>Okay</button>

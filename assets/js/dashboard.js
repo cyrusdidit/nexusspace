@@ -294,9 +294,62 @@ document.addEventListener('DOMContentLoaded', () => {
     const appearanceToggle = document.querySelector('[data-dashboard-appearance-toggle]');
     const appearancePanel = document.querySelector('[data-dashboard-appearance-panel]');
     const appearanceClose = document.querySelector('[data-dashboard-appearance-close]');
+    const appearanceForm = document.querySelector('[data-dashboard-appearance-form]');
+    const appearanceStatus = document.querySelector('[data-dashboard-appearance-status]');
     const dashboardBackground = document.querySelector('[data-dashboard-background]');
+    const backgroundSurface = document.querySelector('[data-dashboard-background-surface]');
+    const backgroundPreview = document.querySelector('[data-dashboard-background-preview]');
     const backgroundColor = document.querySelector('[data-dashboard-background-color]');
     const backgroundValue = document.querySelector('[data-dashboard-background-value]');
+    const backgroundModes = [...document.querySelectorAll('[data-dashboard-background-mode]')];
+    const colorOption = document.querySelector('[data-dashboard-color-option]');
+    const imageOption = document.querySelector('[data-dashboard-image-option]');
+    const imageInput = document.querySelector('[data-dashboard-background-image]');
+    const imageFits = [...document.querySelectorAll('[data-dashboard-image-fit]')];
+    const imageBlur = document.querySelector('[data-dashboard-image-blur]');
+    const imageBlurValue = document.querySelector('[data-dashboard-image-blur-value]');
+    const imageRemove = document.querySelector('[data-dashboard-image-remove]');
+    const resetOpen = document.querySelector('[data-dashboard-reset-open]');
+    const resetDialog = document.querySelector('[data-dashboard-reset-dialog]');
+    const resetConfirm = document.querySelector('[data-dashboard-reset-confirm]');
+    const resetCancelButtons = [...document.querySelectorAll('[data-dashboard-reset-cancel]')];
+    const copySettings = document.querySelector('[data-dashboard-copy-settings]');
+    const appearanceToast = document.querySelector('[data-dashboard-toast]');
+    const appearanceToastMessage = document.querySelector('[data-dashboard-toast-message]');
+    const appearanceToastClose = document.querySelector('[data-dashboard-toast-close]');
+    const positionXInput = document.querySelector('[data-dashboard-position-x]');
+    const positionYInput = document.querySelector('[data-dashboard-position-y]');
+    const imageZoomValue = document.querySelector('[data-dashboard-image-zoom-value]');
+    const cropDialog = document.querySelector('[data-dashboard-crop-dialog]');
+    const cropCanvas = document.querySelector('[data-dashboard-crop-canvas]');
+    const cropZoomInput = document.querySelector('[data-dashboard-crop-zoom]');
+    const cropSave = document.querySelector('[data-dashboard-crop-save]');
+    const cropCancelButtons = [...document.querySelectorAll('[data-dashboard-crop-cancel]')];
+    const cropStatus = document.querySelector('[data-dashboard-crop-status]');
+    let backgroundThumbnail = document.querySelector('[data-dashboard-background-thumbnail]');
+    let previewImageUrl = '';
+    let toastTimer;
+
+    const hideToast = () => {
+        if (!appearanceToast || appearanceToast.hidden) return;
+        window.clearTimeout(toastTimer);
+        appearanceToast.classList.add('is-hiding');
+        window.setTimeout(() => {
+            appearanceToast.hidden = true;
+            appearanceToast.classList.remove('is-hiding');
+        }, 170);
+    };
+
+    const showToast = (message) => {
+        if (!appearanceToast || !appearanceToastMessage) return;
+        window.clearTimeout(toastTimer);
+        appearanceToast.classList.remove('is-hiding');
+        appearanceToastMessage.textContent = message;
+        appearanceToast.hidden = false;
+        toastTimer = window.setTimeout(hideToast, 3000);
+    };
+
+    appearanceToastClose?.addEventListener('click', hideToast);
 
     if (appearanceToggle && appearancePanel) {
         const setAppearanceOpen = (open) => {
@@ -309,17 +362,422 @@ document.addEventListener('DOMContentLoaded', () => {
         appearanceToggle.addEventListener('click', () => setAppearanceOpen(appearancePanel.hidden));
         appearanceClose?.addEventListener('click', () => setAppearanceOpen(false));
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && !appearancePanel.hidden) {
+            if (event.key === 'Escape' && !appearancePanel.hidden && !cropDialog?.open && !resetDialog?.open) {
                 setAppearanceOpen(false);
                 appearanceToggle.focus();
             }
         });
+
+        setAppearanceOpen(appearancePanel.dataset.open === 'true');
     }
 
     if (backgroundColor && dashboardBackground) {
         backgroundColor.addEventListener('input', () => {
             dashboardBackground.style.backgroundColor = backgroundColor.value;
             if (backgroundValue) backgroundValue.value = backgroundColor.value.toUpperCase();
+        });
+    }
+
+    const applyBackgroundImage = () => {
+        if (!appearancePanel || !backgroundSurface || !backgroundPreview) return;
+        const imageUrl = previewImageUrl || appearancePanel.dataset.savedImage;
+        backgroundSurface.hidden = !imageUrl;
+        if (!imageUrl) return;
+        const imageFit = imageFits.find((control) => control.checked)?.value || 'cover';
+        const positionX = Number(positionXInput?.value || 50);
+        const positionY = Number(positionYInput?.value || 50);
+        const zoom = Number(imageZoomValue?.value || 1);
+        if (imageFit === 'tile') {
+            backgroundPreview.hidden = true;
+            backgroundSurface.style.backgroundImage = `url("${imageUrl}")`;
+            backgroundSurface.style.backgroundRepeat = 'repeat';
+            backgroundSurface.style.backgroundSize = 'auto';
+        } else {
+            backgroundSurface.style.backgroundImage = 'none';
+            backgroundPreview.hidden = false;
+            backgroundPreview.src = imageUrl;
+            backgroundPreview.style.objectFit = imageFit === 'contain' ? 'contain' : 'cover';
+            backgroundPreview.style.objectPosition = `${positionX}% ${positionY}%`;
+            backgroundPreview.style.transform = `scale(${zoom})`;
+            backgroundPreview.style.transformOrigin = `${positionX}% ${positionY}%`;
+        }
+        backgroundSurface.style.filter = `blur(${imageBlur?.value || 0}px)`;
+    };
+
+    const setBackgroundMode = (mode) => {
+        if (colorOption) colorOption.hidden = mode !== 'color';
+        if (imageOption) imageOption.hidden = mode !== 'image';
+        if (mode === 'color') {
+            if (backgroundSurface) backgroundSurface.hidden = true;
+        } else {
+            applyBackgroundImage();
+        }
+    };
+
+    backgroundModes.forEach((control) => control.addEventListener('change', () => {
+        if (control.checked) setBackgroundMode(control.value);
+    }));
+
+    imageFits.forEach((control) => control.addEventListener('change', () => {
+        if (control.checked) applyBackgroundImage();
+    }));
+
+    imageBlur?.addEventListener('input', () => {
+        if (backgroundSurface) backgroundSurface.style.filter = `blur(${imageBlur.value}px)`;
+        if (imageBlurValue) imageBlurValue.value = `${imageBlur.value}px`;
+    });
+
+    const showImagePreview = (imageUrl) => {
+        if (!imageUrl) return;
+        applyBackgroundImage();
+        if (!backgroundThumbnail) return;
+        if (backgroundThumbnail.tagName === 'IMG') {
+            backgroundThumbnail.src = imageUrl;
+            return;
+        }
+        const image = document.createElement('img');
+        image.className = 'dashboard-background-thumbnail';
+        image.src = imageUrl;
+        image.alt = 'Selected dashboard background';
+        image.dataset.dashboardBackgroundThumbnail = '';
+        backgroundThumbnail.replaceWith(image);
+        backgroundThumbnail = image;
+    };
+
+    if (imageInput && cropDialog && cropCanvas && cropZoomInput && cropSave) {
+        const context = cropCanvas.getContext('2d');
+        const cropImage = new Image();
+        let sourceUrl = '';
+        let baseScale = 1;
+        let zoom = 1;
+        let centerX = cropCanvas.width / 2;
+        let centerY = cropCanvas.height / 2;
+        let pointer = null;
+        let cropIsGif = false;
+
+        const configureCropFrame = () => {
+            const bounds = dashboardBackground?.getBoundingClientRect();
+            const targetWidth = Math.max(1, bounds?.width || window.innerWidth);
+            const targetHeight = Math.max(1, bounds?.height || window.innerHeight);
+            const aspectRatio = targetWidth / targetHeight;
+            const longSide = 1280;
+            if (aspectRatio >= 1) {
+                cropCanvas.width = longSide;
+                cropCanvas.height = Math.max(1, Math.round(longSide / aspectRatio));
+            } else {
+                cropCanvas.height = longSide;
+                cropCanvas.width = Math.max(1, Math.round(longSide * aspectRatio));
+            }
+            cropCanvas.style.aspectRatio = `${targetWidth} / ${targetHeight}`;
+            centerX = cropCanvas.width / 2;
+            centerY = cropCanvas.height / 2;
+        };
+
+        const constrainCrop = () => {
+            const width = cropImage.naturalWidth * baseScale * zoom;
+            const height = cropImage.naturalHeight * baseScale * zoom;
+            centerX = Math.min(width / 2, Math.max(cropCanvas.width - width / 2, centerX));
+            centerY = Math.min(height / 2, Math.max(cropCanvas.height - height / 2, centerY));
+            if (width <= cropCanvas.width) centerX = cropCanvas.width / 2;
+            if (height <= cropCanvas.height) centerY = cropCanvas.height / 2;
+        };
+
+        const drawCrop = () => {
+            constrainCrop();
+            const width = cropImage.naturalWidth * baseScale * zoom;
+            const height = cropImage.naturalHeight * baseScale * zoom;
+            context.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+            context.drawImage(cropImage, centerX - width / 2, centerY - height / 2, width, height);
+        };
+
+        const releaseSource = () => {
+            if (sourceUrl) URL.revokeObjectURL(sourceUrl);
+            sourceUrl = '';
+            cropImage.removeAttribute('src');
+        };
+
+        const cancelCrop = () => {
+            cropDialog.close();
+            imageInput.value = '';
+            cropSave.disabled = false;
+            releaseSource();
+            showImagePreview(previewImageUrl || appearancePanel?.dataset.savedImage);
+        };
+
+        imageInput.addEventListener('change', () => {
+            const file = imageInput.files?.[0];
+            if (!file) return;
+            if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+                imageInput.value = '';
+                return;
+            }
+            cropIsGif = file.type === 'image/gif';
+            configureCropFrame();
+            releaseSource();
+            sourceUrl = URL.createObjectURL(file);
+            cropSave.disabled = true;
+            if (cropStatus) {
+                cropStatus.textContent = 'Loading preview...';
+                cropStatus.hidden = false;
+            }
+            if (!cropDialog.open) cropDialog.showModal();
+            cropImage.onload = () => {
+                baseScale = Math.max(cropCanvas.width / cropImage.naturalWidth, cropCanvas.height / cropImage.naturalHeight);
+                zoom = 1;
+                cropZoomInput.value = '1';
+                centerX = cropCanvas.width / 2;
+                centerY = cropCanvas.height / 2;
+                drawCrop();
+                if (cropStatus) cropStatus.hidden = true;
+                cropSave.disabled = false;
+            };
+            cropImage.onerror = () => {
+                if (cropStatus) cropStatus.textContent = 'This image could not be opened. Choose a JPG, PNG, WebP, or GIF image.';
+            };
+            cropImage.src = sourceUrl;
+        });
+
+        cropZoomInput.addEventListener('input', () => {
+            zoom = Number(cropZoomInput.value);
+            drawCrop();
+        });
+
+        cropCanvas.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            const bounds = cropCanvas.getBoundingClientRect();
+            const scale = cropCanvas.width / bounds.width;
+            const cursorX = (event.clientX - bounds.left) * scale;
+            const cursorY = (event.clientY - bounds.top) * scale;
+            const previousZoom = zoom;
+            const nextZoom = Math.min(3, Math.max(1, zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
+            if (nextZoom === previousZoom) return;
+            const ratio = nextZoom / previousZoom;
+            centerX = cursorX - (cursorX - centerX) * ratio;
+            centerY = cursorY - (cursorY - centerY) * ratio;
+            zoom = nextZoom;
+            cropZoomInput.value = String(zoom);
+            drawCrop();
+        }, { passive: false });
+
+        cropCanvas.addEventListener('pointerdown', (event) => {
+            pointer = { x: event.clientX, y: event.clientY, centerX, centerY };
+            cropCanvas.setPointerCapture(event.pointerId);
+        });
+        cropCanvas.addEventListener('pointermove', (event) => {
+            if (!pointer) return;
+            const scale = cropCanvas.width / cropCanvas.getBoundingClientRect().width;
+            centerX = pointer.centerX + (event.clientX - pointer.x) * scale;
+            centerY = pointer.centerY + (event.clientY - pointer.y) * scale;
+            drawCrop();
+        });
+        cropCanvas.addEventListener('pointerup', () => { pointer = null; });
+        cropCanvas.addEventListener('pointercancel', () => { pointer = null; });
+        cropCancelButtons.forEach((button) => button.addEventListener('click', cancelCrop));
+        cropDialog.addEventListener('cancel', (event) => {
+            event.preventDefault();
+            cancelCrop();
+        });
+        cropDialog.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || cropSave.disabled) return;
+            event.preventDefault();
+            cropSave.click();
+        });
+        cropSave.addEventListener('click', () => {
+            cropSave.disabled = true;
+            if (cropIsGif) {
+                const width = cropImage.naturalWidth * baseScale * zoom;
+                const height = cropImage.naturalHeight * baseScale * zoom;
+                const positionX = Math.min(100, Math.max(0, ((cropCanvas.width / 2 - (centerX - width / 2)) / width) * 100));
+                const positionY = Math.min(100, Math.max(0, ((cropCanvas.height / 2 - (centerY - height / 2)) / height) * 100));
+                if (positionXInput) positionXInput.value = positionX.toFixed(2);
+                if (positionYInput) positionYInput.value = positionY.toFixed(2);
+                if (imageZoomValue) imageZoomValue.value = zoom.toFixed(2);
+                if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+                previewImageUrl = URL.createObjectURL(imageInput.files[0]);
+                showImagePreview(previewImageUrl);
+                cropDialog.close();
+                releaseSource();
+                cropSave.disabled = false;
+                return;
+            }
+            cropCanvas.toBlob((blob) => {
+                if (!blob) {
+                    cropSave.disabled = false;
+                    return;
+                }
+                const transfer = new DataTransfer();
+                transfer.items.add(new File([blob], 'dashboard-background.jpg', { type: 'image/jpeg' }));
+                imageInput.files = transfer.files;
+                if (positionXInput) positionXInput.value = '50';
+                if (positionYInput) positionYInput.value = '50';
+                if (imageZoomValue) imageZoomValue.value = '1';
+                if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+                previewImageUrl = URL.createObjectURL(blob);
+                showImagePreview(previewImageUrl);
+                cropDialog.close();
+                releaseSource();
+                cropSave.disabled = false;
+            }, 'image/jpeg', 0.92);
+        });
+    }
+
+    const readAppearanceResponse = async (response) => {
+        const responseText = await response.text();
+        try {
+            return JSON.parse(responseText);
+        } catch {
+            throw new Error(response.ok
+                ? 'The background may have saved, but the server returned an invalid response. Refresh once to check it.'
+                : `The background could not be saved (server error ${response.status}).`);
+        }
+    };
+
+    const applySavedAppearance = (data) => {
+        appearancePanel.dataset.savedImage = data.imageUrl || '';
+        if (backgroundColor) backgroundColor.value = data.backgroundColor;
+        if (backgroundValue) backgroundValue.value = data.backgroundColor.toUpperCase();
+        if (dashboardBackground) dashboardBackground.style.backgroundColor = data.backgroundColor;
+        if (positionXInput) positionXInput.value = String(data.positionX);
+        if (positionYInput) positionYInput.value = String(data.positionY);
+        if (imageZoomValue) imageZoomValue.value = String(data.zoom);
+        const savedFit = imageFits.find((control) => control.value === data.imageFit);
+        if (savedFit) savedFit.checked = true;
+        if (imageBlur) imageBlur.value = String(data.imageBlur);
+        if (imageBlurValue) imageBlurValue.value = `${data.imageBlur}px`;
+        if (previewImageUrl) {
+            URL.revokeObjectURL(previewImageUrl);
+            previewImageUrl = '';
+        }
+        if (backgroundPreview) backgroundPreview.src = data.imageUrl || '';
+        if (imageInput) imageInput.value = '';
+        if (data.imageUrl) {
+            showImagePreview(data.imageUrl);
+        } else {
+            if (backgroundSurface) {
+                backgroundSurface.hidden = true;
+                backgroundSurface.style.backgroundImage = 'none';
+                backgroundSurface.style.filter = 'none';
+            }
+            if (backgroundThumbnail?.tagName === 'IMG') {
+                const emptyThumbnail = document.createElement('div');
+                emptyThumbnail.className = 'dashboard-background-thumbnail is-empty';
+                emptyThumbnail.textContent = 'No image selected';
+                emptyThumbnail.dataset.dashboardBackgroundThumbnail = '';
+                backgroundThumbnail.replaceWith(emptyThumbnail);
+                backgroundThumbnail = emptyThumbnail;
+            }
+        }
+        if (imageRemove) imageRemove.hidden = !data.imageUrl;
+        const savedMode = backgroundModes.find((control) => control.value === data.backgroundType);
+        if (savedMode) savedMode.checked = true;
+        setBackgroundMode(data.backgroundType);
+    };
+
+    const postAppearanceAction = async (action) => {
+        const formData = new FormData(appearanceForm);
+        formData.set('action', action);
+        formData.set('response_format', 'json');
+        formData.delete('background_image');
+        const response = await fetch(appearanceForm.getAttribute('action') || window.location.href, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+        });
+        const data = await readAppearanceResponse(response);
+        if (!response.ok || !data.ok) throw new Error(data.error || 'The background could not be updated.');
+        applySavedAppearance(data);
+        if (appearanceStatus) appearanceStatus.textContent = '';
+        showToast(data.notice || 'Background updated.');
+    };
+
+    imageRemove?.addEventListener('click', async () => {
+        imageRemove.disabled = true;
+        try {
+            await postAppearanceAction('remove_dashboard_background_image');
+        } catch (error) {
+            if (appearanceStatus) {
+                appearanceStatus.textContent = error.message || 'The background image could not be removed.';
+                appearanceStatus.classList.add('is-error');
+            }
+        } finally {
+            imageRemove.disabled = false;
+        }
+    });
+
+    const closeResetDialog = () => resetDialog?.close();
+    resetOpen?.addEventListener('click', () => resetDialog?.showModal());
+    resetCancelButtons.forEach((button) => button.addEventListener('click', closeResetDialog));
+    resetDialog?.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        closeResetDialog();
+    });
+    resetConfirm?.addEventListener('click', async () => {
+        resetConfirm.disabled = true;
+        try {
+            await postAppearanceAction('reset_dashboard_background');
+            closeResetDialog();
+        } catch (error) {
+            closeResetDialog();
+            if (appearanceStatus) {
+                appearanceStatus.textContent = error.message || 'The dashboard settings could not be reset.';
+                appearanceStatus.classList.add('is-error');
+            }
+        } finally {
+            resetConfirm.disabled = false;
+        }
+    });
+
+    copySettings?.addEventListener('click', async () => {
+        copySettings.disabled = true;
+        if (appearanceStatus) {
+            appearanceStatus.textContent = 'Copying settings...';
+            appearanceStatus.classList.remove('is-error');
+        }
+        try {
+            await postAppearanceAction('copy_dashboard_background');
+        } catch (error) {
+            if (appearanceStatus) {
+                appearanceStatus.textContent = error.message || 'The appearance settings could not be copied.';
+                appearanceStatus.classList.add('is-error');
+            }
+        } finally {
+            copySettings.disabled = false;
+        }
+    });
+
+    if (appearanceForm && appearancePanel) {
+        appearanceForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const submitButton = appearanceForm.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+            if (appearanceStatus) {
+                appearanceStatus.textContent = 'Saving...';
+                appearanceStatus.classList.remove('is-error');
+            }
+
+            try {
+                const formData = new FormData(appearanceForm);
+                formData.set('response_format', 'json');
+                const response = await fetch(appearanceForm.getAttribute('action') || window.location.href, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await readAppearanceResponse(response);
+                if (!response.ok || !data.ok) throw new Error(data.error || 'The background could not be saved.');
+                applySavedAppearance(data);
+                if (appearanceStatus) appearanceStatus.textContent = '';
+                showToast('Background saved.');
+            } catch (error) {
+                if (appearanceStatus) {
+                    appearanceStatus.textContent = error.message || 'The background could not be saved.';
+                    appearanceStatus.classList.add('is-error');
+                }
+            } finally {
+                if (submitButton) submitButton.disabled = false;
+            }
         });
     }
 
