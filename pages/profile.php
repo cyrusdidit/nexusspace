@@ -11,6 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/profile_customization.php';
+require_once __DIR__ . '/../includes/background_customization.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
@@ -57,6 +58,69 @@ $bioError = '';
 $avatarError = '';
 $bioDraft = (string) ($user['bio'] ?? '');
 $_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
+$profileBackgroundSettings = $user ? readUserBackgroundSettings($conn, $userId) : defaultUserBackgroundSettings();
+$profilePostsOwnBackground = $profileBackgroundSettings['profile_posts'];
+$profilePostsBackground = resolveUserBackground($profileBackgroundSettings, 'profile_posts');
+$profilePostsBackgroundColor = $profilePostsBackground['color_value'];
+$profilePostsBackgroundImagePath = $profilePostsBackground['image_path'];
+$profilePostsBackgroundImageUrl = $profilePostsBackgroundImagePath ? '../' . $profilePostsBackgroundImagePath : '';
+$profilePostsBackgroundType = $profilePostsBackground['background_type'] === 'image' && $profilePostsBackgroundImageUrl !== '' ? 'image' : 'color';
+$profilePostsBackgroundImageCss = $profilePostsBackgroundType === 'image' ? 'url(&quot;' . htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') . '&quot;)' : 'none';
+$profileAppearanceError = '';
+$profileAppearancePanelOpen = isset($_GET['customize']);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_profile_wallpaper') {
+    $token = $_POST['token'] ?? '';
+    $submittedType = is_string($_POST['background_type'] ?? null) ? $_POST['background_type'] : '';
+    $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
+    $profileAppearancePanelOpen = true;
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $profileAppearanceError = 'You can only customize your own profile.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $profileAppearanceError = 'Please refresh the page and try again.';
+    } elseif (!in_array($submittedType, ['color', 'image'], true)) {
+        http_response_code(422);
+        $profileAppearanceError = 'Choose a background type.';
+    } elseif (!preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
+        http_response_code(422);
+        $profileAppearanceError = 'Choose a valid background color.';
+    } else {
+        $previousImagePath = $profilePostsOwnBackground['image_path'];
+        $savedImagePath = $previousImagePath;
+        try {
+            if ($submittedType === 'image') {
+                $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
+                if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                    $savedImagePath = storeUserBackgroundImage($upload, $currentUserId);
+                } elseif (!$savedImagePath) {
+                    throw new InvalidArgumentException('Choose an image to upload.');
+                }
+            }
+            saveUserBackgroundSetting(
+                $conn,
+                $currentUserId,
+                'profile_posts',
+                $submittedType,
+                $submittedColor,
+                $savedImagePath,
+                null,
+                $profilePostsOwnBackground['image_fit'],
+                $profilePostsOwnBackground['image_blur']
+            );
+            if ($previousImagePath && $savedImagePath !== $previousImagePath) {
+                deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+            }
+            header('Location: profile.php?id=' . $currentUserId . '&customize=1&appearance_saved=1');
+            exit;
+        } catch (InvalidArgumentException | RuntimeException $exception) {
+            if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
+            http_response_code(422);
+            $profileAppearanceError = $exception->getMessage();
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_avatar') {
     $token = $_POST['token'] ?? '';
@@ -272,6 +336,7 @@ $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileC
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
+    <?php if ($user && $isOwnProfile): ?><script src="../assets/js/profile-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-appearance.js') ?>" defer></script><?php endif; ?>
 </head>
 <body class="profile-page"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <main class="card profile-sheet">
@@ -409,14 +474,14 @@ $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileC
         <?php $profileTopEightFragment = ob_get_clean(); ob_start(); ?>
         <nav class="profile-sidebar-actions" aria-label="Profile actions">
             <a class="profile-icon-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
-            <?php if ($isOwnProfile): ?><a class="profile-icon-button" href="customize-profile.php" aria-label="Customize profile" title="Customize profile">&#9998;</a><?php endif; ?>
+            <?php if ($isOwnProfile): ?><button class="profile-icon-button" type="button" aria-label="Customize profile appearance" title="Customize profile appearance" aria-controls="profile-appearance-panel" aria-expanded="false" data-profile-appearance-toggle>&#9998;</button><?php endif; ?>
             <a class="profile-icon-button" href="coming-soon.php?feature=settings" aria-label="Settings" title="Settings">&#9881;</a>
         </nav>
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
         <?php $profileControlsFragment = ob_get_clean(); ob_start(); ?>
-        <section class="profile-posts" aria-labelledby="profile-posts-heading">
+        <section class="profile-posts" aria-labelledby="profile-posts-heading" style="background-color: <?= htmlspecialchars($profilePostsBackgroundColor, ENT_QUOTES, 'UTF-8') ?>; background-image: <?= $profilePostsBackgroundImageCss ?>" data-profile-wallpaper>
             <h2 id="profile-posts-heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
             <?php if (!$profilePosts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
             <?php foreach ($profilePosts as $post): ?>
@@ -456,6 +521,39 @@ $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileC
 
     </main>
     <?php if ($user && $isOwnProfile): ?>
+        <aside class="profile-appearance-panel" id="profile-appearance-panel" data-profile-appearance-panel data-open="<?= $profileAppearancePanelOpen ? 'true' : 'false' ?>" data-saved-image="<?= htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Profile appearance" hidden>
+            <header class="profile-appearance-header">
+                <h2>Appearance</h2>
+                <button type="button" aria-label="Close profile appearance" title="Close" data-profile-appearance-close>&times;</button>
+            </header>
+            <form class="profile-appearance-content" method="post" action="profile.php?id=<?= $currentUserId ?>&amp;customize=1" enctype="multipart/form-data">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
+                <section>
+                    <h3>Profile wallpaper</h3>
+                    <fieldset class="profile-wallpaper-modes">
+                        <legend class="sr-only">Wallpaper type</legend>
+                        <label><input type="radio" name="background_type" value="color"<?= $profilePostsBackgroundType === 'color' ? ' checked' : '' ?> data-profile-wallpaper-mode> Color</label>
+                        <label><input type="radio" name="background_type" value="image"<?= $profilePostsBackgroundType === 'image' ? ' checked' : '' ?> data-profile-wallpaper-mode> Image</label>
+                    </fieldset>
+                    <div data-profile-wallpaper-color-option<?= $profilePostsBackgroundType === 'color' ? '' : ' hidden' ?>>
+                        <label for="profile-wallpaper-color">Background color</label>
+                        <div class="profile-wallpaper-color-row">
+                            <input id="profile-wallpaper-color" type="color" name="background_color" value="<?= htmlspecialchars($profilePostsBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-profile-wallpaper-color>
+                            <output for="profile-wallpaper-color" data-profile-wallpaper-value><?= htmlspecialchars($profilePostsBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                        </div>
+                    </div>
+                    <div class="profile-wallpaper-image-option" data-profile-wallpaper-image-option<?= $profilePostsBackgroundType === 'image' ? '' : ' hidden' ?>>
+                        <label for="profile-wallpaper-image"><?= $profilePostsBackgroundImageUrl !== '' ? 'Replace background image' : 'Choose background image' ?></label>
+                        <?php if ($profilePostsBackgroundImageUrl !== ''): ?><img class="profile-wallpaper-thumbnail" src="<?= htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Current profile wallpaper" data-profile-wallpaper-thumbnail><?php else: ?><div class="profile-wallpaper-thumbnail is-empty" data-profile-wallpaper-thumbnail>No image selected</div><?php endif; ?>
+                        <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
+                        <input id="profile-wallpaper-image" type="file" name="background_image" accept="image/jpeg,image/png,image/webp,image/gif" data-profile-wallpaper-image>
+                    </div>
+                </section>
+                <?php if ($profileAppearanceError !== ''): ?><p class="profile-appearance-status is-error" role="alert"><?= htmlspecialchars($profileAppearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                <?php if (isset($_GET['appearance_saved'])): ?><p class="profile-appearance-status" role="status">Profile wallpaper saved.</p><?php endif; ?>
+                <button type="submit" name="action" value="update_profile_wallpaper">Save</button>
+            </form>
+        </aside>
         <dialog class="avatar-crop-dialog" data-avatar-crop-dialog>
             <div class="avatar-crop-heading">
                 <h2>Crop profile picture</h2>
