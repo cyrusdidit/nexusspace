@@ -475,12 +475,12 @@ $readFriendState = static function () use ($conn, $currentUserId, $userId): stri
 };
 
 if ($user && !$isOwnProfile) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'unfriend'], true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend'], true)) {
         $token = $_POST['token'] ?? '';
         if (!is_string($token) || !hash_equals($_SESSION['friend_request_token'], $token)) {
             http_response_code(403);
             $friendError = 'Please refresh the page and try again.';
-        } elseif (in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'unfriend'], true)) {
+        } elseif (in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend'], true)) {
             $action = $_POST['action'];
             mysqli_begin_transaction($conn);
             try {
@@ -510,6 +510,12 @@ if ($user && !$isOwnProfile) {
                         mysqli_stmt_execute($statement);
                         mysqli_stmt_close($statement);
                     }
+                }
+                if ($action === 'cancel_request' && $state === 'sent') {
+                    $statement = mysqli_prepare($conn, "DELETE FROM friend_requests WHERE sender_id = ? AND receiver_id = ? AND status = 'pending'");
+                    mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
                 }
                 if ($action === 'unfriend' && $state === 'friends') {
                     $statement = mysqli_prepare($conn, 'DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)');
@@ -650,8 +656,10 @@ if ($isOwnProfile) {
                     <?php else: ?>
                         <?php if ($friendState === 'friends'): ?>
                             <button class="button-secondary" type="submit" name="action" value="unfriend" data-unfriend-button>Unfriend</button>
+                        <?php elseif ($friendState === 'sent'): ?>
+                            <button class="button-secondary" type="submit" name="action" value="cancel_request" data-cancel-request-button>Cancel request</button>
                         <?php else: ?>
-                            <button type="submit" name="action" value="befriend"<?= $friendState !== 'none' ? ' disabled' : '' ?>><?= ['none' => 'Befriend', 'sent' => 'Request sent'][$friendState] ?></button>
+                            <button type="submit" name="action" value="befriend">Befriend</button>
                         <?php endif; ?>
                     <?php endif; ?>
                 </form>
