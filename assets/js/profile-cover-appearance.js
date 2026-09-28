@@ -1,46 +1,45 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const toggle = document.querySelector('[data-profile-appearance-toggle]');
-    const panel = document.querySelector('[data-profile-appearance-panel]');
-    const close = document.querySelector('[data-profile-appearance-close]');
-    const wallpaper = document.querySelector('[data-profile-wallpaper]');
-    const wallpaperSurface = document.querySelector('[data-profile-wallpaper-surface]');
-    const wallpaperPreview = document.querySelector('[data-profile-wallpaper-preview]');
-    const color = document.querySelector('[data-profile-wallpaper-color]');
-    const colorValue = document.querySelector('[data-profile-wallpaper-value]');
-    const modes = [...document.querySelectorAll('[data-profile-wallpaper-mode]')];
-    const colorOption = document.querySelector('[data-profile-wallpaper-color-option]');
-    const imageOption = document.querySelector('[data-profile-wallpaper-image-option]');
-    const imageInput = document.querySelector('[data-profile-wallpaper-image]');
-    const imageFits = [...document.querySelectorAll('[data-profile-wallpaper-fit]')];
-    const cropDialog = document.querySelector('[data-profile-wallpaper-crop-dialog]');
-    const cropCanvas = document.querySelector('[data-profile-wallpaper-crop-canvas]');
-    const cropZoomInput = document.querySelector('[data-profile-wallpaper-crop-zoom]');
-    const cropSave = document.querySelector('[data-profile-wallpaper-crop-save]');
-    const cropCancelButtons = [...document.querySelectorAll('[data-profile-wallpaper-crop-cancel]')];
-    const cropStatus = document.querySelector('[data-profile-wallpaper-crop-status]');
-    const positionXInput = document.querySelector('[data-profile-wallpaper-position-x]');
-    const positionYInput = document.querySelector('[data-profile-wallpaper-position-y]');
-    const zoomValueInput = document.querySelector('[data-profile-wallpaper-zoom-value]');
-    const blurInput = document.querySelector('[data-profile-wallpaper-blur]');
-    const blurValue = document.querySelector('[data-profile-wallpaper-blur-value]');
-    const resetOpen = document.querySelector('[data-profile-wallpaper-reset-open]');
-    const resetDialog = document.querySelector('[data-profile-wallpaper-reset-dialog]');
-    const resetCancelButtons = [...document.querySelectorAll('[data-profile-wallpaper-reset-cancel]')];
-    const toast = document.querySelector('[data-profile-customization-toast]');
-    const toastClose = document.querySelector('[data-profile-customization-toast-close]');
-    let thumbnail = document.querySelector('[data-profile-wallpaper-thumbnail]');
+    const toggle = document.querySelector('[data-profile-cover-toggle]');
+    const panel = document.querySelector('[data-profile-cover-panel]');
+    const close = document.querySelector('[data-profile-cover-close]');
+    const cover = document.querySelector('[data-profile-cover]');
+    const surface = document.querySelector('[data-profile-cover-surface]');
+    const preview = document.querySelector('[data-profile-cover-preview]');
+    const color = document.querySelector('[data-profile-cover-color]');
+    const colorValue = document.querySelector('[data-profile-cover-value]');
+    const modes = [...document.querySelectorAll('[data-profile-cover-mode]')];
+    const colorOption = document.querySelector('[data-profile-cover-color-option]');
+    const imageOption = document.querySelector('[data-profile-cover-image-option]');
+    const imageInput = document.querySelector('[data-profile-cover-image]');
+    const imageFits = [...document.querySelectorAll('[data-profile-cover-fit]')];
+    const positionXInput = document.querySelector('[data-profile-cover-position-x]');
+    const positionYInput = document.querySelector('[data-profile-cover-position-y]');
+    const zoomValueInput = document.querySelector('[data-profile-cover-zoom-value]');
+    const blurInput = document.querySelector('[data-profile-cover-blur]');
+    const blurValue = document.querySelector('[data-profile-cover-blur-value]');
+    const cropDialog = document.querySelector('[data-profile-cover-crop-dialog]');
+    const cropCanvas = document.querySelector('[data-profile-cover-crop-canvas]');
+    const cropZoomInput = document.querySelector('[data-profile-cover-crop-zoom]');
+    const cropSave = document.querySelector('[data-profile-cover-crop-save]');
+    const cropCancelButtons = [...document.querySelectorAll('[data-profile-cover-crop-cancel]')];
+    const cropStatus = document.querySelector('[data-profile-cover-crop-status]');
+    const resetOpen = document.querySelector('[data-profile-cover-reset-open]');
+    const resetDialog = document.querySelector('[data-profile-cover-reset-dialog]');
+    const resetCancelButtons = [...document.querySelectorAll('[data-profile-cover-reset-cancel]')];
+    let thumbnail = document.querySelector('[data-profile-cover-thumbnail]');
     let previewImageUrl = '';
-    if (!toggle || !panel || !close) return;
+    if (!toggle || !panel || !close || !cover) return;
 
+    const closeWallpaperPanel = () => {
+        const wallpaperPanel = document.querySelector('[data-profile-appearance-panel]');
+        const wallpaperToggle = document.querySelector('[data-profile-appearance-toggle]');
+        if (wallpaperPanel) wallpaperPanel.hidden = true;
+        if (wallpaperToggle) wallpaperToggle.setAttribute('aria-expanded', 'false');
+        document.body.classList.remove('is-profile-appearance-open');
+    };
     const setOpen = (open) => {
-        if (open) {
-            const coverPanel = document.querySelector('[data-profile-cover-panel]');
-            const coverToggle = document.querySelector('[data-profile-cover-toggle]');
-            if (coverPanel) coverPanel.hidden = true;
-            if (coverToggle) coverToggle.setAttribute('aria-expanded', 'false');
-            document.body.classList.remove('is-profile-cover-open');
-        }
-        document.body.classList.toggle('is-profile-appearance-open', open);
+        if (open) closeWallpaperPanel();
+        document.body.classList.toggle('is-profile-cover-open', open);
         panel.hidden = !open;
         toggle.setAttribute('aria-expanded', String(open));
         if (open) close.focus();
@@ -51,75 +50,71 @@ document.addEventListener('DOMContentLoaded', () => {
         setOpen(false);
         toggle.focus();
     });
-    document.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape' || panel.hidden || cropDialog?.open || resetDialog?.open) return;
-        setOpen(false);
-        toggle.focus();
-    });
 
-    color?.addEventListener('input', () => {
-        if (wallpaper) wallpaper.style.backgroundColor = color.value;
-        if (colorValue) colorValue.value = color.value;
-    });
-
+    const selectedFit = () => imageFits.find((control) => control.checked)?.value || 'cover';
+    const applyImageLayout = () => {
+        if (!surface || !preview) return;
+        const imageUrl = previewImageUrl || panel.dataset.savedImage;
+        surface.hidden = !imageUrl;
+        if (!imageUrl) return;
+        const fit = selectedFit();
+        if (fit === 'tile') {
+            preview.hidden = true;
+            surface.style.backgroundImage = `url("${imageUrl}")`;
+            surface.style.backgroundRepeat = 'repeat';
+            surface.style.backgroundSize = 'auto';
+        } else {
+            surface.style.backgroundImage = 'none';
+            preview.hidden = false;
+            preview.src = imageUrl;
+            preview.style.objectFit = fit === 'contain' ? 'contain' : 'cover';
+            const positionX = Number(positionXInput?.value || 50);
+            const positionY = Number(positionYInput?.value || 50);
+            const zoom = Number(zoomValueInput?.value || 1);
+            preview.style.objectPosition = `${positionX}% ${positionY}%`;
+            preview.style.transform = `scale(${zoom})`;
+            preview.style.transformOrigin = `${positionX}% ${positionY}%`;
+        }
+    };
     const setMode = (mode) => {
         if (colorOption) colorOption.hidden = mode !== 'color';
         if (imageOption) imageOption.hidden = mode !== 'image';
-        if (!wallpaper) return;
         if (mode === 'color') {
-            if (wallpaperSurface) wallpaperSurface.hidden = true;
+            if (surface) surface.hidden = true;
         } else {
             applyImageLayout();
         }
     };
-
-    modes.forEach((mode) => mode.addEventListener('change', () => {
-        if (mode.checked) setMode(mode.value);
-    }));
-
-    const selectedFit = () => imageFits.find((control) => control.checked)?.value || 'cover';
-    const applyImageLayout = () => {
-        if (!wallpaperSurface || !wallpaperPreview) return;
-        const imageUrl = previewImageUrl || panel.dataset.savedImage;
-        wallpaperSurface.hidden = !imageUrl;
-        if (!imageUrl) return;
-        const fit = selectedFit();
-        if (fit === 'tile') {
-            wallpaperPreview.hidden = true;
-            wallpaperSurface.style.backgroundImage = `url("${imageUrl}")`;
-            wallpaperSurface.style.backgroundRepeat = 'repeat';
-            wallpaperSurface.style.backgroundSize = 'auto';
-        } else {
-            wallpaperSurface.style.backgroundImage = 'none';
-            wallpaperPreview.hidden = false;
-            wallpaperPreview.src = imageUrl;
-            wallpaperPreview.style.objectFit = fit === 'contain' ? 'contain' : 'cover';
-            const positionX = Number(positionXInput?.value || 50);
-            const positionY = Number(positionYInput?.value || 50);
-            const imageZoom = Number(zoomValueInput?.value || 1);
-            wallpaperPreview.style.objectPosition = `${positionX}% ${positionY}%`;
-            wallpaperPreview.style.transform = `scale(${imageZoom})`;
-            wallpaperPreview.style.transformOrigin = `${positionX}% ${positionY}%`;
-        }
-    };
-
     const showImagePreview = (imageUrl) => {
         if (!imageUrl) return;
         applyImageLayout();
-        if (thumbnail) {
-            if (thumbnail.tagName === 'IMG') {
-                thumbnail.src = imageUrl;
-            } else {
-                const image = document.createElement('img');
-                image.className = 'profile-wallpaper-thumbnail';
-                image.src = imageUrl;
-                image.alt = 'Selected profile wallpaper';
-                image.dataset.profileWallpaperThumbnail = '';
-                thumbnail.replaceWith(image);
-                thumbnail = image;
-            }
+        if (thumbnail?.tagName === 'IMG') {
+            thumbnail.src = imageUrl;
+        } else if (thumbnail) {
+            const image = document.createElement('img');
+            image.className = 'profile-wallpaper-thumbnail profile-cover-thumbnail';
+            image.src = imageUrl;
+            image.alt = 'Selected profile cover';
+            image.dataset.profileCoverThumbnail = '';
+            thumbnail.replaceWith(image);
+            thumbnail = image;
         }
     };
+
+    color?.addEventListener('input', () => {
+        cover.style.backgroundColor = color.value;
+        if (colorValue) colorValue.value = color.value;
+    });
+    modes.forEach((mode) => mode.addEventListener('change', () => {
+        if (mode.checked) setMode(mode.value);
+    }));
+    imageFits.forEach((control) => control.addEventListener('change', () => {
+        if (control.checked) applyImageLayout();
+    }));
+    blurInput?.addEventListener('input', () => {
+        if (surface) surface.style.filter = `blur(${blurInput.value}px)`;
+        if (blurValue) blurValue.value = `${blurInput.value}px`;
+    });
 
     if (imageInput && cropDialog && cropCanvas && cropZoomInput && cropSave) {
         const context = cropCanvas.getContext('2d');
@@ -133,24 +128,14 @@ document.addEventListener('DOMContentLoaded', () => {
         let cropIsGif = false;
 
         const configureCropFrame = () => {
-            const wallpaperBounds = wallpaper?.getBoundingClientRect();
-            const panelWidth = window.matchMedia('(min-width: 701px)').matches ? panel.getBoundingClientRect().width : 0;
-            const targetWidth = Math.max(1, (wallpaperBounds?.width || window.innerWidth) + panelWidth);
-            const targetHeight = Math.max(1, wallpaperBounds?.height || window.innerHeight);
-            const aspectRatio = targetWidth / targetHeight;
-            const longSide = 1280;
-            if (aspectRatio >= 1) {
-                cropCanvas.width = longSide;
-                cropCanvas.height = Math.max(1, Math.round(longSide / aspectRatio));
-            } else {
-                cropCanvas.height = longSide;
-                cropCanvas.width = Math.max(1, Math.round(longSide * aspectRatio));
-            }
-            cropCanvas.style.aspectRatio = `${targetWidth} / ${targetHeight}`;
+            const bounds = cover.getBoundingClientRect();
+            const aspectRatio = Math.max(1, bounds.width) / Math.max(1, bounds.height);
+            cropCanvas.width = 1280;
+            cropCanvas.height = Math.max(1, Math.round(1280 / aspectRatio));
+            cropCanvas.style.aspectRatio = `${Math.max(1, bounds.width)} / ${Math.max(1, bounds.height)}`;
             centerX = cropCanvas.width / 2;
             centerY = cropCanvas.height / 2;
         };
-
         const constrainCrop = () => {
             const width = cropImage.naturalWidth * baseScale * zoom;
             const height = cropImage.naturalHeight * baseScale * zoom;
@@ -278,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 const transfer = new DataTransfer();
-                transfer.items.add(new File([blob], 'profile-wallpaper.jpg', { type: 'image/jpeg' }));
+                transfer.items.add(new File([blob], 'profile-cover.jpg', { type: 'image/jpeg' }));
                 imageInput.files = transfer.files;
                 if (positionXInput) positionXInput.value = '50';
                 if (positionYInput) positionYInput.value = '50';
@@ -293,16 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    imageFits.forEach((control) => control.addEventListener('change', () => {
-        if (!control.checked) return;
-        applyImageLayout();
-    }));
-
-    blurInput?.addEventListener('input', () => {
-        if (wallpaperSurface) wallpaperSurface.style.filter = `blur(${blurInput.value}px)`;
-        if (blurValue) blurValue.value = `${blurInput.value}px`;
-    });
-
     const closeResetDialog = () => resetDialog?.close();
     resetOpen?.addEventListener('click', () => resetDialog?.showModal());
     resetCancelButtons.forEach((button) => button.addEventListener('click', closeResetDialog));
@@ -310,21 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         closeResetDialog();
     });
-
-    if (toast) {
-        const closeToast = () => {
-            if (!toast.isConnected || toast.classList.contains('is-hiding')) return;
-            toast.classList.add('is-hiding');
-            window.setTimeout(() => toast.remove(), 170);
-        };
-        toastClose?.addEventListener('click', closeToast);
-        window.setTimeout(closeToast, 3000);
-
-    }
-
-    const cleanUrl = new URL(window.location.href);
-    ['customize', 'cover_customize', 'appearance_saved', 'appearance_image_removed', 'appearance_reset', 'appearance_copied', 'cover_saved', 'cover_image_removed', 'cover_reset', 'cover_copied'].forEach((parameter) => cleanUrl.searchParams.delete(parameter));
-    if (cleanUrl.href !== window.location.href) window.history.replaceState({}, '', cleanUrl);
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || panel.hidden || cropDialog?.open || resetDialog?.open) return;
+        setOpen(false);
+        toggle.focus();
+    });
 
     if (panel.dataset.open === 'true') setOpen(true);
 });

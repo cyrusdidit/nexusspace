@@ -66,13 +66,108 @@ $profilePostsBackgroundImagePath = $profilePostsBackground['image_path'];
 $profilePostsBackgroundImageUrl = $profilePostsBackgroundImagePath ? '../' . $profilePostsBackgroundImagePath : '';
 $profilePostsBackgroundType = $profilePostsBackground['background_type'] === 'image' && $profilePostsBackgroundImageUrl !== '' ? 'image' : 'color';
 $profilePostsBackgroundImageCss = $profilePostsBackgroundType === 'image' ? 'url(&quot;' . htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') . '&quot;)' : 'none';
+$profilePostsBackgroundFit = $profilePostsBackground['image_fit'];
+$profilePostsBackgroundPositionX = $profilePostsBackground['image_position_x'];
+$profilePostsBackgroundPositionY = $profilePostsBackground['image_position_y'];
+$profilePostsBackgroundZoom = $profilePostsBackground['image_zoom'];
+$profilePostsBackgroundBlur = $profilePostsBackground['image_blur'];
+$profileCoverOwnBackground = $profileBackgroundSettings['profile_cover'];
+$profileCoverBackground = resolveUserBackground($profileBackgroundSettings, 'profile_cover');
+$profileCoverBackgroundColor = $profileCoverBackground['color_value'];
+$profileCoverBackgroundImagePath = $profileCoverBackground['image_path'];
+$profileCoverBackgroundImageUrl = $profileCoverBackgroundImagePath ? '../' . $profileCoverBackgroundImagePath : '';
+$profileCoverBackgroundType = $profileCoverBackground['background_type'] === 'image' && $profileCoverBackgroundImageUrl !== '' ? 'image' : 'color';
+$profileCoverBackgroundFit = $profileCoverBackground['image_fit'];
+$profileCoverBackgroundBlur = $profileCoverBackground['image_blur'];
+$profileCoverBackgroundPositionX = $profileCoverBackground['image_position_x'];
+$profileCoverBackgroundPositionY = $profileCoverBackground['image_position_y'];
+$profileCoverBackgroundZoom = $profileCoverBackground['image_zoom'];
 $profileAppearanceError = '';
-$profileAppearancePanelOpen = isset($_GET['customize']);
+$profileCoverError = '';
+$profileAppearancePanelOpen = false;
+$profileCoverPanelOpen = false;
+$backgroundRegionLabels = [
+    'messages' => 'Messages',
+    'profile_cover' => 'Profile cover',
+    'profile_posts' => 'Profile wallpaper',
+    'dashboard_feed' => 'Dashboard',
+];
+$wallpaperCopySources = array_diff_key($backgroundRegionLabels, ['profile_posts' => true]);
+$coverCopySources = array_diff_key($backgroundRegionLabels, ['profile_cover' => true]);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_profile_wallpaper') {
+    $token = $_POST['token'] ?? '';
+    $sourceRegion = is_string($_POST['source_region'] ?? null) ? $_POST['source_region'] : '';
+    $profileAppearancePanelOpen = true;
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $profileAppearanceError = 'You can only customize your own profile.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $profileAppearanceError = 'Please refresh the page and try again.';
+    } elseif (!isset($wallpaperCopySources[$sourceRegion])) {
+        http_response_code(422);
+        $profileAppearanceError = 'Choose a section to copy settings from.';
+    } else {
+        $sourceBackground = resolveUserBackground($profileBackgroundSettings, $sourceRegion);
+        $previousImagePath = $profilePostsOwnBackground['image_path'];
+        $copiedImagePath = null;
+        try {
+            $copiedImagePath = duplicateUserBackgroundImage($sourceBackground['image_path'], $currentUserId);
+            $copiedType = $sourceBackground['background_type'] === 'image' && $copiedImagePath !== null ? 'image' : 'color';
+            saveUserBackgroundSetting($conn, $currentUserId, 'profile_posts', $copiedType, $sourceBackground['color_value'], $copiedImagePath, null, $sourceBackground['image_fit'], $sourceBackground['image_blur'], $sourceBackground['image_position_x'], $sourceBackground['image_position_y'], $sourceBackground['image_zoom']);
+            if ($previousImagePath !== $copiedImagePath) deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+            header('Location: profile.php?id=' . $currentUserId . '&appearance_copied=' . rawurlencode($sourceRegion));
+            exit;
+        } catch (InvalidArgumentException | RuntimeException $exception) {
+            if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $currentUserId);
+            http_response_code(422);
+            $profileAppearanceError = $exception->getMessage();
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_profile_cover') {
+    $token = $_POST['token'] ?? '';
+    $sourceRegion = is_string($_POST['source_region'] ?? null) ? $_POST['source_region'] : '';
+    $profileCoverPanelOpen = true;
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $profileCoverError = 'You can only customize your own profile.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $profileCoverError = 'Please refresh the page and try again.';
+    } elseif (!isset($coverCopySources[$sourceRegion])) {
+        http_response_code(422);
+        $profileCoverError = 'Choose a section to copy settings from.';
+    } else {
+        $sourceBackground = resolveUserBackground($profileBackgroundSettings, $sourceRegion);
+        $previousImagePath = $profileCoverOwnBackground['image_path'];
+        $copiedImagePath = null;
+        try {
+            $copiedImagePath = duplicateUserBackgroundImage($sourceBackground['image_path'], $currentUserId);
+            $copiedType = $sourceBackground['background_type'] === 'image' && $copiedImagePath !== null ? 'image' : 'color';
+            saveUserBackgroundSetting($conn, $currentUserId, 'profile_cover', $copiedType, $sourceBackground['color_value'], $copiedImagePath, null, $sourceBackground['image_fit'], $sourceBackground['image_blur'], $sourceBackground['image_position_x'], $sourceBackground['image_position_y'], $sourceBackground['image_zoom']);
+            if ($previousImagePath !== $copiedImagePath) deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+            header('Location: profile.php?id=' . $currentUserId . '&cover_copied=' . rawurlencode($sourceRegion));
+            exit;
+        } catch (InvalidArgumentException | RuntimeException $exception) {
+            if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $currentUserId);
+            http_response_code(422);
+            $profileCoverError = $exception->getMessage();
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_profile_wallpaper') {
     $token = $_POST['token'] ?? '';
     $submittedType = is_string($_POST['background_type'] ?? null) ? $_POST['background_type'] : '';
     $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
+    $submittedFit = is_string($_POST['image_fit'] ?? null) ? $_POST['image_fit'] : '';
+    $submittedPositionX = filter_var($_POST['image_position_x'] ?? null, FILTER_VALIDATE_FLOAT);
+    $submittedPositionY = filter_var($_POST['image_position_y'] ?? null, FILTER_VALIDATE_FLOAT);
+    $submittedZoom = filter_var($_POST['image_zoom'] ?? null, FILTER_VALIDATE_FLOAT);
+    $submittedBlur = filter_var($_POST['image_blur'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 20]]);
     $profileAppearancePanelOpen = true;
     if (!$user || !$isOwnProfile) {
         http_response_code(403);
@@ -86,6 +181,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     } elseif (!preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         http_response_code(422);
         $profileAppearanceError = 'Choose a valid background color.';
+    } elseif (!in_array($submittedFit, USER_BACKGROUND_IMAGE_FITS, true)) {
+        http_response_code(422);
+        $profileAppearanceError = 'Choose a valid image display setting.';
+    } elseif ($submittedPositionX === false || $submittedPositionX < 0 || $submittedPositionX > 100 || $submittedPositionY === false || $submittedPositionY < 0 || $submittedPositionY > 100 || $submittedZoom === false || $submittedZoom < 1 || $submittedZoom > 3) {
+        http_response_code(422);
+        $profileAppearanceError = 'Choose valid image crop settings.';
+    } elseif ($submittedBlur === false) {
+        http_response_code(422);
+        $profileAppearanceError = 'Choose a valid background blur.';
     } else {
         $previousImagePath = $profilePostsOwnBackground['image_path'];
         $savedImagePath = $previousImagePath;
@@ -106,19 +210,132 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                 $submittedColor,
                 $savedImagePath,
                 null,
-                $profilePostsOwnBackground['image_fit'],
-                $profilePostsOwnBackground['image_blur']
+                $submittedFit,
+                $submittedBlur,
+                (float) $submittedPositionX,
+                (float) $submittedPositionY,
+                (float) $submittedZoom
             );
             if ($previousImagePath && $savedImagePath !== $previousImagePath) {
                 deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
             }
-            header('Location: profile.php?id=' . $currentUserId . '&customize=1&appearance_saved=1');
+            header('Location: profile.php?id=' . $currentUserId . '&appearance_saved=1');
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
             http_response_code(422);
             $profileAppearanceError = $exception->getMessage();
         }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['remove_profile_wallpaper_image', 'reset_profile_wallpaper'], true)) {
+    $token = $_POST['token'] ?? '';
+    $profileAppearancePanelOpen = true;
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $profileAppearanceError = 'You can only customize your own profile.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $profileAppearanceError = 'Please refresh the page and try again.';
+    } else {
+        $previousImagePath = $profilePostsOwnBackground['image_path'];
+        if ($_POST['action'] === 'remove_profile_wallpaper_image') {
+            saveUserBackgroundSetting(
+                $conn,
+                $currentUserId,
+                'profile_posts',
+                'color',
+                $profilePostsOwnBackground['color_value'],
+                null,
+                null,
+                $profilePostsOwnBackground['image_fit'],
+                $profilePostsOwnBackground['image_blur'],
+                $profilePostsOwnBackground['image_position_x'],
+                $profilePostsOwnBackground['image_position_y'],
+                $profilePostsOwnBackground['image_zoom']
+            );
+            $notice = 'appearance_image_removed=1';
+        } else {
+            saveUserBackgroundSetting($conn, $currentUserId, 'profile_posts', 'color', USER_BACKGROUND_DEFAULTS['profile_posts'], null, null, 'cover', 0, 50, 50, 1);
+            $notice = 'appearance_reset=1';
+        }
+        deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+        header('Location: profile.php?id=' . $currentUserId . '&' . $notice);
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_profile_cover') {
+    $token = $_POST['token'] ?? '';
+    $submittedType = is_string($_POST['background_type'] ?? null) ? $_POST['background_type'] : '';
+    $submittedColor = is_string($_POST['background_color'] ?? null) ? strtolower($_POST['background_color']) : '';
+    $submittedFit = is_string($_POST['image_fit'] ?? null) ? $_POST['image_fit'] : '';
+    $submittedBlur = filter_var($_POST['image_blur'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 20]]);
+    $submittedPositionX = filter_var($_POST['image_position_x'] ?? null, FILTER_VALIDATE_FLOAT);
+    $submittedPositionY = filter_var($_POST['image_position_y'] ?? null, FILTER_VALIDATE_FLOAT);
+    $submittedZoom = filter_var($_POST['image_zoom'] ?? null, FILTER_VALIDATE_FLOAT);
+    $profileCoverPanelOpen = true;
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $profileCoverError = 'You can only customize your own profile.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $profileCoverError = 'Please refresh the page and try again.';
+    } elseif (!in_array($submittedType, ['color', 'image'], true) || !preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
+        http_response_code(422);
+        $profileCoverError = 'Choose a valid cover type and color.';
+    } elseif (!in_array($submittedFit, USER_BACKGROUND_IMAGE_FITS, true) || $submittedBlur === false) {
+        http_response_code(422);
+        $profileCoverError = 'Choose valid cover display settings.';
+    } elseif ($submittedPositionX === false || $submittedPositionX < 0 || $submittedPositionX > 100 || $submittedPositionY === false || $submittedPositionY < 0 || $submittedPositionY > 100 || $submittedZoom === false || $submittedZoom < 1 || $submittedZoom > 3) {
+        http_response_code(422);
+        $profileCoverError = 'Choose valid cover crop settings.';
+    } else {
+        $previousImagePath = $profileCoverOwnBackground['image_path'];
+        $savedImagePath = $previousImagePath;
+        try {
+            if ($submittedType === 'image') {
+                $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
+                if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                    $savedImagePath = storeUserBackgroundImage($upload, $currentUserId);
+                } elseif (!$savedImagePath) {
+                    throw new InvalidArgumentException('Choose a cover image to upload.');
+                }
+            }
+            saveUserBackgroundSetting($conn, $currentUserId, 'profile_cover', $submittedType, $submittedColor, $savedImagePath, null, $submittedFit, $submittedBlur, (float) $submittedPositionX, (float) $submittedPositionY, (float) $submittedZoom);
+            if ($previousImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+            header('Location: profile.php?id=' . $currentUserId . '&cover_saved=1');
+            exit;
+        } catch (InvalidArgumentException | RuntimeException $exception) {
+            if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
+            http_response_code(422);
+            $profileCoverError = $exception->getMessage();
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['remove_profile_cover_image', 'reset_profile_cover'], true)) {
+    $token = $_POST['token'] ?? '';
+    $profileCoverPanelOpen = true;
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $profileCoverError = 'You can only customize your own profile.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $profileCoverError = 'Please refresh the page and try again.';
+    } else {
+        $previousImagePath = $profileCoverOwnBackground['image_path'];
+        if ($_POST['action'] === 'remove_profile_cover_image') {
+            saveUserBackgroundSetting($conn, $currentUserId, 'profile_cover', 'color', $profileCoverOwnBackground['color_value'], null, null, $profileCoverOwnBackground['image_fit'], $profileCoverOwnBackground['image_blur'], $profileCoverOwnBackground['image_position_x'], $profileCoverOwnBackground['image_position_y'], $profileCoverOwnBackground['image_zoom']);
+            $notice = 'cover_image_removed=1';
+        } else {
+            saveUserBackgroundSetting($conn, $currentUserId, 'profile_cover', 'color', USER_BACKGROUND_DEFAULTS['profile_cover'], null, null, 'cover');
+            $notice = 'cover_reset=1';
+        }
+        deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+        header('Location: profile.php?id=' . $currentUserId . '&' . $notice);
+        exit;
     }
 }
 
@@ -324,6 +541,28 @@ if ($user) {
 }
 $profileCustomization = $user ? readProfileCustomization($conn, $userId) : null;
 $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileCustomization['custom_css']) : '';
+$profileNotice = '';
+if ($isOwnProfile) {
+    $appearanceCopied = is_string($_GET['appearance_copied'] ?? null) ? $_GET['appearance_copied'] : '';
+    $coverCopied = is_string($_GET['cover_copied'] ?? null) ? $_GET['cover_copied'] : '';
+    if (isset($_GET['appearance_saved'])) {
+        $profileNotice = 'Profile wallpaper saved.';
+    } elseif (isset($_GET['appearance_image_removed'])) {
+        $profileNotice = 'Wallpaper image removed. Your color was kept.';
+    } elseif (isset($_GET['appearance_reset'])) {
+        $profileNotice = 'Settings reset, no going back now!';
+    } elseif (isset($backgroundRegionLabels[$appearanceCopied])) {
+        $profileNotice = 'Wallpaper settings copied from ' . $backgroundRegionLabels[$appearanceCopied] . '.';
+    } elseif (isset($_GET['cover_saved'])) {
+        $profileNotice = 'Profile cover saved.';
+    } elseif (isset($_GET['cover_image_removed'])) {
+        $profileNotice = 'Cover image removed. Your color was kept.';
+    } elseif (isset($_GET['cover_reset'])) {
+        $profileNotice = 'Profile cover reset.';
+    } elseif (isset($backgroundRegionLabels[$coverCopied])) {
+        $profileNotice = 'Cover settings copied from ' . $backgroundRegionLabels[$coverCopied] . '.';
+    }
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -336,16 +575,30 @@ $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileC
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
-    <?php if ($user && $isOwnProfile): ?><script src="../assets/js/profile-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-appearance.js') ?>" defer></script><?php endif; ?>
+    <?php if ($user && $isOwnProfile): ?>
+        <script src="../assets/js/profile-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-appearance.js') ?>" defer></script>
+        <script src="../assets/js/profile-cover-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-cover-appearance.js') ?>" defer></script>
+    <?php endif; ?>
 </head>
 <body class="profile-page"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
+    <?php if ($profileNotice !== ''): ?>
+        <div class="profile-customization-toast" data-profile-customization-toast role="status">
+            <span><?= htmlspecialchars($profileNotice, ENT_QUOTES, 'UTF-8') ?></span>
+            <button type="button" data-profile-customization-toast-close aria-label="Close notification">&times;</button>
+        </div>
+    <?php endif; ?>
     <main class="card profile-sheet">
         <?php if (!$user): ?>
             <h1>Profile not found</h1>
             <p>This user does not exist.</p>
         <?php else: ?>
         <?php ob_start(); ?>
-        <div class="profile-cover" aria-hidden="true"></div>
+        <div class="profile-cover" style="background-color: <?= htmlspecialchars($profileCoverBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-profile-cover<?= $isOwnProfile ? '' : ' aria-hidden="true"' ?>>
+            <span class="profile-cover-surface" data-profile-cover-surface<?= $profileCoverBackgroundType === 'image' ? '' : ' hidden' ?> style="filter: blur(<?= $profileCoverBackgroundBlur ?>px)<?php if ($profileCoverBackgroundType === 'image' && $profileCoverBackgroundFit === 'tile'): ?>; background-image: url(&quot;<?= htmlspecialchars($profileCoverBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>&quot;); background-size: auto; background-repeat: repeat<?php endif; ?>">
+                <img src="<?= htmlspecialchars($profileCoverBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-cover-preview style="object-fit: <?= $profileCoverBackgroundFit === 'contain' ? 'contain' : 'cover' ?>; object-position: <?= $profileCoverBackgroundPositionX ?>% <?= $profileCoverBackgroundPositionY ?>%; transform: scale(<?= $profileCoverBackgroundZoom ?>); transform-origin: <?= $profileCoverBackgroundPositionX ?>% <?= $profileCoverBackgroundPositionY ?>%"<?= $profileCoverBackgroundType !== 'image' || $profileCoverBackgroundFit === 'tile' ? ' hidden' : '' ?>>
+            </span>
+            <?php if ($isOwnProfile): ?><button class="profile-cover-edit" type="button" aria-label="Customize profile cover" title="Customize profile cover" aria-controls="profile-cover-panel" aria-expanded="false" data-profile-cover-toggle>&#9998;</button><?php endif; ?>
+        </div>
         <section class="profile-identity" aria-label="Profile">
             <?php if ($isOwnProfile): ?>
                 <form class="profile-picture-upload" method="post" action="profile.php?id=<?= $userId ?>" enctype="multipart/form-data">
@@ -481,7 +734,10 @@ $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileC
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
         <?php $profileControlsFragment = ob_get_clean(); ob_start(); ?>
-        <section class="profile-posts" aria-labelledby="profile-posts-heading" style="background-color: <?= htmlspecialchars($profilePostsBackgroundColor, ENT_QUOTES, 'UTF-8') ?>; background-image: <?= $profilePostsBackgroundImageCss ?>" data-profile-wallpaper>
+        <section class="profile-posts" aria-labelledby="profile-posts-heading" style="background-color: <?= htmlspecialchars($profilePostsBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-profile-wallpaper>
+            <span class="profile-wallpaper-surface" data-profile-wallpaper-surface<?= $profilePostsBackgroundType === 'image' ? '' : ' hidden' ?> style="filter: blur(<?= $profilePostsBackgroundBlur ?>px)<?php if ($profilePostsBackgroundType === 'image' && $profilePostsBackgroundFit === 'tile'): ?>; background-image: <?= $profilePostsBackgroundImageCss ?><?php endif; ?>">
+                <img src="<?= htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-wallpaper-preview style="object-fit: <?= $profilePostsBackgroundFit === 'contain' ? 'contain' : 'cover' ?>; object-position: <?= $profilePostsBackgroundPositionX ?>% <?= $profilePostsBackgroundPositionY ?>%; transform: scale(<?= $profilePostsBackgroundZoom ?>); transform-origin: <?= $profilePostsBackgroundPositionX ?>% <?= $profilePostsBackgroundPositionY ?>%"<?= $profilePostsBackgroundType !== 'image' || $profilePostsBackgroundFit === 'tile' ? ' hidden' : '' ?>>
+            </span>
             <h2 id="profile-posts-heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
             <?php if (!$profilePosts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
             <?php foreach ($profilePosts as $post): ?>
@@ -526,7 +782,7 @@ $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileC
                 <h2>Appearance</h2>
                 <button type="button" aria-label="Close profile appearance" title="Close" data-profile-appearance-close>&times;</button>
             </header>
-            <form class="profile-appearance-content" method="post" action="profile.php?id=<?= $currentUserId ?>&amp;customize=1" enctype="multipart/form-data">
+            <form class="profile-appearance-content" id="profile-wallpaper-form" method="post" action="profile.php?id=<?= $currentUserId ?>" enctype="multipart/form-data">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <section>
                     <h3>Profile wallpaper</h3>
@@ -546,14 +802,158 @@ $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileC
                         <label for="profile-wallpaper-image"><?= $profilePostsBackgroundImageUrl !== '' ? 'Replace background image' : 'Choose background image' ?></label>
                         <?php if ($profilePostsBackgroundImageUrl !== ''): ?><img class="profile-wallpaper-thumbnail" src="<?= htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Current profile wallpaper" data-profile-wallpaper-thumbnail><?php else: ?><div class="profile-wallpaper-thumbnail is-empty" data-profile-wallpaper-thumbnail>No image selected</div><?php endif; ?>
                         <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
+                        <input type="hidden" name="image_position_x" value="<?= $profilePostsBackgroundPositionX ?>" data-profile-wallpaper-position-x>
+                        <input type="hidden" name="image_position_y" value="<?= $profilePostsBackgroundPositionY ?>" data-profile-wallpaper-position-y>
+                        <input type="hidden" name="image_zoom" value="<?= $profilePostsBackgroundZoom ?>" data-profile-wallpaper-zoom-value>
                         <input id="profile-wallpaper-image" type="file" name="background_image" accept="image/jpeg,image/png,image/webp,image/gif" data-profile-wallpaper-image>
+                        <?php if ($profilePostsBackgroundImageUrl !== ''): ?><button type="submit" class="button-secondary profile-wallpaper-remove" name="action" value="remove_profile_wallpaper_image" formnovalidate>Remove image</button><?php endif; ?>
+                        <fieldset class="profile-wallpaper-fit">
+                            <legend>Display</legend>
+                            <label><input type="radio" name="image_fit" value="cover"<?= $profilePostsBackgroundFit === 'cover' ? ' checked' : '' ?> data-profile-wallpaper-fit> Fill</label>
+                            <label><input type="radio" name="image_fit" value="contain"<?= $profilePostsBackgroundFit === 'contain' ? ' checked' : '' ?> data-profile-wallpaper-fit> Fit</label>
+                            <label><input type="radio" name="image_fit" value="tile"<?= $profilePostsBackgroundFit === 'tile' ? ' checked' : '' ?> data-profile-wallpaper-fit> Tile</label>
+                        </fieldset>
+                        <label class="profile-wallpaper-blur" for="profile-wallpaper-blur">
+                            <span>Blur <output for="profile-wallpaper-blur" data-profile-wallpaper-blur-value><?= $profilePostsBackgroundBlur ?>px</output></span>
+                            <input id="profile-wallpaper-blur" type="range" name="image_blur" min="0" max="20" step="1" value="<?= $profilePostsBackgroundBlur ?>" data-profile-wallpaper-blur>
+                        </label>
+                    </div>
+                </section>
+                <section class="profile-copy-settings">
+                    <label for="profile-wallpaper-copy-source">Copy settings from</label>
+                    <div>
+                        <select id="profile-wallpaper-copy-source" name="source_region">
+                            <?php foreach ($wallpaperCopySources as $region => $label): ?>
+                                <option value="<?= htmlspecialchars($region, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" name="action" value="copy_profile_wallpaper" formnovalidate>Copy</button>
                     </div>
                 </section>
                 <?php if ($profileAppearanceError !== ''): ?><p class="profile-appearance-status is-error" role="alert"><?= htmlspecialchars($profileAppearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
-                <?php if (isset($_GET['appearance_saved'])): ?><p class="profile-appearance-status" role="status">Profile wallpaper saved.</p><?php endif; ?>
-                <button type="submit" name="action" value="update_profile_wallpaper">Save</button>
+                <div class="profile-appearance-actions">
+                    <button type="submit" name="action" value="update_profile_wallpaper">Save</button>
+                    <button type="button" class="button-secondary" data-profile-wallpaper-reset-open>Reset</button>
+                </div>
             </form>
         </aside>
+        <aside class="profile-cover-panel" id="profile-cover-panel" data-profile-cover-panel data-open="<?= $profileCoverPanelOpen ? 'true' : 'false' ?>" data-saved-image="<?= htmlspecialchars($profileCoverBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Profile cover customization" hidden>
+            <header class="profile-appearance-header">
+                <h2>Profile cover</h2>
+                <button type="button" aria-label="Close profile cover customization" title="Close" data-profile-cover-close>&times;</button>
+            </header>
+            <form class="profile-appearance-content" id="profile-cover-form" method="post" action="profile.php?id=<?= $currentUserId ?>" enctype="multipart/form-data">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
+                <section>
+                    <fieldset class="profile-wallpaper-modes">
+                        <legend class="sr-only">Cover type</legend>
+                        <label><input type="radio" name="background_type" value="color"<?= $profileCoverBackgroundType === 'color' ? ' checked' : '' ?> data-profile-cover-mode> Color</label>
+                        <label><input type="radio" name="background_type" value="image"<?= $profileCoverBackgroundType === 'image' ? ' checked' : '' ?> data-profile-cover-mode> Image</label>
+                    </fieldset>
+                    <div data-profile-cover-color-option<?= $profileCoverBackgroundType === 'color' ? '' : ' hidden' ?>>
+                        <label for="profile-cover-color">Background color</label>
+                        <div class="profile-wallpaper-color-row">
+                            <input id="profile-cover-color" type="color" name="background_color" value="<?= htmlspecialchars($profileCoverBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-profile-cover-color>
+                            <output for="profile-cover-color" data-profile-cover-value><?= htmlspecialchars($profileCoverBackgroundColor, ENT_QUOTES, 'UTF-8') ?></output>
+                        </div>
+                    </div>
+                    <div class="profile-wallpaper-image-option" data-profile-cover-image-option<?= $profileCoverBackgroundType === 'image' ? '' : ' hidden' ?>>
+                        <label for="profile-cover-image"><?= $profileCoverBackgroundImageUrl !== '' ? 'Replace cover image' : 'Choose cover image' ?></label>
+                        <?php if ($profileCoverBackgroundImageUrl !== ''): ?><img class="profile-wallpaper-thumbnail profile-cover-thumbnail" src="<?= htmlspecialchars($profileCoverBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="Current profile cover" data-profile-cover-thumbnail><?php else: ?><div class="profile-wallpaper-thumbnail profile-cover-thumbnail is-empty" data-profile-cover-thumbnail>No image selected</div><?php endif; ?>
+                        <input type="hidden" name="MAX_FILE_SIZE" value="5242880">
+                        <input type="hidden" name="image_position_x" value="<?= $profileCoverBackgroundPositionX ?>" data-profile-cover-position-x>
+                        <input type="hidden" name="image_position_y" value="<?= $profileCoverBackgroundPositionY ?>" data-profile-cover-position-y>
+                        <input type="hidden" name="image_zoom" value="<?= $profileCoverBackgroundZoom ?>" data-profile-cover-zoom-value>
+                        <input id="profile-cover-image" type="file" name="background_image" accept="image/jpeg,image/png,image/webp,image/gif" data-profile-cover-image>
+                        <?php if ($profileCoverBackgroundImageUrl !== ''): ?><button type="submit" class="button-secondary profile-wallpaper-remove" name="action" value="remove_profile_cover_image" formnovalidate>Remove image</button><?php endif; ?>
+                        <fieldset class="profile-wallpaper-fit">
+                            <legend>Display</legend>
+                            <label><input type="radio" name="image_fit" value="cover"<?= $profileCoverBackgroundFit === 'cover' ? ' checked' : '' ?> data-profile-cover-fit> Fill</label>
+                            <label><input type="radio" name="image_fit" value="contain"<?= $profileCoverBackgroundFit === 'contain' ? ' checked' : '' ?> data-profile-cover-fit> Fit</label>
+                            <label><input type="radio" name="image_fit" value="tile"<?= $profileCoverBackgroundFit === 'tile' ? ' checked' : '' ?> data-profile-cover-fit> Tile</label>
+                        </fieldset>
+                        <label class="profile-wallpaper-blur" for="profile-cover-blur">
+                            <span>Blur <output for="profile-cover-blur" data-profile-cover-blur-value><?= $profileCoverBackgroundBlur ?>px</output></span>
+                            <input id="profile-cover-blur" type="range" name="image_blur" min="0" max="20" step="1" value="<?= $profileCoverBackgroundBlur ?>" data-profile-cover-blur>
+                        </label>
+                    </div>
+                </section>
+                <section class="profile-copy-settings">
+                    <label for="profile-cover-copy-source">Copy settings from</label>
+                    <div>
+                        <select id="profile-cover-copy-source" name="source_region">
+                            <?php foreach ($coverCopySources as $region => $label): ?>
+                                <option value="<?= htmlspecialchars($region, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" name="action" value="copy_profile_cover" formnovalidate>Copy</button>
+                    </div>
+                </section>
+                <?php if ($profileCoverError !== ''): ?><p class="profile-appearance-status is-error" role="alert"><?= htmlspecialchars($profileCoverError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                <div class="profile-appearance-actions">
+                    <button type="submit" name="action" value="update_profile_cover">Save</button>
+                    <button type="button" class="button-secondary" data-profile-cover-reset-open>Reset</button>
+                </div>
+            </form>
+        </aside>
+        <dialog class="messages-image-crop-dialog profile-wallpaper-crop-dialog" data-profile-wallpaper-crop-dialog>
+            <div class="messages-image-crop-heading">
+                <h2>Frame profile wallpaper</h2>
+                <button type="button" data-profile-wallpaper-crop-cancel aria-label="Close profile wallpaper editor">&times;</button>
+            </div>
+            <div class="messages-image-crop-stage profile-wallpaper-crop-stage">
+                <canvas width="1280" height="720" data-profile-wallpaper-crop-canvas aria-label="Profile wallpaper crop preview"></canvas>
+                <p data-profile-wallpaper-crop-status role="status">Loading preview...</p>
+            </div>
+            <label class="messages-image-zoom-control" for="profile-wallpaper-crop-zoom">
+                <span>Zoom</span>
+                <input id="profile-wallpaper-crop-zoom" type="range" min="1" max="3" step="0.01" value="1" data-profile-wallpaper-crop-zoom>
+            </label>
+            <div class="messages-image-crop-actions">
+                <button type="button" class="button-secondary" data-profile-wallpaper-crop-cancel>Cancel</button>
+                <button type="button" data-profile-wallpaper-crop-save aria-label="Use framed profile wallpaper">&#10003;</button>
+            </div>
+        </dialog>
+        <dialog class="messages-image-crop-dialog profile-cover-crop-dialog" data-profile-cover-crop-dialog>
+            <div class="messages-image-crop-heading">
+                <h2>Frame profile cover</h2>
+                <button type="button" data-profile-cover-crop-cancel aria-label="Close profile cover editor">&times;</button>
+            </div>
+            <div class="messages-image-crop-stage profile-cover-crop-stage">
+                <canvas width="1280" height="480" data-profile-cover-crop-canvas aria-label="Profile cover crop preview"></canvas>
+                <p data-profile-cover-crop-status role="status">Loading preview...</p>
+            </div>
+            <label class="messages-image-zoom-control" for="profile-cover-crop-zoom">
+                <span>Zoom</span>
+                <input id="profile-cover-crop-zoom" type="range" min="1" max="3" step="0.01" value="1" data-profile-cover-crop-zoom>
+            </label>
+            <div class="messages-image-crop-actions">
+                <button type="button" class="button-secondary" data-profile-cover-crop-cancel>Cancel</button>
+                <button type="button" data-profile-cover-crop-save aria-label="Use framed profile cover">&#10003;</button>
+            </div>
+        </dialog>
+        <dialog class="messages-reset-dialog" data-profile-wallpaper-reset-dialog>
+            <div class="messages-reset-heading">
+                <h2>Reset appearance?</h2>
+                <button type="button" data-profile-wallpaper-reset-cancel aria-label="Close reset confirmation">&times;</button>
+            </div>
+            <p>Are you sure you want to reset your settings completely? Your settings will go into the void and never return.</p>
+            <div class="messages-reset-actions">
+                <button type="button" class="button-secondary" data-profile-wallpaper-reset-cancel>Cancel</button>
+                <button type="submit" form="profile-wallpaper-form" name="action" value="reset_profile_wallpaper" formnovalidate>Reset everything</button>
+            </div>
+        </dialog>
+        <dialog class="messages-reset-dialog" data-profile-cover-reset-dialog>
+            <div class="messages-reset-heading">
+                <h2>Reset profile cover?</h2>
+                <button type="button" data-profile-cover-reset-cancel aria-label="Close cover reset confirmation">&times;</button>
+            </div>
+            <p>Are you sure you want to reset the profile cover completely? These settings cannot be recovered.</p>
+            <div class="messages-reset-actions">
+                <button type="button" class="button-secondary" data-profile-cover-reset-cancel>Cancel</button>
+                <button type="submit" form="profile-cover-form" name="action" value="reset_profile_cover" formnovalidate>Reset cover</button>
+            </div>
+        </dialog>
         <dialog class="avatar-crop-dialog" data-avatar-crop-dialog>
             <div class="avatar-crop-heading">
                 <h2>Crop profile picture</h2>

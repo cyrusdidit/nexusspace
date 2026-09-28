@@ -128,7 +128,11 @@ a {
 .profile-name-row button:disabled { background: #5b9bc0; cursor: default; }
 .profile-page { background: #dff2ff; color: #163b5c; }
 .profile-page .profile-sheet { width: min(100%, 520px); padding: 0; border: 1px solid #d1d1d1; border-radius: 4px; overflow: hidden; box-shadow: none; }
-.profile-cover { height: 165px; background: #238bc5; }
+.profile-cover { position: relative; height: 165px; overflow: hidden; background: #238bc5; }
+.profile-cover-surface { position: absolute; inset: 0; background-position: center; }
+.profile-cover-surface[hidden] { display: none; }
+.profile-cover-surface img { display: block; width: 100%; height: 100%; }
+.profile-cover-edit { position: absolute; z-index: 2; top: 6px; right: 6px; display: grid; place-items: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 1px solid rgb(255 255 255 / 75%); border-radius: 0; background: rgb(35 139 197 / 92%); font-size: 16px; }
 .profile-identity { padding: 0 24px 24px; text-align: center; }
 .profile-picture { position: relative; display: grid; place-items: center; width: 90px; height: 90px; margin: -45px auto 14px; border: 3px solid #f6fcff; border-radius: 50%; overflow: hidden; background: #b9e3f8; color: #166da5; font-size: 30px; font-weight: 700; }
 .profile-picture img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -179,9 +183,12 @@ a {
 .profile-icon-button:hover { background: #166da5; color: #fff; text-decoration: none; }
 .profile-icon-button:focus-visible { outline: 2px solid #166da5; outline-offset: -2px; }
 .profile-sidebar-actions button.profile-icon-button { margin: 0; padding: 0; border-radius: 0; cursor: pointer; }
-.profile-appearance-panel { position: fixed; z-index: 25; top: 0; right: 0; bottom: 0; width: 300px; overflow-y: auto; border-left: 1px solid #9dcce8; background: #f6fcff; color: #163b5c; }
-.profile-appearance-panel[hidden] { display: none; }
-.profile-page.is-profile-appearance-open .profile-sheet { width: calc(100vw - 300px); margin: 0; justify-self: start; align-self: start; }
+.profile-appearance-panel,
+.profile-cover-panel { position: fixed; z-index: 25; top: 0; right: 0; bottom: 0; width: 300px; overflow-y: auto; border-left: 1px solid #9dcce8; background: #f6fcff; color: #163b5c; }
+.profile-appearance-panel[hidden],
+.profile-cover-panel[hidden] { display: none; }
+.profile-page.is-profile-appearance-open .profile-sheet,
+.profile-page.is-profile-cover-open .profile-sheet { width: calc(100vw - 300px); margin: 0; justify-self: start; align-self: start; }
 .profile-appearance-header { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 10px 14px; border-bottom: 1px solid #9dcce8; }
 .profile-appearance-header h2 { margin: 0; font-size: 17px; }
 .profile-appearance-header button { display: grid; place-items: center; width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 0; font-size: 20px; }
@@ -200,10 +207,40 @@ a {
 .profile-wallpaper-image-option input[type="file"] { margin-top: 10px; padding: 6px; border-radius: 0; background: #fff; font-size: 11px; }
 .profile-wallpaper-thumbnail { display: block; width: 100%; height: 138px; object-fit: cover; border: 1px solid #9dcce8; background: #eaf7ff; }
 .profile-wallpaper-thumbnail.is-empty { display: grid; place-items: center; color: #6d8799; font-size: 11px; }
-.profile-posts { background-position: center; background-repeat: no-repeat; background-size: cover; }
+.profile-cover-thumbnail { height: 105px; }
+.profile-wallpaper-remove { width: 100%; min-height: 36px; margin: 10px 0 0; border-radius: 0; }
+.profile-wallpaper-fit { display: grid; grid-template-columns: repeat(3, 1fr); margin: 18px 0 0; padding: 20px 0 0; border: 1px solid #9dcce8; }
+.profile-wallpaper-fit legend { position: absolute; margin: -17px 0 0 8px; padding: 0 4px; background: #f6fcff; font-size: 12px; font-weight: 700; }
+.profile-wallpaper-fit label { position: relative; display: grid; place-items: center; min-height: 36px; margin: 0; background: #eaf7ff; color: #166da5; cursor: pointer; }
+.profile-wallpaper-fit label + label { border-left: 1px solid #9dcce8; }
+.profile-wallpaper-fit label:has(input:checked) { background: #238bc5; color: #fff; }
+.profile-wallpaper-fit input { position: absolute; opacity: 0; pointer-events: none; }
+.profile-wallpaper-blur { display: flex; flex-direction: column; gap: 8px; }
+.profile-wallpaper-blur > span { display: flex; justify-content: space-between; }
+.profile-wallpaper-blur output { color: #47728f; font-weight: 400; }
+.profile-wallpaper-blur input { appearance: none; width: 100%; height: 6px; margin: 0; padding: 0; border: 0; border-radius: 3px; background: #c7d7df; }
+.profile-wallpaper-blur input::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; border: 0; border-radius: 50%; background: #238bc5; cursor: pointer; }
+.profile-wallpaper-blur input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #238bc5; cursor: pointer; }
+.profile-wallpaper-blur input::-moz-range-track { height: 6px; border: 0; border-radius: 3px; background: #c7d7df; }
+.profile-appearance-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 20px; }
+.profile-appearance-actions button { min-width: 0; min-height: 38px; margin: 0; border-radius: 0; }
+.profile-posts { position: relative; overflow: hidden; }
+.profile-posts > :not(.profile-wallpaper-surface) { position: relative; z-index: 1; }
+.profile-wallpaper-surface { position: absolute; z-index: 0; inset: 0; overflow: hidden; background-position: center; }
+.profile-wallpaper-surface[hidden] { display: none; }
+.profile-wallpaper-surface img { display: block; width: 100%; height: 100%; }
 .profile-appearance-content > button { width: 100%; margin-top: 20px; border-radius: 0; }
 .profile-appearance-status { margin: 14px 0 0; color: #28744f; font-size: 12px; }
 .profile-appearance-status.is-error { color: #a12c42; }
+.profile-customization-toast { position: fixed; z-index: 40; top: 10px; left: 50%; display: flex; align-items: center; width: min(320px, calc(100% - 24px)); min-height: 42px; border: 1px solid #79b9dd; border-left: 4px solid #238bc5; border-radius: 4px; background: #f6fcff; box-shadow: 0 3px 12px rgb(22 59 92 / 18%); color: #163b5c; transform: translateX(-50%); }
+.profile-customization-toast span { flex: 1; min-width: 0; padding: 10px 12px; font-size: 12px; }
+.profile-customization-toast button { display: grid; place-items: center; align-self: stretch; flex: 0 0 40px; width: 40px; margin: 0; padding: 0; border: 0; border-left: 1px solid #b9e3f8; border-radius: 0; background: transparent; color: #166da5; font-size: 20px; }
+.profile-customization-toast.is-hiding { opacity: 0; transform: translate(-50%, -6px); transition: opacity 160ms ease, transform 160ms ease; }
+.profile-copy-settings { margin-top: 18px; padding-top: 14px !important; border-top: 1px solid #cce7f5; }
+.profile-copy-settings > label { margin: 0 0 8px; }
+.profile-copy-settings > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.profile-copy-settings select { min-width: 0; min-height: 36px; padding: 6px 8px; border: 1px solid #79b9dd; border-radius: 0; background: #fff; color: #163b5c; }
+.profile-copy-settings button { min-height: 36px; margin: 0; border-radius: 0; }
 .profile-sidebar .profile-cover { height: 105px; }
 .profile-sidebar .profile-picture { width: 68px; height: 68px; margin-top: -34px; font-size: 24px; }
 .profile-sidebar .profile-identity { padding: 0 16px 14px; }
@@ -305,8 +342,10 @@ a {
     .profile-layout { grid-template-columns: 1fr; }
     .profile-sidebar { border-right: 0; }
     .profile-posts { padding: 18px; }
-    .profile-page.is-profile-appearance-open .profile-sheet { display: none; }
-    .profile-appearance-panel { width: 100%; border-left: 0; }
+    .profile-page.is-profile-appearance-open .profile-sheet,
+    .profile-page.is-profile-cover-open .profile-sheet { display: none; }
+    .profile-appearance-panel,
+    .profile-cover-panel { width: 100%; border-left: 0; }
 }
 @media (max-width: 480px) {
     .profile-page { padding: 0; }
@@ -503,6 +542,9 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .messages-image-crop-stage canvas { display: block; width: 100%; aspect-ratio: 16 / 9; cursor: grab; }
 .messages-image-crop-stage canvas:active { cursor: grabbing; }
 .messages-image-crop-stage p { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; background: rgb(223 242 255 / 88%); color: #163b5c; font-size: 13px; font-weight: 700; pointer-events: none; }
+.profile-wallpaper-crop-stage { display: grid; place-items: center; height: min(60vh, 560px); }
+.profile-wallpaper-crop-stage canvas { width: auto; max-width: 100%; height: auto; max-height: 100%; }
+.profile-cover-crop-stage canvas { aspect-ratio: auto; }
 .messages-image-crop-stage p[hidden] { display: none; }
 .messages-image-zoom-control { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; margin: 0; padding: 0 16px; font-size: 13px; }
 .messages-image-zoom-control input { appearance: none; width: 100%; height: 6px; margin: 0; padding: 0; border: 0; border-radius: 3px; background: #c7d7df; }
@@ -511,8 +553,12 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .messages-image-zoom-control input::-moz-range-track { height: 6px; border: 0; border-radius: 3px; background: #c7d7df; }
 .messages-image-crop-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 16px; }
 .messages-image-crop-actions button { height: 36px; margin: 0; border-radius: 4px; }
-.messages-image-crop-actions [data-message-image-crop-cancel] { padding: 0 16px; }
-.messages-image-crop-actions [data-message-image-crop-save] { display: grid; place-items: center; width: 36px; padding: 0; }
+.messages-image-crop-actions [data-message-image-crop-cancel],
+.messages-image-crop-actions [data-profile-wallpaper-crop-cancel],
+.messages-image-crop-actions [data-profile-cover-crop-cancel] { padding: 0 16px; }
+.messages-image-crop-actions [data-message-image-crop-save],
+.messages-image-crop-actions [data-profile-wallpaper-crop-save],
+.messages-image-crop-actions [data-profile-cover-crop-save] { display: grid; place-items: center; width: 36px; padding: 0; }
 .messages-reset-dialog { width: min(92vw, 420px); padding: 0; border: 1px solid #79b9dd; border-radius: 4px; background: #f6fcff; color: #163b5c; }
 .messages-reset-dialog::backdrop { background: rgb(0 0 0 / 65%); }
 .messages-reset-heading { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #b9e3f8; }
