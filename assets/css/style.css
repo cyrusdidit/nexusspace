@@ -694,8 +694,12 @@ body.dashboard-page {
     font-weight: 700;
     height: 23px;
     justify-content: center;
+    overflow: hidden;
+    position: relative;
     width: 23px;
 }
+
+.mini-avatar img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
 
 .dashboard-avatar {
     display: inline-flex;
@@ -825,12 +829,7 @@ body.dashboard-page {
     width: 18px;
 }
 
-.friends-reorder img {
-    display: block;
-    height: 16px;
-    object-fit: fill;
-    width: 16px;
-}
+.friends-reorder span { color: #163b5c; font-family: Arial, sans-serif; font-size: 16px; font-weight: 700; line-height: 1; }
 
 .friends-list {
     list-style: none;
@@ -857,7 +856,7 @@ body.dashboard-page {
     min-width: 0;
 }
 
-.friends-list .mini-avatar { flex-basis: 18px; font-size: 11px; height: 18px; width: 18px; }
+.friends-list .mini-avatar { flex-basis: 24px; font-size: 11px; height: 24px; width: 24px; }
 .friends-link { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .friends-unread-total { background: #ce3030; color: #fff; border-radius: 12px; min-width: 20px; padding: 2px 5px; text-align: center; font-size: 11px; }
 .friends-unread-total[hidden], .friend-unread-diamond[hidden] { display: none; }

@@ -367,7 +367,7 @@ if (isset($_SESSION['user_id'])) {
     mysqli_stmt_execute($feedStatement);
     $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($feedStatement);
-    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND f.top_eight_position BETWEEN 1 AND 8 ORDER BY f.top_eight_position, u.id LIMIT 8');
+    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
     mysqli_stmt_bind_param($topStatement, 'i', $userId);
     mysqli_stmt_execute($topStatement);
     $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($topStatement), MYSQLI_ASSOC);
@@ -378,7 +378,7 @@ if (isset($_SESSION['user_id'])) {
     mysqli_stmt_execute($activityStatement);
     mysqli_stmt_close($activityStatement);
 
-    $statement = mysqli_prepare($conn, 'SELECT status_text FROM users WHERE id = ? LIMIT 1');
+    $statement = mysqli_prepare($conn, 'SELECT status_text, avatar_path FROM users WHERE id = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
     $result = mysqli_stmt_get_result($statement);
@@ -387,6 +387,7 @@ if (isset($_SESSION['user_id'])) {
 
     if ($user) {
         $basicStatus = (string) ($user['status_text'] ?? '');
+        $dashboardAvatar = postAvatarPath($user['avatar_path'] ?? null);
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
@@ -429,6 +430,7 @@ if (isset($_SESSION['user_id'])) {
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
         $initial = htmlspecialchars(strtoupper(substr($_SESSION['username'], 0, 1)), ENT_QUOTES, 'UTF-8');
+        $dashboardAvatar ??= '';
         ?>
         <main class="dashboard" aria-label="NexusSpace dashboard">
             <span class="dashboard-main-background" style="background-color: <?= htmlspecialchars($dashboardBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-dashboard-background aria-hidden="true">
@@ -439,7 +441,7 @@ if (isset($_SESSION['user_id'])) {
             <aside class="dashboard-sidebar">
                 <a class="dashboard-user" href="pages/profile.php">
                     <span class="dashboard-avatar" aria-hidden="true">
-                        <span class="mini-avatar"><?= $initial ?></span>
+                        <span class="mini-avatar"><span><?= $initial ?></span><?php if ($dashboardAvatar !== ''): ?><img src="<?= $dashboardAvatar ?>" alt=""><?php endif; ?></span>
                         <span class="activity-diamond" data-activity-indicator data-state="online"></span>
                     </span>
                     <span><?= $username ?></span>
@@ -467,15 +469,13 @@ if (isset($_SESSION['user_id'])) {
                 <section class="friends-panel" aria-labelledby="friends-heading">
                     <div class="panel-heading">
                         <a class="friends-link" id="friends-heading" href="pages/messages.php">Friends <span class="friends-unread-total" data-unread-total hidden></span></a>
-                        <a class="friends-reorder" href="pages/profile.php#profile-top-eight-heading" aria-label="Edit Top 8 friends">
-                            <img src="assets/images/arrows.png" alt="">
-                        </a>
                     </div>
                     <ul class="friends-list">
                         <?php foreach ($topFriends as $friend): ?>
+                            <?php $friendAvatar = postAvatarPath($friend['avatar_path'] ?? null); ?>
                             <li>
                                 <a class="top-friend-link" data-top-friend-chat="<?= (int) $friend['id'] ?>" href="index.php?chat=<?= (int) $friend['id'] ?>">
-                                    <span class="mini-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span class="mini-avatar" aria-hidden="true"><span><?= htmlspecialchars(strtoupper(substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar !== ''): ?><img src="<?= $friendAvatar ?>" alt=""><?php endif; ?></span>
                                     <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                                 </a>
                                 <a class="friend-unread-diamond" data-friend-unread="<?= (int) $friend['id'] ?>" data-friend-name="<?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?>" href="index.php?chat=<?= (int) $friend['id'] ?>" hidden></a>
