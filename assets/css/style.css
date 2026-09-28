@@ -1086,7 +1086,7 @@ main.dashboard {
 .notification-badge { background: #238bc5; color: #ffffff; }
 
 .dashboard-right-rail { position: relative; z-index: 20; grid-column: 3; grid-row: 1; width: auto; gap: 0; border: 0; background: transparent; }
-.dashboard-right-rail .notifications-panel { width: 100%; border-top: 0; border-right: 0; box-shadow: none; }
+.dashboard-right-rail .notifications-panel { width: 100%; margin-top: 15px; border-top: 0; border-right: 0; box-shadow: none; }
 .dashboard-appearance-panel { position: absolute; z-index: 30; inset: 0; overflow-y: auto; border-left: 1px solid #9dcce8; background: #f6fcff; color: #163b5c; }
 .dashboard-appearance-panel[hidden] { display: none; }
 .dashboard-appearance-header { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 10px 14px; border-bottom: 1px solid #9dcce8; }

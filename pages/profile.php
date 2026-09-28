@@ -475,12 +475,12 @@ $readFriendState = static function () use ($conn, $currentUserId, $userId): stri
 };
 
 if ($user && !$isOwnProfile) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline'], true)) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'unfriend'], true)) {
         $token = $_POST['token'] ?? '';
         if (!is_string($token) || !hash_equals($_SESSION['friend_request_token'], $token)) {
             http_response_code(403);
             $friendError = 'Please refresh the page and try again.';
-        } elseif (in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline'], true)) {
+        } elseif (in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'unfriend'], true)) {
             $action = $_POST['action'];
             mysqli_begin_transaction($conn);
             try {
@@ -510,6 +510,17 @@ if ($user && !$isOwnProfile) {
                         mysqli_stmt_execute($statement);
                         mysqli_stmt_close($statement);
                     }
+                }
+                if ($action === 'unfriend' && $state === 'friends') {
+                    $statement = mysqli_prepare($conn, 'DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)');
+                    mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+
+                    $statement = mysqli_prepare($conn, 'DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)');
+                    mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
                 }
                 mysqli_commit($conn);
                 header('Location: profile.php?id=' . $userId);
@@ -577,6 +588,7 @@ if ($isOwnProfile) {
     <?php if ($profileCustomCss !== ''): ?><style data-profile-custom-css><?= str_replace('</style', '<\/style', $profileCustomCss) ?></style><?php endif; ?>
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
+    <script src="../assets/js/profile-friends.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-friends.js') ?>" defer></script>
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <?php if ($user && $isOwnProfile): ?>
@@ -636,7 +648,11 @@ if ($isOwnProfile) {
                         <button type="submit" name="action" value="accept">Accept</button>
                         <button class="button-secondary" type="submit" name="action" value="decline">Decline</button>
                     <?php else: ?>
-                        <button type="submit" name="action" value="befriend"<?= $friendState !== 'none' ? ' disabled' : '' ?>><?= ['none' => 'Befriend', 'sent' => 'Request sent', 'friends' => 'Friends'][$friendState] ?></button>
+                        <?php if ($friendState === 'friends'): ?>
+                            <button class="button-secondary" type="submit" name="action" value="unfriend" data-unfriend-button>Unfriend</button>
+                        <?php else: ?>
+                            <button type="submit" name="action" value="befriend"<?= $friendState !== 'none' ? ' disabled' : '' ?>><?= ['none' => 'Befriend', 'sent' => 'Request sent'][$friendState] ?></button>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </form>
             <?php endif; ?>
