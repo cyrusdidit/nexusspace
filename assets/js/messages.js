@@ -418,6 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const conversationList = document.querySelector('.conversation-list');
     const selectedFriendItem = document.querySelector('[data-conversation-friend][aria-current="page"]');
     let lastId = Number(list.lastElementChild?.dataset.messageId || 0);
+    let changeCursor = list.dataset.changeCursor || '';
     let refreshing = null;
     list.scrollTop = list.scrollHeight;
 
@@ -498,6 +499,27 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedFriendItem.querySelector('.conversation-unread')?.remove();
         conversationList.prepend(selectedFriendItem);
     };
+    const syncSidebarPreview = (friend) => {
+        if (!friend || !selectedFriendItem) return;
+        const preview = selectedFriendItem.querySelector('.conversation-list-preview');
+        const heading = selectedFriendItem.querySelector('.conversation-list-heading');
+        const hasMessage = Boolean(friend.last_message_at);
+        if (preview) {
+            preview.textContent = hasMessage ? `${Number(friend.last_sender_id) === Number(list.dataset.viewer) ? 'You: ' : ''}${friend.last_message}` : 'Start a conversation!';
+            preview.classList.toggle('is-empty', !hasMessage);
+        }
+        let time = heading?.querySelector('time');
+        if (hasMessage && heading && !time) {
+            time = document.createElement('time');
+            heading.append(time);
+        }
+        if (time && hasMessage) {
+            time.dateTime = friend.last_message_at.replace(' ', 'T');
+            time.textContent = sidebarTimestamp(friend.last_message_at);
+        } else if (time) {
+            time.remove();
+        }
+    };
     const createFriendAvatar = () => {
         const avatar = document.createElement('a');
         avatar.className = 'conversation-message-avatar';
@@ -539,6 +561,78 @@ document.addEventListener('DOMContentLoaded', () => {
         receipt.title = isRead ? 'Read' : 'Sent';
         return receipt;
     };
+    const createMessageActions = () => {
+        const actions = document.createElement('span');
+        actions.className = 'message-actions';
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.dataset.messageEdit = '';
+        edit.setAttribute('aria-label', 'Edit message');
+        edit.title = 'Edit message';
+        edit.textContent = '\u270e';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.dataset.messageDelete = '';
+        remove.setAttribute('aria-label', 'Delete message');
+        remove.title = 'Delete message';
+        const removeIcon = document.createElement('img');
+        removeIcon.src = '../assets/images/delete-message-icon.png';
+        removeIcon.alt = '';
+        remove.append(removeIcon);
+        actions.append(edit, remove);
+        return actions;
+    };
+    const createEditedLabel = (edited) => {
+        const label = document.createElement('span');
+        label.className = 'message-edited';
+        label.dataset.messageEdited = '';
+        label.textContent = 'edited';
+        label.hidden = !edited;
+        return label;
+    };
+    const reflowMessageAvatars = () => {
+        const items = Array.from(list.querySelectorAll('.conversation-message[data-message-id]'));
+        items.forEach((item) => {
+            item.classList.remove('has-avatar');
+            item.querySelector('.conversation-message-avatar')?.remove();
+        });
+        items.forEach((item, index) => {
+            const next = items[index + 1];
+            const sameRun = next && next.dataset.messageDate === item.dataset.messageDate && next.classList.contains('is-mine') === item.classList.contains('is-mine');
+            if (sameRun) return;
+            item.classList.add('has-avatar');
+            item.append(item.classList.contains('is-mine') ? createViewerAvatar() : createFriendAvatar());
+        });
+        list.querySelectorAll('[data-message-date-separator]').forEach((separator) => {
+            let next = separator.nextElementSibling;
+            while (next && !next.matches('.conversation-message, [data-message-date-separator]')) next = next.nextElementSibling;
+            if (!next || next.matches('[data-message-date-separator]')) separator.remove();
+        });
+        if (!items.length && !list.querySelector('[data-empty-messages]')) {
+            const empty = document.createElement('p');
+            empty.dataset.emptyMessages = '';
+            empty.textContent = 'No messages yet. Say hello!';
+            list.append(empty);
+        }
+    };
+    const applyMessageChanges = (changes) => {
+        if (!Array.isArray(changes)) return;
+        let removed = false;
+        changes.forEach((change) => {
+            const item = list.querySelector(`[data-message-id="${Number(change.id)}"]`);
+            if (!item) return;
+            if (change.deleted_at) {
+                item.remove();
+                removed = true;
+                return;
+            }
+            const content = item.querySelector('[data-message-content]');
+            if (content) content.textContent = change.content;
+            const edited = item.querySelector('[data-message-edited]');
+            if (edited) edited.hidden = !change.edited_at;
+        });
+        if (removed) reflowMessageAvatars();
+    };
     const updateReadReceipts = (lastReadOutgoingId) => {
         const boundary = Number(lastReadOutgoingId || 0);
         list.querySelectorAll('.conversation-message.is-mine[data-message-id]').forEach((message) => {
@@ -558,11 +652,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = new URL(form.action);
             url.searchParams.set('format', 'json');
             url.searchParams.set('after', String(lastId));
+            if (changeCursor) url.searchParams.set('changes_after', changeCursor);
             const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
             const data = await response.json();
             if (!response.ok || data.error) throw new Error(data.error || 'Could not load messages.');
             updateActivity(data.friend);
             updateFriendActivity(data.friendActivity);
+            applyMessageChanges(data.messageChanges);
+            syncSidebarPreview(data.friend);
+            if (data.messageChangeCursor) changeCursor = data.messageChangeCursor;
             const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
             data.messages.forEach((message) => {
                 if (Number(message.id) <= lastId) return;
@@ -576,15 +674,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 item.className = `conversation-message ${mine ? 'is-mine' : 'is-incoming'} has-avatar`;
                 item.dataset.messageId = message.id;
                 item.dataset.messageDate = dateKey;
+                if (mine) {
+                    item.tabIndex = 0;
+                    item.setAttribute('aria-label', 'Your message. Hold for message actions.');
+                }
                 const author = document.createElement('strong');
                 author.textContent = mine ? 'You' : form.dataset.friendName;
                 const content = document.createElement('p');
+                content.dataset.messageContent = '';
                 content.textContent = message.content;
                 const time = document.createElement('small');
                 const timeValue = document.createElement('time');
                 timeValue.dateTime = message.created_at.replace(' ', 'T');
                 timeValue.textContent = messageTimestamp(message.created_at);
-                time.append(timeValue);
+                if (mine) time.append(createMessageActions());
+                time.append(timeValue, createEditedLabel(Boolean(message.edited_at)));
                 if (mine) time.append(createReadReceipt(Number(message.is_read) === 1 || Number(message.id) <= Number(data.lastReadOutgoingId)));
                 if (mine) {
                     if (!startsNewDay && previousMessage?.classList.contains('is-mine')) {
@@ -614,6 +718,167 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
         event.preventDefault();
         form.requestSubmit(button);
+    });
+
+    const submitMessageAction = async (action, messageId, content = '') => {
+        const data = new FormData();
+        data.append('token', form.elements.token.value);
+        data.append('action', action);
+        data.append('message_id', String(messageId));
+        if (action === 'edit_message') data.append('content', content);
+        const url = new URL(form.action);
+        url.searchParams.set('format', 'json');
+        const response = await fetch(url, { method: 'POST', credentials: 'same-origin', body: data });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || 'The message could not be updated.');
+        return result;
+    };
+
+    const closeMessageEditor = (item) => {
+        item.querySelector('[data-message-editor]')?.remove();
+        const content = item.querySelector('[data-message-content]');
+        if (content) content.hidden = false;
+        item.classList.remove('is-editing', 'message-actions-open');
+    };
+
+    const openMessageEditor = (item) => {
+        if (item.querySelector('[data-message-editor]')) return;
+        const content = item.querySelector('[data-message-content]');
+        if (!content) return;
+        const editor = document.createElement('form');
+        editor.className = 'message-editor';
+        editor.dataset.messageEditor = '';
+        const textarea = document.createElement('textarea');
+        textarea.maxLength = 2000;
+        textarea.required = true;
+        textarea.value = content.textContent;
+        textarea.setAttribute('aria-label', 'Edit message');
+        const actions = document.createElement('span');
+        const save = document.createElement('button');
+        save.type = 'submit';
+        save.setAttribute('aria-label', 'Save edited message');
+        save.title = 'Save';
+        save.textContent = '\u2713';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'button-secondary';
+        cancel.setAttribute('aria-label', 'Cancel message editing');
+        cancel.title = 'Cancel';
+        cancel.textContent = '\u00d7';
+        actions.append(save, cancel);
+        editor.append(textarea, actions);
+        content.hidden = true;
+        item.classList.add('is-editing');
+        item.insertBefore(editor, item.querySelector('small'));
+        textarea.focus();
+        textarea.select();
+        cancel.addEventListener('click', () => closeMessageEditor(item));
+        textarea.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeMessageEditor(item);
+            } else if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+                event.preventDefault();
+                editor.requestSubmit();
+            }
+        });
+        editor.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const nextContent = textarea.value.trim();
+            if (!nextContent || save.disabled) return;
+            save.disabled = true;
+            status.textContent = 'Saving edit...';
+            try {
+                await submitMessageAction('edit_message', item.dataset.messageId, nextContent);
+                content.textContent = nextContent;
+                item.querySelector('[data-message-edited]').hidden = false;
+                closeMessageEditor(item);
+                await refresh();
+                status.textContent = '';
+            } catch (error) {
+                status.textContent = error.message;
+            } finally {
+                save.disabled = false;
+            }
+        });
+    };
+
+    let longPressTimer = null;
+    let longPressItem = null;
+    let longPressStart = null;
+    const closeMessageActions = (except = null) => {
+        list.querySelectorAll('.message-actions-open').forEach((item) => {
+            if (item !== except) item.classList.remove('message-actions-open');
+        });
+    };
+    const cancelLongPress = () => {
+        if (longPressTimer !== null) window.clearTimeout(longPressTimer);
+        longPressTimer = null;
+        longPressItem?.classList.remove('is-long-pressing');
+        longPressItem = null;
+        longPressStart = null;
+    };
+    list.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0 || event.target.closest('.message-actions, .message-editor')) return;
+        const item = event.target.closest('.conversation-message.is-mine[data-message-id]');
+        if (!item) return;
+        cancelLongPress();
+        closeMessageActions(item);
+        longPressItem = item;
+        longPressStart = {x: event.clientX, y: event.clientY};
+        item.classList.add('is-long-pressing');
+        longPressTimer = window.setTimeout(() => {
+            item.classList.remove('is-long-pressing');
+            item.classList.add('message-actions-open');
+            longPressTimer = null;
+            longPressItem = null;
+            longPressStart = null;
+        }, 2000);
+    });
+    list.addEventListener('pointermove', (event) => {
+        if (!longPressStart) return;
+        if (Math.hypot(event.clientX - longPressStart.x, event.clientY - longPressStart.y) > 8) cancelLongPress();
+    });
+    ['pointerup', 'pointercancel', 'scroll'].forEach((eventName) => {
+        list.addEventListener(eventName, cancelLongPress, {passive: true});
+    });
+    list.addEventListener('contextmenu', (event) => {
+        if (event.target.closest('.conversation-message.is-mine[data-message-id]') && !event.target.closest('.message-actions, .message-editor')) event.preventDefault();
+    });
+    list.addEventListener('keydown', (event) => {
+        if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
+        const item = event.target.closest('.conversation-message.is-mine[data-message-id]');
+        if (!item) return;
+        event.preventDefault();
+        closeMessageActions(item);
+        item.classList.add('message-actions-open');
+        item.querySelector('[data-message-edit]')?.focus();
+    });
+    document.addEventListener('pointerdown', (event) => {
+        if (!event.target.closest('.conversation-message.is-mine[data-message-id]')) closeMessageActions();
+    });
+
+    list.addEventListener('click', async (event) => {
+        const item = event.target.closest('.conversation-message.is-mine[data-message-id]');
+        if (!item) return;
+        if (event.target.closest('[data-message-edit]')) {
+            item.classList.remove('message-actions-open');
+            openMessageEditor(item);
+            return;
+        }
+        if (!event.target.closest('[data-message-delete]')) return;
+        item.classList.remove('message-actions-open');
+        if (!window.confirm('Delete this message? This cannot be undone.')) return;
+        status.textContent = 'Deleting message...';
+        try {
+            await submitMessageAction('delete_message', item.dataset.messageId);
+            item.remove();
+            reflowMessageAvatars();
+            await refresh();
+            status.textContent = '';
+        } catch (error) {
+            status.textContent = error.message;
+        }
     });
 
     form.addEventListener('submit', async (event) => {

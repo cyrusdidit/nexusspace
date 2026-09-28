@@ -535,7 +535,7 @@ if ($user) {
     mysqli_stmt_execute($statement);
     $profilePosts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);
-    $statement = mysqli_prepare($conn, "SELECT u.id, u.username, u.avatar_path, f.top_eight_position, GREATEST(f.created_at, COALESCE(MAX(m.created_at), f.created_at)) AS last_interaction_at FROM friends f JOIN users u ON u.id = f.friend_id LEFT JOIN messages m ON (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) WHERE f.user_id = ? GROUP BY u.id, u.username, u.avatar_path, f.top_eight_position, f.created_at ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, last_interaction_at DESC, u.username, u.id");
+    $statement = mysqli_prepare($conn, "SELECT u.id, u.username, u.avatar_path, f.top_eight_position, GREATEST(f.created_at, COALESCE(MAX(m.created_at), f.created_at)) AS last_interaction_at FROM friends f JOIN users u ON u.id = f.friend_id LEFT JOIN messages m ON ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id)) AND m.deleted_at IS NULL WHERE f.user_id = ? GROUP BY u.id, u.username, u.avatar_path, f.top_eight_position, f.created_at ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, last_interaction_at DESC, u.username, u.id");
     mysqli_stmt_bind_param($statement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($statement);
     $allFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);

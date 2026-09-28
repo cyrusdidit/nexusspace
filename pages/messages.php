@@ -68,7 +68,7 @@ $viewer = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: ['username' 
 mysqli_stmt_close($statement);
 
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
-$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, TIMESTAMPDIFF(SECOND, u.last_active_at, NOW()) AS activity_age_seconds, (SELECT f.nickname FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS nickname, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
+$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, TIMESTAMPDIFF(SECOND, u.last_active_at, NOW()) AS activity_age_seconds, (SELECT f.nickname FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS nickname, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0 AND unread.deleted_at IS NULL) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id)) AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
 mysqli_stmt_bind_param($statement, 'iiiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $friends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
@@ -248,6 +248,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: messages.php?user=' . $selectedId);
             exit;
         }
+    } elseif ($action === 'edit_message') {
+        $messageId = filter_var($_POST['message_id'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
+        $messageContent = is_string($_POST['content'] ?? null) ? trim($_POST['content']) : '';
+        $length = preg_match_all('/./us', $messageContent);
+        if (!$messageId || $messageContent === '' || $length === false || $length > 2000) {
+            http_response_code(422);
+            $error = 'Enter a message of 1â€“2000 characters.';
+        } else {
+            $statement = mysqli_prepare($conn, 'UPDATE messages SET content = ?, edited_at = NOW(6) WHERE id = ? AND sender_id = ? AND receiver_id = ? AND deleted_at IS NULL');
+            mysqli_stmt_bind_param($statement, 'siii', $messageContent, $messageId, $currentUserId, $selectedId);
+            mysqli_stmt_execute($statement);
+            $updated = mysqli_stmt_affected_rows($statement);
+            mysqli_stmt_close($statement);
+            if ($updated !== 1) {
+                http_response_code(404);
+                $error = 'That message could not be edited.';
+            } elseif ($isJson) {
+                echo json_encode(['ok' => true, 'messageId' => $messageId, 'content' => $messageContent, 'edited' => true]);
+                exit;
+            } else {
+                header('Location: messages.php?user=' . $selectedId);
+                exit;
+            }
+        }
+    } elseif ($action === 'delete_message') {
+        $messageId = filter_var($_POST['message_id'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
+        if (!$messageId) {
+            http_response_code(422);
+            $error = 'Choose a valid message.';
+        } else {
+            $statement = mysqli_prepare($conn, 'UPDATE messages SET deleted_at = NOW(6) WHERE id = ? AND sender_id = ? AND receiver_id = ? AND deleted_at IS NULL');
+            mysqli_stmt_bind_param($statement, 'iii', $messageId, $currentUserId, $selectedId);
+            mysqli_stmt_execute($statement);
+            $deleted = mysqli_stmt_affected_rows($statement);
+            mysqli_stmt_close($statement);
+            if ($deleted !== 1) {
+                http_response_code(404);
+                $error = 'That message could not be deleted.';
+            } elseif ($isJson) {
+                echo json_encode(['ok' => true, 'messageId' => $messageId, 'deleted' => true]);
+                exit;
+            } else {
+                header('Location: messages.php?user=' . $selectedId);
+                exit;
+            }
+        }
     } elseif (($_POST['action'] ?? '') === 'read') {
         $first = filter_var($_POST['first'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $last = filter_var($_POST['last'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -255,7 +301,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             http_response_code(422);
             $error = 'Invalid message range.';
         } else {
-            $statement = mysqli_prepare($conn, 'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND id BETWEEN ? AND ?');
+            $statement = mysqli_prepare($conn, 'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND id BETWEEN ? AND ? AND deleted_at IS NULL');
             mysqli_stmt_bind_param($statement, 'iiii', $selectedId, $currentUserId, $first, $last);
             mysqli_stmt_execute($statement);
             mysqli_stmt_close($statement);
@@ -286,9 +332,15 @@ $messages = [];
 $lastReadOutgoingId = 0;
 $before = filter_var($_GET['before'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
 $after = filter_var($_GET['after'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
+$changesAfter = is_string($_GET['changes_after'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}$/', $_GET['changes_after']) ? $_GET['changes_after'] : '';
+$statement = mysqli_prepare($conn, "SELECT DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f') AS poll_time");
+mysqli_stmt_execute($statement);
+$messageChangeCursor = mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['poll_time'];
+mysqli_stmt_close($statement);
+$messageChanges = [];
 $hasOlder = false;
 if ($selectedFriend && $error === '') {
-    $sql = 'SELECT id, sender_id, content, created_at, is_read FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))';
+    $sql = 'SELECT id, sender_id, content, created_at, is_read, edited_at FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND deleted_at IS NULL';
     if ($after) {
         $sql .= ' AND id > ? ORDER BY id ASC LIMIT 100';
         $boundary = $after;
@@ -301,6 +353,14 @@ if ($selectedFriend && $error === '') {
     mysqli_stmt_execute($statement);
     $messages = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);
+
+    if ($changesAfter !== '') {
+        $statement = mysqli_prepare($conn, 'SELECT id, content, edited_at, deleted_at FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND updated_at > ? AND updated_at <= ? ORDER BY updated_at, id');
+        mysqli_stmt_bind_param($statement, 'iiiiss', $currentUserId, $selectedId, $selectedId, $currentUserId, $changesAfter, $messageChangeCursor);
+        mysqli_stmt_execute($statement);
+        $messageChanges = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+        mysqli_stmt_close($statement);
+    }
     if (!$after) {
         $hasOlder = count($messages) > 100;
         $messages = array_reverse(array_slice($messages, 0, 100));
@@ -309,13 +369,13 @@ if ($selectedFriend && $error === '') {
     if ($messages && ($_GET['mini'] ?? '') !== '1') {
         $firstId = (int) $messages[0]['id'];
         $lastId = (int) $messages[count($messages) - 1]['id'];
-        $statement = mysqli_prepare($conn, 'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND id BETWEEN ? AND ?');
+        $statement = mysqli_prepare($conn, 'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND id BETWEEN ? AND ? AND deleted_at IS NULL');
         mysqli_stmt_bind_param($statement, 'iiii', $selectedId, $currentUserId, $firstId, $lastId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
     }
 
-    $statement = mysqli_prepare($conn, 'SELECT COALESCE(MAX(id), 0) AS last_read_id FROM messages WHERE sender_id = ? AND receiver_id = ? AND is_read = 1');
+    $statement = mysqli_prepare($conn, 'SELECT COALESCE(MAX(id), 0) AS last_read_id FROM messages WHERE sender_id = ? AND receiver_id = ? AND is_read = 1 AND deleted_at IS NULL');
     mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $selectedId);
     mysqli_stmt_execute($statement);
     $lastReadOutgoingId = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['last_read_id'] ?? 0);
@@ -326,13 +386,13 @@ if ($isJson) {
         static fn (array $friend): array => ['id' => (int) $friend['id'], 'state' => $friend['activity_state']],
         $friends
     );
-    echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'friendActivity' => $friendActivity, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token]);
+    echo json_encode(['messages' => $messages, 'messageChanges' => $messageChanges, 'messageChangeCursor' => $messageChangeCursor, 'error' => $error, 'friend' => $selectedFriend, 'friendActivity' => $friendActivity, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token]);
     exit;
 }
 $sharedLinks = [];
 $mutualFriends = [];
 if ($selectedFriend) {
-    $statement = mysqli_prepare($conn, "SELECT content FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND (content LIKE '%http://%' OR content LIKE '%https://%') ORDER BY id DESC");
+    $statement = mysqli_prepare($conn, "SELECT content FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND deleted_at IS NULL AND (content LIKE '%http://%' OR content LIKE '%https://%') ORDER BY id DESC");
     mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $selectedId, $selectedId, $currentUserId);
     mysqli_stmt_execute($statement);
     foreach (mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC) as $linkMessage) {
@@ -449,7 +509,7 @@ if ($selectedFriend) {
                     <?php if ($before): ?><p><a href="messages.php?user=<?= $selectedId ?>">Back to latest messages</a></p><?php endif; ?>
                     <div class="conversation-messages-shell" style="background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>" data-message-background-shell>
                         <div class="conversation-background" style="background-color: <?= htmlspecialchars($messagesBackgroundColor, ENT_QUOTES, 'UTF-8') ?>; background-image: <?= htmlspecialchars($messagesBackgroundImageCss, ENT_QUOTES, 'UTF-8') ?>; background-size: <?= htmlspecialchars($messagesBackgroundSize, ENT_QUOTES, 'UTF-8') ?>; background-repeat: <?= $messagesBackgroundRepeat ?>; filter: blur(<?= $messagesBackgroundBlur ?>px)" data-message-background-surface aria-hidden="true"></div>
-                        <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-viewer-avatar="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" data-viewer-initial="<?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?>" data-viewer-profile="profile.php?id=<?= $currentUserId ?>" data-viewer-name="<?= htmlspecialchars($viewer['username'], ENT_QUOTES, 'UTF-8') ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
+                    <div class="conversation-messages" data-message-list data-viewer="<?= $currentUserId ?>" data-viewer-avatar="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" data-viewer-initial="<?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?>" data-viewer-profile="profile.php?id=<?= $currentUserId ?>" data-viewer-name="<?= htmlspecialchars($viewer['username'], ENT_QUOTES, 'UTF-8') ?>" data-poll="<?= $before ? 'false' : 'true' ?>" data-change-cursor="<?= htmlspecialchars($messageChangeCursor, ENT_QUOTES, 'UTF-8') ?>" data-friend-avatar="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" data-friend-initial="<?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?>" data-friend-profile="profile.php?id=<?= $selectedId ?>" data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>" role="log" aria-label="Messages" tabindex="0">
                         <?php if (!$messages): ?><p data-empty-messages>No messages yet. Say hello!</p><?php endif; ?>
                         <?php foreach ($messages as $messageIndex => $message): ?>
                             <?php
@@ -462,12 +522,12 @@ if ($selectedFriend) {
                             $showsViewerAvatar = $messageIsMine && (!$nextMessage || $nextStartsNewDay || (int) $nextMessage['sender_id'] !== (int) $message['sender_id']);
                             ?>
                             <?php if (!$previousMessage || substr($previousMessage['created_at'], 0, 10) !== $messageDate): ?><div class="conversation-date-separator" data-message-date-separator="<?= htmlspecialchars($messageDate, ENT_QUOTES, 'UTF-8') ?>"><span><?= htmlspecialchars(conversationDateLabel($message['created_at']), ENT_QUOTES, 'UTF-8') ?></span></div><?php endif; ?>
-                            <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= ($showsFriendAvatar || $showsViewerAvatar) ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>" data-message-date="<?= htmlspecialchars($messageDate, ENT_QUOTES, 'UTF-8') ?>">
+                            <article class="conversation-message<?= $messageIsMine ? ' is-mine' : ' is-incoming' ?><?= ($showsFriendAvatar || $showsViewerAvatar) ? ' has-avatar' : '' ?>" data-message-id="<?= (int) $message['id'] ?>" data-message-date="<?= htmlspecialchars($messageDate, ENT_QUOTES, 'UTF-8') ?>"<?= $messageIsMine ? ' tabindex="0" aria-label="Your message. Hold for message actions."' : '' ?>>
                                 <?php if ($showsFriendAvatar): ?><a class="conversation-message-avatar" href="profile.php?id=<?= $selectedId ?>" aria-label="View <?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?>'s profile"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
                                 <?php if ($showsViewerAvatar): ?><a class="conversation-message-avatar is-viewer" href="profile.php?id=<?= $currentUserId ?>" aria-label="View your profile"><span><?= htmlspecialchars($viewerInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($viewerAvatar): ?><img src="<?= htmlspecialchars($viewerAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></a><?php endif; ?>
                                 <strong><?= $messageIsMine ? 'You' : htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?></strong>
-                                <p><?= htmlspecialchars($message['content'], ENT_QUOTES, 'UTF-8') ?></p>
-                                <small><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $message['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationMessageTime($message['created_at']), ENT_QUOTES, 'UTF-8') ?></time><?php if ($messageIsMine): ?><span class="message-read-receipt<?= (int) $message['is_read'] === 1 ? ' is-read' : '' ?>" data-read-receipt aria-label="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" title="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" aria-hidden="false"><?= (int) $message['is_read'] === 1 ? '&#10003;&#10003;' : '&#10003;' ?></span><?php endif; ?></small>
+                                <p data-message-content><?= htmlspecialchars($message['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                                <small><?php if ($messageIsMine): ?><span class="message-actions"><button type="button" data-message-edit aria-label="Edit message" title="Edit message">&#9998;</button><button type="button" data-message-delete aria-label="Delete message" title="Delete message"><img src="../assets/images/delete-message-icon.png" alt=""></button></span><?php endif; ?><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $message['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(conversationMessageTime($message['created_at']), ENT_QUOTES, 'UTF-8') ?></time><span class="message-edited" data-message-edited<?= $message['edited_at'] ? '' : ' hidden' ?>>edited</span><?php if ($messageIsMine): ?><span class="message-read-receipt<?= (int) $message['is_read'] === 1 ? ' is-read' : '' ?>" data-read-receipt aria-label="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" title="<?= (int) $message['is_read'] === 1 ? 'Read' : 'Sent' ?>" aria-hidden="false"><?= (int) $message['is_read'] === 1 ? '&#10003;&#10003;' : '&#10003;' ?></span><?php endif; ?></small>
                             </article>
                         <?php endforeach; ?>
                         </div>

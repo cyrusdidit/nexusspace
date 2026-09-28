@@ -435,6 +435,18 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .conversation-message > strong { display: none; }
 .conversation-message p { margin: 0; color: #163b5c; font-size: 14px; line-height: 19px; white-space: pre-wrap; }
 .conversation-message small { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: 4px 0 0; font-size: 10px; line-height: 12px; text-align: right; }
+.message-actions { display: flex; visibility: hidden; align-items: center; gap: 2px; margin-right: auto; opacity: 0; pointer-events: none; }
+.conversation-message.message-actions-open .message-actions { visibility: visible; opacity: 1; pointer-events: auto; }
+.conversation-message.is-long-pressing { user-select: none; }
+.message-actions button { display: grid; place-items: center; width: 17px; height: 17px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #47728f; font-size: 13px; line-height: 1; }
+.message-actions button:hover { background: rgb(255 255 255 / 55%); color: #163b5c; }
+.message-actions button img { display: block; width: 13px; height: 13px; object-fit: contain; }
+.message-edited { color: #47728f; font-size: 9px; }
+.message-edited[hidden] { display: none; }
+.message-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px; margin: 0; }
+.message-editor textarea { width: 100%; min-width: 140px; min-height: 58px; padding: 5px 7px; resize: vertical; border: 1px solid #79b9dd; border-radius: 2px; font: inherit; font-size: 14px; line-height: 19px; }
+.message-editor > span { display: flex; flex-direction: column; gap: 4px; }
+.message-editor button { display: grid; place-items: center; width: 25px; height: 25px; margin: 0; padding: 0; border-radius: 0; }
 .message-read-receipt { min-width: 10px; color: #47728f; font-size: 11px; font-weight: 700; letter-spacing: 0; }
 .message-read-receipt.is-read { color: #168ac5; }
 .conversation-content form { display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 0 0 auto; gap: 8px; padding-top: 10px; }
