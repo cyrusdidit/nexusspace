@@ -57,8 +57,9 @@ if ($isJson) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Find users · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
+    <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
 </head>
-<body>
+<body data-activity-endpoint="../activity-ping.php">
     <main class="card">
         <h1>Find users</h1>
         <form class="user-search" role="search" method="get" action="search.php">

@@ -164,9 +164,20 @@ a {
 .avatar-crop-actions [data-avatar-crop-save] { display: grid; place-items: center; width: 36px; padding: 0; }
 .profile-identity h1 { color: #163b5c; font-size: 22px; margin: 0 0 8px; overflow-wrap: anywhere; }
 .profile-handle { color: #166da5; font-size: 13px; font-weight: 700; margin: 0 0 12px; overflow-wrap: anywhere; }
+.profile-activity { display: flex; align-items: center; justify-content: center; gap: 5px; margin: -5px 0 4px; color: #47728f; font-size: 12px; }
+.profile-activity > span:first-child,
+[data-conversation-activity]::before { width: 7px; height: 7px; flex: 0 0 7px; background: #d94747; content: ''; transform: rotate(45deg); }
+.profile-activity[data-state="online"] > span:first-child,
+[data-conversation-activity][data-state="online"]::before { background: #35a854; }
+.profile-activity[data-state="idle"] > span:first-child,
+[data-conversation-activity][data-state="idle"]::before { background: #f2c230; }
+[data-conversation-activity] { display: flex; align-items: center; gap: 5px; }
 .profile-bio { font-size: 14px; line-height: 1.5; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .profile-friend-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-.profile-friend-actions button { margin: 0; font-size: 13px; padding: 8px 14px; }
+.profile-friend-actions button,
+.profile-friend-actions .button { margin: 0; font-size: 13px; padding: 8px 14px; }
+.profile-friend-actions .profile-message-button { display: grid; place-items: center; width: 34px; height: 34px; padding: 6px; }
+.profile-message-button img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .profile-friend-actions button:disabled { background: #5b9bc0; cursor: default; }
 .profile-account-details { padding: 0 24px 20px; border-top: 1px solid #9dcce8; font-size: 13px; overflow-wrap: anywhere; }
 .profile-account-details .profile-details dt { color: #166da5; }
@@ -373,8 +384,11 @@ main.messages-page { display: grid; grid-template-columns: 280px minmax(0, 1fr);
 .conversation-list-item[hidden] { display: none; }
 .conversation-list-item:hover { background: #dff2ff; text-decoration: none; }
 .conversation-list-item[aria-current] { background: #b9e3f8; }
-.conversation-list-avatar { position: relative; display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; overflow: hidden; border: 1px solid #79b9dd; border-radius: 50%; background: #dff2ff; color: #166da5; font-size: 15px; font-weight: 700; }
-.conversation-list-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.conversation-list-avatar { position: relative; display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; overflow: visible; border: 1px solid #79b9dd; border-radius: 50%; background: #dff2ff; color: #166da5; font-size: 15px; font-weight: 700; }
+.conversation-list-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.conversation-list-avatar[data-friend-activity]::after { position: absolute; z-index: 2; right: -1px; bottom: -1px; width: 10px; height: 10px; border: 1px solid #fff; background: #d94747; content: ''; transform: rotate(45deg); }
+.conversation-list-avatar[data-state="online"]::after { background: #35a854; }
+.conversation-list-avatar[data-state="idle"]::after { background: #f2c230; }
 .conversation-list-details { display: block; flex: 1; min-width: 0; }
 .conversation-list-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
 .conversation-list-heading strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }

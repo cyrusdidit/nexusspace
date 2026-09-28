@@ -464,7 +464,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (friend.activity_state === 'online') label = 'Online';
         else if (friend.activity_state === 'idle') label = 'Idle';
         else if (friend.last_active_at) label = `Last seen ${sidebarTimestamp(friend.last_active_at)}`;
-        document.querySelectorAll('[data-conversation-activity]').forEach((element) => { element.textContent = label; });
+        document.querySelectorAll('[data-conversation-activity]').forEach((element) => {
+            element.dataset.state = friend.activity_state || 'offline';
+            element.textContent = label;
+        });
+    };
+    const updateFriendActivity = (friends) => {
+        if (!Array.isArray(friends)) return;
+        friends.forEach((friend) => {
+            const indicator = document.querySelector(`[data-friend-activity][data-friend-id="${Number(friend.id)}"]`);
+            if (!indicator) return;
+            indicator.dataset.state = friend.state || 'offline';
+            indicator.title = friend.state === 'online' ? 'Online' : friend.state === 'idle' ? 'Idle' : 'Offline';
+        });
     };
     const updateSidebarPreview = (message, mine) => {
         if (!selectedFriendItem || !conversationList) return;
@@ -550,6 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (!response.ok || data.error) throw new Error(data.error || 'Could not load messages.');
             updateActivity(data.friend);
+            updateFriendActivity(data.friendActivity);
             const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
             data.messages.forEach((message) => {
                 if (Number(message.id) <= lastId) return;

@@ -18,6 +18,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/background_customization.php';
+require_once __DIR__ . '/../includes/activity.php';
 $currentUserId = (int) $_SESSION['user_id'];
 $_SESSION['message_token'] ??= bin2hex(random_bytes(32));
 $token = $_SESSION['message_token'];
@@ -67,11 +68,15 @@ $viewer = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: ['username' 
 mysqli_stmt_close($statement);
 
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
-$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, (SELECT f.nickname FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS nickname, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
+$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.activity_state, u.last_active_at, TIMESTAMPDIFF(SECOND, u.last_active_at, NOW()) AS activity_age_seconds, (SELECT f.nickname FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS nickname, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id) ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
 mysqli_stmt_bind_param($statement, 'iiiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $friends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
 mysqli_stmt_close($statement);
+foreach ($friends as &$friend) {
+    $friend['activity_state'] = resolvedActivityState($friend['activity_state'] ?? null, $friend['last_active_at'] ?? null, isset($friend['activity_age_seconds']) ? (int) $friend['activity_age_seconds'] : null);
+}
+unset($friend);
 $selectedFriend = null;
 foreach ($friends as $friend) {
     if ((int) $friend['id'] === $selectedId) $selectedFriend = $friend;
@@ -317,7 +322,11 @@ if ($selectedFriend && $error === '') {
     mysqli_stmt_close($statement);
 }
 if ($isJson) {
-    echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token]);
+    $friendActivity = array_map(
+        static fn (array $friend): array => ['id' => (int) $friend['id'], 'state' => $friend['activity_state']],
+        $friends
+    );
+    echo json_encode(['messages' => $messages, 'error' => $error, 'friend' => $selectedFriend, 'friendActivity' => $friendActivity, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token]);
     exit;
 }
 $sharedLinks = [];
@@ -358,11 +367,7 @@ if ($selectedFriend) {
         $selectedAvatar = str_starts_with($selectedAvatar, '/') ? $selectedAvatar : '../' . $selectedAvatar;
     } else { $selectedAvatar = ''; }
     $selectedInitial = mb_strtoupper(mb_substr($selectedFriend['username'], 0, 1));
-    $activityLabel = match ($selectedFriend['activity_state'] ?? 'offline') {
-        'online' => 'Online',
-        'idle' => 'Idle',
-        default => $selectedFriend['last_active_at'] ? 'Last seen ' . conversationListTimestamp($selectedFriend['last_active_at']) : 'Offline',
-    };
+    $activityLabel = activityStatusLabel($selectedFriend['activity_state'] ?? 'offline', $selectedFriend['last_active_at'] ?? null);
 }
 ?>
 <!doctype html>
@@ -372,9 +377,10 @@ if ($selectedFriend) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Messages &middot; NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
+    <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <script src="../assets/js/messages.js?v=<?= filemtime(__DIR__ . '/../assets/js/messages.js') ?>" defer></script>
 </head>
-<body class="messages-body">
+<body class="messages-body" data-activity-endpoint="../activity-ping.php">
     <main class="messages-page<?= $selectedFriend ? ' has-selected-conversation' : '' ?>" data-messages-page>
         <section class="messages-sidebar" aria-label="Messages navigation">
             <header class="messages-sidebar-header">
@@ -398,7 +404,7 @@ if ($selectedFriend) {
                     $hasConversation = $friend['last_message_at'] !== null;
                     ?>
                     <a class="conversation-list-item" href="messages.php?user=<?= (int) $friend['id'] ?>" data-conversation-friend data-friend-name="<?= htmlspecialchars($friendDisplayName . ' ' . $friend['username'], ENT_QUOTES, 'UTF-8') ?>"<?= (int) $friend['id'] === $selectedId ? ' aria-current="page"' : '' ?>>
-                        <span class="conversation-list-avatar" aria-hidden="true"><span><?= htmlspecialchars($friendInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
+                        <span class="conversation-list-avatar" data-friend-activity data-friend-id="<?= (int) $friend['id'] ?>" data-state="<?= htmlspecialchars($friend['activity_state'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(activityStatusLabel($friend['activity_state'], $friend['last_active_at'] ?? null), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"><span><?= htmlspecialchars($friendInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                         <span class="conversation-list-details">
                             <span class="conversation-list-heading">
                                 <strong<?= (int) $friend['id'] === $selectedId ? ' data-selected-friend-name' : '' ?>><?= htmlspecialchars($friendDisplayName, ENT_QUOTES, 'UTF-8') ?></strong>
@@ -421,7 +427,7 @@ if ($selectedFriend) {
                         <span class="conversation-header-avatar" aria-hidden="true"><span><?= htmlspecialchars($selectedInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($selectedAvatar): ?><img src="<?= htmlspecialchars($selectedAvatar, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?></span>
                         <span class="conversation-header-copy">
                             <strong data-selected-friend-name><?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?></strong>
-                            <small data-conversation-activity><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
+                            <small data-conversation-activity data-state="<?= htmlspecialchars($selectedFriend['activity_state'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
                         </span>
                     </a>
                     <button class="conversation-message-search-toggle" type="button" aria-label="Search messages" title="Search messages" aria-expanded="false" data-message-search-toggle><span class="conversation-message-search-icon" aria-hidden="true"></span></button>
@@ -571,7 +577,7 @@ if ($selectedFriend) {
                     </form>
                     <p class="conversation-nickname-status" data-nickname-status role="status" aria-live="polite"></p>
                     <span class="conversation-profile-username" data-selected-friend-username<?= $selectedDisplayName === $selectedFriend['username'] ? ' hidden' : '' ?>>@<?= htmlspecialchars($selectedFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
-                    <small data-conversation-activity><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
+                    <small data-conversation-activity data-state="<?= htmlspecialchars($selectedFriend['activity_state'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($activityLabel, ENT_QUOTES, 'UTF-8') ?></small>
                 </div>
                 <?php if (trim($selectedFriend['status_text'] ?? '') !== ''): ?><p class="conversation-profile-status"><?= htmlspecialchars($selectedFriend['status_text'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 <div class="conversation-profile-sections">

@@ -23,8 +23,9 @@ $featureName = $features[$featureKey] ?? 'This feature';
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($featureName, ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
 </head>
-<body>
+<body data-activity-endpoint="../activity-ping.php">
     <main class="card">
         <h1><?= htmlspecialchars($featureName, ENT_QUOTES, 'UTF-8') ?></h1>
         <p>This area is planned for a later NexusSpace week.</p>

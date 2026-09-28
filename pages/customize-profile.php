@@ -51,9 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Customize Profile &middot; NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
+    <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <script src="../assets/js/profile-customization-editor.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-customization-editor.js') ?>" defer></script>
 </head>
-<body class="profile-customization-page">
+<body class="profile-customization-page" data-activity-endpoint="../activity-ping.php">
     <main class="profile-customization-editor">
         <form method="post" action="customize-profile.php" data-customization-form>
             <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">

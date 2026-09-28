@@ -417,6 +417,7 @@ if (isset($_SESSION['user_id'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>NexusSpace</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
+    <script src="assets/js/activity.js?v=<?= filemtime(__DIR__ . '/assets/js/activity.js') ?>" defer></script>
     <script src="assets/js/dashboard.js?v=<?= filemtime(__DIR__ . '/assets/js/dashboard.js') ?>" defer></script>
     <script src="assets/js/profile-preview.js?v=<?= filemtime(__DIR__ . '/assets/js/profile-preview.js') ?>" defer></script>
     <script src="assets/js/message-updates.js?v=<?= filemtime(__DIR__ . '/assets/js/message-updates.js') ?>" defer></script>
@@ -425,7 +426,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/message-popup.js?v=<?= filemtime(__DIR__ . '/assets/js/message-popup.js') ?>" defer></script>
     <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
 </head>
-<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page"' : '' ?>>
+<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');

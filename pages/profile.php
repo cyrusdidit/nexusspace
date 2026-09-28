@@ -12,6 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/profile_customization.php';
 require_once __DIR__ . '/../includes/background_customization.php';
+require_once __DIR__ . '/../includes/activity.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
@@ -21,7 +22,7 @@ $userId = $userId === false ? 0 : $userId;
 $isOwnProfile = $userId === $currentUserId;
 $statement = mysqli_prepare(
     $conn,
-    'SELECT username, email, registration_date, avatar_path, bio FROM users WHERE id = ? LIMIT 1'
+    'SELECT username, email, registration_date, avatar_path, bio, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
 );
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);
@@ -42,6 +43,8 @@ if ($user && !$isOwnProfile) {
     $profileNickname = trim($nicknameRow['nickname'] ?? '');
 }
 $profileDisplayName = $profileNickname !== '' ? $profileNickname : ($user['username'] ?? 'Profile not found');
+$profileActivityState = resolvedActivityState($user['activity_state'] ?? null, $user['last_active_at'] ?? null, isset($user['activity_age_seconds']) ? (int) $user['activity_age_seconds'] : null);
+$profileActivityLabel = activityStatusLabel($profileActivityState, $user['last_active_at'] ?? null);
 $avatarPath = trim($user['avatar_path'] ?? '');
 if ($avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath)) {
     $avatarPath = str_starts_with($avatarPath, '/') ? $avatarPath : '../' . $avatarPath;
@@ -575,12 +578,13 @@ if ($isOwnProfile) {
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
+    <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <?php if ($user && $isOwnProfile): ?>
         <script src="../assets/js/profile-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-appearance.js') ?>" defer></script>
         <script src="../assets/js/profile-cover-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-cover-appearance.js') ?>" defer></script>
     <?php endif; ?>
 </head>
-<body class="profile-page"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
+<body class="profile-page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-current-user-id="<?= $currentUserId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <?php if ($profileNotice !== ''): ?>
         <div class="profile-customization-toast" data-profile-customization-toast role="status">
             <span><?= htmlspecialchars($profileNotice, ENT_QUOTES, 'UTF-8') ?></span>
@@ -620,10 +624,14 @@ if ($isOwnProfile) {
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
+            <p class="profile-activity" data-profile-activity data-user-id="<?= $userId ?>" data-state="<?= htmlspecialchars($profileActivityState, ENT_QUOTES, 'UTF-8') ?>"><span aria-hidden="true"></span><span data-activity-label><?= htmlspecialchars($profileActivityLabel, ENT_QUOTES, 'UTF-8') ?></span></p>
             <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
             <?php if (!$isOwnProfile): ?>
                 <form class="profile-friend-actions" method="post" action="profile.php?id=<?= $userId ?>">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['friend_request_token'], ENT_QUOTES, 'UTF-8') ?>">
+                    <?php if ($friendState === 'friends'): ?>
+                        <a class="button profile-message-button" href="messages.php?user=<?= $userId ?>" aria-label="Message <?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?>" title="Message <?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?>"><img src="../assets/images/message-icon.png" alt=""></a>
+                    <?php endif; ?>
                     <?php if ($friendState === 'received'): ?>
                         <button type="submit" name="action" value="accept">Accept</button>
                         <button class="button-secondary" type="submit" name="action" value="decline">Decline</button>
