@@ -966,17 +966,24 @@ main.dashboard {
     border: 0;
     border-radius: 0;
     box-shadow: none;
+    gap: 0;
+    grid-template-columns: 280px minmax(0, 1fr) 300px;
+    height: 100vh;
+    height: 100dvh;
     margin: 0;
     max-width: none;
-    padding: 10px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
     width: 100%;
 }
 
 .dashboard-sidebar {
     background: #dff2ff;
-    border: 1px solid #b9e3f8;
+    border: 0;
+    border-right: 1px solid #9dcce8;
     color: #163b5c;
-    margin: -10px 0 -10px -10px;
+    margin: 0;
 }
 
 .dashboard-user { background: transparent; color: #163b5c; }
@@ -1007,7 +1014,7 @@ main.dashboard {
 }
 
 .post-image-placeholder { background: #c7eafa; }
-.dashboard-feed { overflow-y: auto; }
+.dashboard-feed { width: 100%; max-width: none; margin: 0; padding: 24px; overflow-x: hidden; overflow-y: auto; background: #dff2ff; }
 .post-composer { margin-bottom: 18px; }
 .post-composer textarea { width: 100%; min-height: 96px; resize: vertical; padding: 10px; border: 1px solid #9dcce8; border-radius: 4px; font: inherit; font-size: 13px; background: #fff; color: #163b5c; }
 .post-composer-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; font-size: 12px; }
@@ -1037,6 +1044,9 @@ main.dashboard {
 .notifications-panel { background: #f6fcff; border: 1px solid #9dcce8; }
 .notifications-heading { background: #b9e3f8; }
 .notification-badge { background: #238bc5; color: #ffffff; }
+
+.dashboard-right-rail { position: relative; z-index: 20; width: auto; gap: 0; border: 0; background: #dff2ff; }
+.dashboard-right-rail .notifications-panel { width: 100%; border-top: 0; border-right: 0; box-shadow: none; }
 
 .chat-preview { background: #dff2ff; border: 1px solid #9dcce8; }
 .chat-heading { background: #166da5; color: #ffffff; }
@@ -1100,7 +1110,7 @@ main.dashboard {
 .zoom-layout-warning[hidden] { display: none; }
 
 @media (max-width: 640px) and (min-height: 500px) {
-    .dashboard { gap: 14px; grid-template-columns: 118px minmax(0, 1fr); }
+    main.dashboard { gap: 14px; grid-template-columns: 118px minmax(0, 1fr); }
     .dashboard-right-rail { grid-column: 1 / -1; }
     .notifications-panel { min-height: 120px; }
     .chat-preview { margin-top: 0; }
