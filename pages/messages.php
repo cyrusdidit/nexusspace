@@ -685,6 +685,7 @@ if ($selectedFriend) {
                 </div>
             <?php endif; ?>
         </aside>
+        <small class="messages-page-copyright">&copy;2026 NexusSpace</small>
     </main>
     <dialog class="messages-image-crop-dialog" data-message-image-crop-dialog>
         <div class="messages-image-crop-heading">

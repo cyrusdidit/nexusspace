@@ -101,7 +101,9 @@ if (profileActivity && activityStatusEndpoint) {
             const data = await response.json();
             if (!response.ok || data.error) return;
             profileActivity.dataset.state = data.state;
-            profileActivity.querySelector('[data-activity-label]').textContent = data.label;
+            const label = data.state === 'online' ? 'Online' : data.state === 'idle' ? 'Idle' : 'Offline';
+            profileActivity.title = label;
+            profileActivity.querySelector('[data-activity-label]').textContent = label;
         } catch (error) {
             // Keep the last known status during a temporary connection failure.
         }

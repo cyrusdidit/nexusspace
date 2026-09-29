@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
 
-    if (!preg_match('/^[A-Za-z0-9_]{3,50}$/', $username)) {
-        $errors[] = 'Username must be 3–50 characters and use only letters, numbers, or underscores.';
+    if (!preg_match('/^[A-Za-z0-9_]{3,35}$/', $username)) {
+        $errors[] = 'Username must be 3 to 35 characters and use only letters, numbers, or underscores.';
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <form method="post" novalidate>
             <label for="username">Username</label>
-            <input id="username" name="username" type="text" value="<?= htmlspecialchars($username, ENT_QUOTES, 'UTF-8') ?>" autocomplete="username" required>
+            <input id="username" name="username" type="text" value="<?= htmlspecialchars($username, ENT_QUOTES, 'UTF-8') ?>" minlength="3" maxlength="35" autocomplete="username" required>
 
             <label for="email">Email address</label>
             <input id="email" name="email" type="email" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>" autocomplete="email" required>

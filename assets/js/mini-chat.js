@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = box.querySelector('[data-mini-status]');
     const heading = box.querySelector('h2');
     const avatar = box.querySelector('[data-mini-avatar]');
+    const activity = box.querySelector('[data-mini-activity]');
     const form = box.querySelector('form');
     const input = form.elements.message;
     const send = form.querySelector('button');
@@ -38,6 +39,10 @@ document.addEventListener('DOMContentLoaded', () => {
             state.token = data.token;
             send.disabled = state.sending;
             heading.textContent = data.friend.username;
+            if (activity) {
+                activity.dataset.state = data.friend.activity_state || 'offline';
+                activity.title = data.friend.activity_state === 'online' ? 'Online' : data.friend.activity_state === 'idle' ? 'Idle' : 'Offline';
+            }
             if (!state.loaded) {
                 avatar.textContent = data.friend.username.charAt(0).toUpperCase();
                 if (data.friend.avatar_path) {
@@ -86,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chat = state;
         box.hidden = false;
         list.replaceChildren(); avatar.replaceChildren();
+        if (activity) activity.dataset.state = 'offline';
         heading.textContent = 'Chat'; status.textContent = 'Loading…';
         input.value = drafts.get(id) || ''; send.disabled = true;
         refresh(state).catch(() => {if (chat === state) status.textContent = 'Could not load chat. Retrying…';});

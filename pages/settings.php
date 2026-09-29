@@ -106,6 +106,14 @@ mysqli_stmt_close($statement);
                 </ul>
             <?php endif; ?>
         </section>
+
+        <section class="settings-account" aria-labelledby="settings-account-heading">
+            <h2 id="settings-account-heading">Account</h2>
+            <a class="settings-logout" href="../logout.php">
+                <img src="../assets/images/logout-door.png" alt="" aria-hidden="true">
+                <span>Log out</span>
+            </a>
+        </section>
     </main>
 </body>
 </html>

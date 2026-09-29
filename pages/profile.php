@@ -48,7 +48,11 @@ if ($user && !$isOwnProfile) {
 }
 $profileDisplayName = $profileNickname !== '' ? $profileNickname : ($user['username'] ?? 'Profile not found');
 $profileActivityState = resolvedActivityState($user['activity_state'] ?? null, $user['last_active_at'] ?? null, isset($user['activity_age_seconds']) ? (int) $user['activity_age_seconds'] : null);
-$profileActivityLabel = activityStatusLabel($profileActivityState, $user['last_active_at'] ?? null);
+$profileActivityLabel = match ($profileActivityState) {
+    'online' => 'Online',
+    'idle' => 'Idle',
+    default => 'Offline',
+};
 $avatarPath = trim($user['avatar_path'] ?? '');
 if ($avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath)) {
     $avatarPath = str_starts_with($avatarPath, '/') ? $avatarPath : '../' . $avatarPath;
@@ -648,15 +652,17 @@ if ($isOwnProfile) {
                     </label>
                 </form>
             <?php else: ?>
-                <div class="profile-picture" aria-hidden="true">
+                <div class="profile-picture">
                     <span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
                     <?php if ($avatarPath !== ''): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt=""><?php endif; ?>
+                    <span class="profile-avatar-activity" data-profile-activity data-user-id="<?= $userId ?>" data-state="<?= htmlspecialchars($profileActivityState, ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($profileActivityLabel, ENT_QUOTES, 'UTF-8') ?>">
+                        <span class="sr-only" data-activity-label><?= htmlspecialchars($profileActivityLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                    </span>
                 </div>
             <?php endif; ?>
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
-            <p class="profile-activity" data-profile-activity data-user-id="<?= $userId ?>" data-state="<?= htmlspecialchars($profileActivityState, ENT_QUOTES, 'UTF-8') ?>"><span aria-hidden="true"></span><span data-activity-label><?= htmlspecialchars($profileActivityLabel, ENT_QUOTES, 'UTF-8') ?></span></p>
             <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
             <?php if (!$isOwnProfile): ?>
                 <form class="profile-friend-actions" method="post" action="profile.php?id=<?= $userId ?>">
@@ -754,9 +760,17 @@ if ($isOwnProfile) {
                         <?php endforeach; ?>
                         <?php foreach ($allFriends as $friend): ?>
                             <?php if ((int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8) continue; ?>
+                            <?php
+                            $friendAvatar = trim($friend['avatar_path'] ?? '');
+                            if ($friendAvatar !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $friendAvatar)) {
+                                $friendAvatar = str_starts_with($friendAvatar, '/') ? $friendAvatar : '../' . $friendAvatar;
+                            } else {
+                                $friendAvatar = '';
+                            }
+                            ?>
                             <li data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>" data-last-interaction="<?= (int) strtotime($friend['last_interaction_at']) ?>">
                                 <a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
-                                    <span class="post-avatar" aria-hidden="true"><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                                     <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                                 </a>
                                 <button type="button" data-top-eight-add aria-label="Add <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
@@ -775,9 +789,8 @@ if ($isOwnProfile) {
         </form>
         <?php $profileTopEightFragment = ob_get_clean(); ob_start(); ?>
         <nav class="profile-sidebar-actions" aria-label="Profile actions">
-            <a class="profile-icon-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
-            <?php if ($isOwnProfile): ?><button class="profile-icon-button" type="button" aria-label="Customize profile appearance" title="Customize profile appearance" aria-controls="profile-appearance-panel" aria-expanded="false" data-profile-appearance-toggle>&#9998;</button><?php endif; ?>
             <a class="profile-icon-button" href="settings.php" aria-label="Settings" title="Settings">&#9881;</a>
+            <a class="profile-dashboard-button" href="../index.php" aria-label="Back to dashboard" title="Back to dashboard"><span aria-hidden="true">&larr;</span><span>Dashboard</span></a>
         </nav>
         <?php if ($friendError !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($friendError, ENT_QUOTES, 'UTF-8') ?></p>
@@ -801,6 +814,7 @@ if ($isOwnProfile) {
                     <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
                 </article>
             <?php endforeach; ?>
+            <?php if ($isOwnProfile): ?><button class="profile-wallpaper-edit-corner" type="button" aria-label="Customize profile wallpaper" title="Customize profile wallpaper" aria-controls="profile-appearance-panel" aria-expanded="false" data-profile-appearance-toggle>&#9998;</button><?php endif; ?>
         </section>
         <?php $profilePostsFragment = ob_get_clean(); ?>
         <?php
@@ -822,6 +836,7 @@ if ($isOwnProfile) {
         ]);
         ?>
         <div class="profile-custom-content"><?= $renderedProfileTemplate ?></div>
+        <small class="profile-page-copyright">&copy;2026 NexusSpace</small>
         <?php endif; ?>
 
     </main>

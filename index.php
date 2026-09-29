@@ -317,8 +317,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     } elseif ($_POST['action'] === 'create_post') {
         if (!in_array($postVisibility, ['friends', 'public'], true)) {
             $postError = 'Choose Friends Only or Public.';
-        } elseif ($postContent === '' || mb_strlen($postContent, 'UTF-8') > 2000) {
-            $postError = 'Write a post using 1 to 2,000 characters.';
+        } elseif ($postContent === '' || mb_strlen($postContent, 'UTF-8') > 2500) {
+            $postError = 'Write a post using 1 to 2,500 characters.';
         } else {
             $authorId = (int) $_SESSION['user_id'];
             $statement = mysqli_prepare($conn, 'INSERT INTO posts (user_id, content, visibility) VALUES (?, ?, ?)');
@@ -367,7 +367,7 @@ if (isset($_SESSION['user_id'])) {
     mysqli_stmt_execute($feedStatement);
     $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($feedStatement);
-    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
+    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
     mysqli_stmt_bind_param($topStatement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($topStatement);
     $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($topStatement), MYSQLI_ASSOC);
@@ -440,13 +440,45 @@ if (isset($_SESSION['user_id'])) {
                 </span>
             </span>
             <aside class="dashboard-sidebar">
-                <a class="dashboard-user" href="pages/profile.php">
-                    <span class="dashboard-avatar" aria-hidden="true">
-                        <span class="mini-avatar"><span><?= $initial ?></span><?php if ($dashboardAvatar !== ''): ?><img src="<?= $dashboardAvatar ?>" alt=""><?php endif; ?></span>
-                        <span class="activity-diamond" data-activity-indicator data-state="online"></span>
-                    </span>
-                    <span>@<?= $username ?></span>
-                </a>
+                <div class="dashboard-user-row">
+                    <a class="dashboard-user" href="pages/profile.php">
+                        <span class="dashboard-avatar" aria-hidden="true">
+                            <span class="mini-avatar"><span><?= $initial ?></span><?php if ($dashboardAvatar !== ''): ?><img src="<?= $dashboardAvatar ?>" alt=""><?php endif; ?></span>
+                            <span class="activity-diamond" data-activity-indicator data-state="online"></span>
+                        </span>
+                        <span>@<?= $username ?></span>
+                    </a>
+                    <section class="notifications-panel is-collapsed" data-notifications>
+                        <div class="notifications-heading">
+                            <button class="notifications-toggle" type="button" aria-expanded="false" aria-controls="notifications-list" aria-label="Notifications">
+                                <img class="notification-bell-icon" src="assets/images/notification-bell.png" data-notification-bell data-default-src="assets/images/notification-bell.png" data-unread-src="assets/images/notification-bell-unread.png" alt="" aria-hidden="true">
+                            </button>
+                        </div>
+                        <div class="notifications-popover">
+                            <div class="notifications-list" id="notifications-list" data-notifications-list tabindex="0" role="region" aria-label="Notifications">
+                                <div data-friend-notifications></div>
+                            </div>
+                            <button class="notifications-read-all" type="button" data-read-all-notifications>Read all</button>
+                            <div class="message-popup" data-message-popup hidden>
+                                <button type="button" data-message-popup-open aria-label="Open message"></button>
+                                <button type="button" data-message-popup-dismiss aria-label="Dismiss message popup">&times;</button>
+                                <span class="sr-only" data-message-popup-announcement role="status" aria-live="polite"></span>
+                            </div>
+                        </div>
+                    </section>
+                    <button class="dashboard-search-toggle" type="button" aria-label="Search for users" title="Search for users" aria-expanded="false" aria-controls="dashboard-user-search" data-dashboard-search-toggle>
+                        <img class="dashboard-search-icon-placeholder" src="assets/images/user-search-icon.png" alt="" aria-hidden="true">
+                    </button>
+                    <form class="user-search dashboard-user-search-popover" id="dashboard-user-search" role="search" action="pages/search.php" method="get" data-live-user-search hidden>
+                        <label class="sr-only" for="user-search">Search for users</label>
+                        <input id="user-search" name="q" type="search" placeholder="Find users" maxlength="50" autocomplete="off" aria-controls="live-user-results" required>
+                        <button type="submit">Search</button>
+                        <div class="live-user-results" id="live-user-results" hidden>
+                            <p data-search-status role="status" aria-live="polite"></p>
+                            <ul class="search-results" data-search-matches></ul>
+                        </div>
+                    </form>
+                </div>
 
                 <form class="status-form" method="post">
                     <input type="hidden" name="action" value="update_status">
@@ -473,13 +505,30 @@ if (isset($_SESSION['user_id'])) {
                     </div>
                     <ul class="friends-list">
                         <?php foreach ($topFriends as $friend): ?>
-                            <?php $friendAvatar = postAvatarPath($friend['avatar_path'] ?? null); ?>
+                            <?php
+                            $friendAvatar = postAvatarPath($friend['avatar_path'] ?? null);
+                            $friendName = htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8');
+                            $friendInitial = htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8');
+                            $friendPreviewBackground = preg_match('/^#[0-9a-f]{6}$/i', $friend['profile_background_color'] ?? '') ? $friend['profile_background_color'] : '#ffffff';
+                            $friendPreviewColor = preg_match('/^#[0-9a-f]{6}$/i', $friend['profile_text_color'] ?? '') ? $friend['profile_text_color'] : '#163b5c';
+                            ?>
                             <li>
-                                <a class="top-friend-link" data-top-friend-chat="<?= (int) $friend['id'] ?>" href="index.php?chat=<?= (int) $friend['id'] ?>">
-                                    <span class="mini-avatar" aria-hidden="true"><span><?= htmlspecialchars(strtoupper(substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar !== ''): ?><img src="<?= $friendAvatar ?>" alt=""><?php endif; ?></span>
-                                    <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
-                                </a>
-                                <a class="friend-unread-diamond" data-friend-unread="<?= (int) $friend['id'] ?>" data-friend-name="<?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?>" href="index.php?chat=<?= (int) $friend['id'] ?>" hidden></a>
+                                <div class="top-friend-link">
+                                    <button class="mini-avatar dashboard-friend-chat" type="button" data-top-friend-chat="<?= (int) $friend['id'] ?>" aria-label="Message <?= $friendName ?>" title="Message <?= $friendName ?>"><span><?= $friendInitial ?></span><?php if ($friendAvatar !== ''): ?><img src="<?= $friendAvatar ?>" alt=""><?php endif; ?></button>
+                                    <div class="dashboard-friend-preview" data-profile-preview data-profile-preview-delay="1000" data-profile-preview-placement="right">
+                                        <a class="dashboard-friend-name" data-top-friend-chat="<?= (int) $friend['id'] ?>" href="index.php?chat=<?= (int) $friend['id'] ?>"><?= $friendName ?></a>
+                                        <aside class="profile-preview" data-profile-preview-panel hidden aria-label="<?= $friendName ?> profile preview" style="--preview-background: <?= htmlspecialchars($friendPreviewBackground, ENT_QUOTES, 'UTF-8') ?>; --preview-color: <?= htmlspecialchars($friendPreviewColor, ENT_QUOTES, 'UTF-8') ?>">
+                                            <div class="profile-preview-banner"></div>
+                                            <div class="profile-preview-body">
+                                                <span class="post-avatar profile-preview-avatar" aria-hidden="true"><span><?= $friendInitial ?></span><?php if ($friendAvatar !== ''): ?><img src="<?= $friendAvatar ?>" alt="" loading="lazy"><?php endif; ?></span>
+                                                <a class="profile-preview-name" href="pages/profile.php?id=<?= (int) $friend['id'] ?>"><?= $friendName ?></a>
+                                                <?php if (trim($friend['bio'] ?? '') !== ''): ?><p><?= htmlspecialchars(mb_substr($friend['bio'], 0, 300), ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+                                                <small>Member since <?= htmlspecialchars(date('F Y', strtotime($friend['registration_date'])), ENT_QUOTES, 'UTF-8') ?></small>
+                                            </div>
+                                        </aside>
+                                    </div>
+                                </div>
+                                <a class="friend-unread-diamond" data-friend-unread="<?= (int) $friend['id'] ?>" data-friend-name="<?= $friendName ?>" href="index.php?chat=<?= (int) $friend['id'] ?>" hidden></a>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -487,36 +536,26 @@ if (isset($_SESSION['user_id'])) {
                 </section>
 
                 <nav class="sidebar-actions" aria-label="Account actions">
-                    <a class="logout-link" href="logout.php" aria-label="Log out" title="Log out"><span class="sidebar-action-icon" aria-hidden="true"><img src="assets/images/logout-door.png" alt=""></span></a>
                     <a class="settings-link" href="pages/settings.php" aria-label="Settings" title="Settings"><span class="sidebar-action-icon" aria-hidden="true">&#9881;</span></a>
                     <button type="button" data-dashboard-appearance-toggle aria-controls="dashboard-appearance-panel" aria-expanded="false" aria-label="Appearance" title="Appearance"><span class="sidebar-action-icon" aria-hidden="true">&#9998;</span></button>
                 </nav>
-                <small class="copyright">mini copyright</small>
             </aside>
 
             <section class="dashboard-feed" aria-label="Post feed">
-                <form class="user-search" role="search" action="pages/search.php" method="get" data-live-user-search>
-                    <label class="sr-only" for="user-search">Search for users</label>
-                    <input id="user-search" name="q" type="search" placeholder="Find users" maxlength="50" autocomplete="off" aria-controls="live-user-results" required>
-                    <button type="submit">Search</button>
-                    <div class="live-user-results" id="live-user-results" hidden>
-                        <p data-search-status role="status" aria-live="polite"></p>
-                        <ul class="search-results" data-search-matches></ul>
-                    </div>
-                </form>
-
                 <form class="post-composer" method="post">
                     <input type="hidden" name="action" value="create_post">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
-                    <label class="sr-only" for="post-content">Write a post</label>
-                    <textarea id="post-content" name="content" rows="4" maxlength="2000" placeholder="What's on your mind?" required><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
-                    <div class="post-composer-actions">
-                        <label for="post-visibility">Audience</label>
-                        <select id="post-visibility" name="visibility">
+                    <div class="post-composer-box<?= $postContent !== '' || $postError !== '' ? ' is-expanded' : '' ?>" data-post-composer-box>
+                        <label class="sr-only" for="post-content">Write a post</label>
+                        <textarea id="post-content" name="content" rows="4" maxlength="2500" placeholder="What's on your mind?" data-post-content required><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
+                        <button class="post-composer-expand" type="button" aria-label="Create a post" title="Create a post" data-post-composer-expand>+</button>
+                        <label class="sr-only" for="post-visibility">Audience</label>
+                        <select id="post-visibility" name="visibility" aria-label="Post audience">
                             <option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option>
                             <option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option>
                         </select>
-                        <button type="submit">Post</button>
+                        <span class="post-character-count" data-post-character-count>0/2500</span>
+                        <button class="post-submit-button" type="submit">Post</button>
                     </div>
                     <?php if ($postError): ?><p class="post-error" role="alert"><?= htmlspecialchars($postError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 </form>
@@ -541,29 +580,14 @@ if (isset($_SESSION['user_id'])) {
             </section>
 
             <aside class="dashboard-right-rail">
-                <section class="notifications-panel is-collapsed" data-notifications>
-                    <div class="notifications-heading">
-                        <span class="notification-badge" data-notification-badge hidden aria-label="Unread notifications"></span>
-                        <button class="notifications-toggle" type="button" aria-expanded="false" aria-controls="notifications-list">
-                            <span>notifications</span>
-                            <span aria-hidden="true" data-notification-chevron>v</span>
-                        </button>
-                    </div>
-                    <div class="notifications-list" id="notifications-list" data-notifications-list tabindex="0" role="region" aria-label="Notifications">
-                        <div data-friend-notifications></div>
-                    </div>
-                    <button class="notifications-read-all" type="button" data-read-all-notifications>Read all</button>
-                    <div class="message-popup" data-message-popup hidden>
-                        <button type="button" data-message-popup-open aria-label="Open message"></button>
-                        <button type="button" data-message-popup-dismiss aria-label="Dismiss message popup">×</button>
-                        <span class="sr-only" data-message-popup-announcement role="status" aria-live="polite"></span>
-                    </div>
-                </section>
-
+                <small class="copyright dashboard-copyright">&copy;2026 NexusSpace</small>
                 <section class="chat-preview mini-chat" aria-labelledby="chat-heading" data-mini-chat hidden>
                     <div class="chat-heading">
                         <button type="button" class="mini-chat-resize" data-mini-resize aria-label="Resize chat" title="Drag to resize. Arrow keys resize; double-click resets.">⤢</button>
-                        <span class="mini-avatar" data-mini-avatar aria-hidden="true"></span>
+                        <span class="mini-chat-avatar-wrap" aria-hidden="true">
+                            <span class="mini-avatar" data-mini-avatar></span>
+                            <span class="mini-chat-activity" data-mini-activity data-state="offline"></span>
+                        </span>
                         <h2 id="chat-heading">Chat</h2>
                         <button type="button" data-mini-close aria-label="Close chat">×</button>
                     </div>
@@ -672,10 +696,10 @@ if (isset($_SESSION['user_id'])) {
                 <button type="button" data-dashboard-reset-confirm>Reset everything</button>
             </div>
         </dialog>
-        <aside class="zoom-layout-warning" role="status" data-zoom-warning>
-            <span>This layout works best at 200% zoom or lower. Please zoom out for the full experience.</span>
-            <button type="button" data-dismiss-zoom-warning>Okay</button>
-        </aside>
+        <details class="zoom-layout-warning" role="status" data-zoom-warning open>
+            <summary class="button-secondary" data-dismiss-zoom-warning>Ignore</summary>
+            <span data-zoom-warning-message>This layout works best at 175% zoom or lower.</span>
+        </details>
     <?php else: ?>
         <main>
             <h1>NexusSpace</h1>

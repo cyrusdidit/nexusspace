@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const userSearch = document.querySelector('[data-live-user-search]');
     if (userSearch) {
+        const searchToggle = document.querySelector('[data-dashboard-search-toggle]');
         const input = userSearch.elements.q;
         const results = userSearch.querySelector('.live-user-results');
         const status = userSearch.querySelector('[data-search-status]');
@@ -86,8 +87,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (first) { event.preventDefault(); first.focus(); }
             }
         });
+        searchToggle?.addEventListener('click', () => {
+            const willOpen = userSearch.hidden;
+            userSearch.hidden = !willOpen;
+            searchToggle.setAttribute('aria-expanded', String(willOpen));
+            if (willOpen) {
+                const notifications = document.querySelector('[data-notifications]');
+                notifications?.classList.add('is-collapsed');
+                notifications?.querySelector('.notifications-toggle')?.setAttribute('aria-expanded', 'false');
+                input.focus();
+            } else {
+                dismiss();
+            }
+        });
         document.addEventListener('pointerdown', (event) => {
-            if (!userSearch.contains(event.target)) dismiss();
+            if (!userSearch.contains(event.target) && !searchToggle?.contains(event.target)) {
+                dismiss();
+                userSearch.hidden = true;
+                searchToggle?.setAttribute('aria-expanded', 'false');
+            }
         });
         userSearch.addEventListener('focusout', (event) => {
             if (!userSearch.contains(event.relatedTarget)) dismiss();
@@ -98,21 +116,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const dismissZoomWarning = document.querySelector('[data-dismiss-zoom-warning]');
 
     if (zoomWarning && dismissZoomWarning) {
+        document.documentElement.style.zoom = '';
+        sessionStorage.removeItem('nexusspace-dashboard-layout-zoom');
+        sessionStorage.removeItem('nexusspace-zoom-warning-ignored');
         dismissZoomWarning.addEventListener('click', () => {
+            zoomWarning.classList.add('is-dismissed');
             zoomWarning.hidden = true;
+            zoomWarning.removeAttribute('open');
         });
     }
+
+    const postContent = document.querySelector('[data-post-content]');
+    const postCharacterCount = document.querySelector('[data-post-character-count]');
+    const postComposerBox = document.querySelector('[data-post-composer-box]');
+    const postComposerExpand = document.querySelector('[data-post-composer-expand]');
+    if (postContent && postCharacterCount) {
+        const updatePostCharacterCount = () => {
+            postCharacterCount.textContent = `${postContent.value.length}/2500`;
+        };
+        postContent.addEventListener('input', updatePostCharacterCount);
+        updatePostCharacterCount();
+    }
+    const expandPostComposer = () => {
+        postComposerBox?.classList.add('is-expanded');
+    };
+    postComposerExpand?.addEventListener('click', () => {
+        expandPostComposer();
+        postContent?.focus();
+    });
+    postContent?.addEventListener('focus', expandPostComposer);
 
     const notificationsPanel = document.querySelector('[data-notifications]');
 
     if (notificationsPanel) {
         const notificationToggle = notificationsPanel.querySelector('.notifications-toggle');
         const notificationBadge = notificationsPanel.querySelector('[data-notification-badge]');
+        const notificationBell = notificationsPanel.querySelector('[data-notification-bell]');
         const notificationChevron = notificationsPanel.querySelector('[data-notification-chevron]');
+        const notificationsPopover = notificationsPanel.querySelector('.notifications-popover');
         const notificationList = notificationsPanel.querySelector('[data-notifications-list]');
         const readAllButton = notificationsPanel.querySelector('[data-read-all-notifications]');
         const friendNotifications = notificationsPanel.querySelector('[data-friend-notifications]');
         const readRequests = new Set();
+        let notificationCloseTimer;
+        const closeNotifications = () => {
+            clearTimeout(notificationCloseTimer);
+            notificationsPanel.classList.add('is-collapsed');
+            notificationToggle?.setAttribute('aria-expanded', 'false');
+            if (notificationChevron) notificationChevron.textContent = 'v';
+        };
+        const scheduleNotificationClose = () => {
+            clearTimeout(notificationCloseTimer);
+            notificationCloseTimer = window.setTimeout(closeNotifications, 5000);
+        };
         const markRead = (item) => {
             item.dataset.unread = 'false';
             item.classList.remove('is-unread');
@@ -128,6 +184,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (notificationBadge) {
                 notificationBadge.hidden = unreadCount === 0;
                 notificationBadge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+            }
+            if (notificationBell) {
+                notificationBell.src = unreadCount > 0 ? notificationBell.dataset.unreadSrc : notificationBell.dataset.defaultSrc;
+            }
+            if (notificationToggle) {
+                notificationToggle.setAttribute('aria-label', unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications');
             }
         };
 
@@ -193,12 +255,28 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationToggle.addEventListener('click', () => {
                 const isCollapsed = notificationsPanel.classList.toggle('is-collapsed');
                 notificationToggle.setAttribute('aria-expanded', String(!isCollapsed));
+                const userSearchPanel = document.querySelector('[data-live-user-search]');
+                const userSearchToggle = document.querySelector('[data-dashboard-search-toggle]');
+                if (!isCollapsed && userSearchPanel) {
+                    userSearchPanel.hidden = true;
+                    userSearchToggle?.setAttribute('aria-expanded', 'false');
+                }
 
                 if (notificationChevron) {
                     notificationChevron.textContent = isCollapsed ? 'v' : '^';
                 }
+                if (isCollapsed) clearTimeout(notificationCloseTimer);
+                else scheduleNotificationClose();
             });
         }
+
+        notificationsPopover?.addEventListener('pointerenter', () => clearTimeout(notificationCloseTimer));
+        notificationsPopover?.addEventListener('pointerleave', scheduleNotificationClose);
+        document.addEventListener('pointerdown', (event) => {
+            if (!notificationsPanel.classList.contains('is-collapsed') && !notificationsPanel.contains(event.target)) {
+                closeNotifications();
+            }
+        });
 
         if (notificationList) {
             notificationList.addEventListener('pointerover', (event) => {
