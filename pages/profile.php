@@ -23,7 +23,7 @@ $userId = $userId === false ? 0 : $userId;
 $isOwnProfile = $userId === $currentUserId;
 $statement = mysqli_prepare(
     $conn,
-    'SELECT username, email, registration_date, avatar_path, bio, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
+    'SELECT username, email, registration_date, avatar_path, bio, spotify_track_id, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
 );
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);
@@ -58,6 +58,39 @@ if ($avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPa
     $avatarPath = str_starts_with($avatarPath, '/') ? $avatarPath : '../' . $avatarPath;
 } else {
     $avatarPath = '';
+}
+
+$profileGame = null;
+$profileMusic = null;
+if ($user) {
+    $statement = mysqli_prepare($conn, 'SELECT current_game_id, current_game_name, current_game_started_at, TIMESTAMPDIFF(SECOND, activity_updated_at, NOW()) AS activity_age_seconds FROM steam_connections WHERE user_id = ? AND current_game_id IS NOT NULL AND current_game_name IS NOT NULL LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'i', $userId);
+    mysqli_stmt_execute($statement);
+    $gameRow = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+    mysqli_stmt_close($statement);
+    if ($gameRow && (int) ($gameRow['activity_age_seconds'] ?? 999) <= 60) {
+        $profileGameId = preg_match('/^\d+$/', (string) $gameRow['current_game_id']) ? (string) $gameRow['current_game_id'] : '';
+        $profileGame = [
+            'name' => (string) $gameRow['current_game_name'],
+            'image' => $profileGameId !== '' ? 'https://cdn.akamai.steamstatic.com/steam/apps/' . $profileGameId . '/header.jpg' : '',
+            'elapsed' => max(0, time() - (strtotime((string) $gameRow['current_game_started_at']) ?: time())),
+        ];
+    }
+
+    $statement = mysqli_prepare($conn, 'SELECT current_item_name, current_artist_name, is_playing, TIMESTAMPDIFF(SECOND, playback_updated_at, NOW()) AS activity_age_seconds FROM spotify_connections WHERE user_id = ? LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'i', $userId);
+    mysqli_stmt_execute($statement);
+    $musicRow = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+    mysqli_stmt_close($statement);
+    if ($musicRow && (int) $musicRow['is_playing'] === 1 && trim((string) $musicRow['current_item_name']) !== '' && (int) ($musicRow['activity_age_seconds'] ?? 999) <= 60) {
+        $profileMusic = [
+            'name' => trim((string) $musicRow['current_item_name']),
+            'artist' => trim((string) ($musicRow['current_artist_name'] ?? '')),
+        ];
+    }
+    if (!$profileMusic && strcasecmp((string) $user['username'], 'NexIsAdmin') === 0) {
+        $profileMusic = ['name' => 'Song', 'artist' => 'Artist'];
+    }
 }
 
 $_SESSION['friend_request_token'] ??= bin2hex(random_bytes(32));
@@ -614,13 +647,14 @@ if ($isOwnProfile) {
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
     <script src="../assets/js/profile-friends.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-friends.js') ?>" defer></script>
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
+    <script src="../assets/js/profile-social-activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-social-activity.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <?php if ($user && $isOwnProfile): ?>
         <script src="../assets/js/profile-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-appearance.js') ?>" defer></script>
         <script src="../assets/js/profile-cover-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-cover-appearance.js') ?>" defer></script>
     <?php endif; ?>
 </head>
-<body class="profile-page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-current-user-id="<?= $currentUserId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
+<body class="profile-page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <?php if ($profileNotice !== ''): ?>
         <div class="profile-customization-toast" data-profile-customization-toast role="status">
             <span><?= htmlspecialchars($profileNotice, ENT_QUOTES, 'UTF-8') ?></span>
@@ -663,7 +697,25 @@ if ($isOwnProfile) {
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
-            <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
+            <?php if ($isOwnProfile): ?>
+                <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
+            <?php else: ?>
+                <section class="profile-sidebar-activity" aria-label="Current activity">
+                    <div class="profile-sidebar-activity-row" data-profile-music-row<?= $profileMusic ? '' : ' hidden' ?>>
+                        <span class="profile-sidebar-activity-icon" aria-hidden="true">&#9835;</span>
+                        <span class="profile-sidebar-activity-copy">
+                            <strong data-profile-music-name><?= $profileMusic ? htmlspecialchars($profileMusic['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span aria-hidden="true"> &bull; </span><span data-profile-music-artist><?= $profileMusic ? htmlspecialchars($profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span>
+                        </span>
+                    </div>
+                    <div class="profile-sidebar-activity-row" data-profile-game-row<?= $profileGame ? '' : ' hidden' ?>>
+                        <span class="profile-sidebar-activity-icon profile-sidebar-game-icon" aria-hidden="true">&#127918;</span>
+                        <span class="profile-sidebar-activity-copy">
+                            <strong data-profile-game-name><?= $profileGame ? htmlspecialchars($profileGame['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong>
+                        </span>
+                        <span class="sr-only" data-profile-game-duration data-elapsed-seconds="<?= $profileGame ? (int) $profileGame['elapsed'] : 0 ?>"><?= $profileGame ? sprintf('%02d:%02d', intdiv((int) $profileGame['elapsed'], 3600), intdiv((int) $profileGame['elapsed'], 60) % 60) : '' ?></span>
+                    </div>
+                </section>
+            <?php endif; ?>
             <?php if (!$isOwnProfile): ?>
                 <form class="profile-friend-actions" method="post" action="profile.php?id=<?= $userId ?>">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['friend_request_token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -800,6 +852,14 @@ if ($isOwnProfile) {
             <span class="profile-wallpaper-surface" data-profile-wallpaper-surface<?= $profilePostsBackgroundType === 'image' ? '' : ' hidden' ?> style="filter: blur(<?= $profilePostsBackgroundBlur ?>px)<?php if ($profilePostsBackgroundType === 'image' && $profilePostsBackgroundFit === 'tile'): ?>; background-image: <?= $profilePostsBackgroundImageCss ?><?php endif; ?>">
                 <img src="<?= htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-wallpaper-preview style="object-fit: <?= $profilePostsBackgroundFit === 'contain' ? 'contain' : 'cover' ?>; object-position: <?= $profilePostsBackgroundPositionX ?>% <?= $profilePostsBackgroundPositionY ?>%; transform: scale(<?= $profilePostsBackgroundZoom ?>); transform-origin: <?= $profilePostsBackgroundPositionX ?>% <?= $profilePostsBackgroundPositionY ?>%"<?= $profilePostsBackgroundType !== 'image' || $profilePostsBackgroundFit === 'tile' ? ' hidden' : '' ?>>
             </span>
+            <?php if (!$isOwnProfile): ?>
+                <div class="profile-now-playing" data-profile-now-playing<?= $profileMusic ? '' : ' hidden' ?>>
+                    <div class="profile-now-playing-bar">
+                        <span>Now playing: <strong data-profile-now-playing-name><?= $profileMusic ? htmlspecialchars($profileMusic['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong> &bull; <span data-profile-now-playing-artist><?= $profileMusic ? htmlspecialchars($profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></span>
+                        <button type="button" aria-label="Close now playing" title="Close now playing" data-profile-now-playing-close>&times;</button>
+                    </div>
+                </div>
+            <?php endif; ?>
             <h2 id="profile-posts-heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
             <?php if (!$profilePosts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
             <?php foreach ($profilePosts as $post): ?>

@@ -117,10 +117,11 @@ if (profileActivity && activityStatusEndpoint) {
 const spotifyActivityEndpoint = activityRoot.dataset.spotifyActivityEndpoint;
 const currentMusic = document.querySelector('[data-current-music]');
 
-if (spotifyActivityEndpoint && currentMusic) {
-    const currentMusicText = currentMusic.querySelector('p');
+if (spotifyActivityEndpoint) {
+    const currentMusicText = currentMusic?.querySelector('p');
 
     const hideCurrentMusic = () => {
+        if (!currentMusic || !currentMusicText) return;
         currentMusic.hidden = true;
         currentMusicText.textContent = '';
     };
@@ -139,9 +140,11 @@ if (spotifyActivityEndpoint && currentMusic) {
                 return;
             }
 
-            currentMusicText.textContent = data.artist ? `${data.name} - ${data.artist}` : data.name;
-            currentMusic.title = currentMusicText.textContent;
-            currentMusic.hidden = false;
+            if (currentMusic && currentMusicText) {
+                currentMusicText.textContent = data.artist ? `${data.name} - ${data.artist}` : data.name;
+                currentMusic.title = currentMusicText.textContent;
+                currentMusic.hidden = false;
+            }
         } catch (error) {
             // Keep the last known track during a temporary connection failure.
         }

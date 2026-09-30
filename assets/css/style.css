@@ -261,6 +261,15 @@ a {
 .profile-sidebar .profile-identity h1 { font-size: 16px; }
 .profile-sidebar .profile-handle { font-size: 12px; margin-bottom: 6px; }
 .profile-music-placeholder { height: 18px; width: 100%; margin: 0; color: #166da5; text-align: center; font-size: 12px; line-height: 18px; }
+.profile-sidebar-activity { display: flex; width: min(100%, 210px); margin: 0 auto 6px; flex-direction: column; color: #166da5; }
+.profile-sidebar-activity:not(:has(.profile-sidebar-activity-row:not([hidden]))) { display: none; }
+.profile-sidebar-activity-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; min-height: 28px; gap: 5px; padding: 1px 3px; text-align: left; }
+.profile-sidebar-activity-row[hidden] { display: none; }
+.profile-sidebar-activity-icon { display: grid; place-items: center; width: 26px; height: 26px; background: #eaf7ff; font-size: 15px; line-height: 1; }
+.profile-sidebar-game-icon { font-family: "Segoe UI Symbol", sans-serif; font-size: 14px; }
+.profile-sidebar-activity-copy { display: block; min-width: 0; overflow: hidden; color: #496b82; font-size: 11px; line-height: 26px; text-overflow: ellipsis; white-space: nowrap; }
+.profile-sidebar-activity-copy strong { display: inline; }
+.profile-sidebar-activity-copy strong { color: #163b5c; font-size: 12px; font-weight: 600; }
 .profile-bio-section { position: relative; min-height: 0; padding: 10px 18px 3px; overflow: hidden; background: #dff2ff; text-align: center; }
 .profile-bio-editor { text-align: left; }
 .profile-bio-editor:not([open]) form { display: none; }
@@ -330,6 +339,11 @@ a {
 .top-eight-edit-actions button { display: grid; place-items: center; width: 26px; height: 26px; margin: 0; padding: 0; border-radius: 0; }
 .top-eight-error { margin: 4px 8px; color: #a12c42; font-size: 11px; }
 .profile-posts { min-width: 0; padding: 24px; background: #dff2ff; }
+.profile-now-playing { position: relative; z-index: 6 !important; width: calc(100% - 83px); margin: -16px 0 16px; }
+.profile-now-playing-bar { display: flex; align-items: center; min-height: 28px; background: #00ad2f; color: #fff; font-size: 13px; }
+.profile-now-playing-bar > span { flex: 1; min-width: 0; padding: 5px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-now-playing-bar button { display: grid; place-items: center; align-self: stretch; flex: 0 0 28px; width: 28px; height: auto; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #fff; font-size: 15px; line-height: 1; }
+.profile-now-playing-bar button:hover { background: rgb(0 0 0 / 12%); }
 .profile-posts > h2 { font-size: 18px; margin: 0 0 20px; }
 .profile-posts .post-card { padding: 16px; }
 @media (min-width: 701px) {
@@ -356,6 +370,7 @@ a {
     .profile-layout { grid-template-columns: 1fr; }
     .profile-sidebar { border-right: 0; }
     .profile-posts { padding: 18px; }
+    .profile-now-playing { margin: -10px 0 14px; }
     .profile-page.is-profile-appearance-open .profile-sheet,
     .profile-page.is-profile-cover-open .profile-sheet { display: none; }
     .profile-appearance-panel,
