@@ -113,3 +113,122 @@ if (profileActivity && activityStatusEndpoint) {
     window.addEventListener('focus', refreshProfileActivity);
     refreshProfileActivity();
 }
+
+const spotifyActivityEndpoint = activityRoot.dataset.spotifyActivityEndpoint;
+const currentMusic = document.querySelector('[data-current-music]');
+
+if (spotifyActivityEndpoint && currentMusic) {
+    const currentMusicText = currentMusic.querySelector('p');
+
+    const hideCurrentMusic = () => {
+        currentMusic.hidden = true;
+        currentMusicText.textContent = '';
+    };
+
+    const refreshSpotifyActivity = async () => {
+        if (document.hidden) return;
+        try {
+            const response = await fetch(spotifyActivityEndpoint, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            const data = await response.json();
+            if (!response.ok) return;
+            if (!data.active || !data.name) {
+                hideCurrentMusic();
+                return;
+            }
+
+            currentMusicText.textContent = data.artist ? `${data.name} - ${data.artist}` : data.name;
+            currentMusic.title = currentMusicText.textContent;
+            currentMusic.hidden = false;
+        } catch (error) {
+            // Keep the last known track during a temporary connection failure.
+        }
+    };
+
+    window.setInterval(refreshSpotifyActivity, 15 * 1000);
+    window.addEventListener('focus', refreshSpotifyActivity);
+    window.addEventListener('pageshow', refreshSpotifyActivity);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshSpotifyActivity();
+    });
+    refreshSpotifyActivity();
+}
+
+const steamActivityEndpoint = activityRoot.dataset.steamActivityEndpoint;
+const currentGame = document.querySelector('[data-current-game]');
+
+if (steamActivityEndpoint && currentGame) {
+    const gameImage = currentGame.querySelector('[data-current-game-image]');
+    const gameName = currentGame.querySelector('[data-current-game-name]');
+    const gameDuration = currentGame.querySelector('[data-current-game-duration]');
+    let detectedAt = null;
+
+    const durationLabel = (seconds) => {
+        const totalMinutes = Math.max(0, Math.floor(seconds / 60));
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        if (hours > 0) return `Detected for ${hours}h ${minutes}m`;
+        if (totalMinutes > 0) return `Detected for ${totalMinutes}m`;
+        return 'Detected just now';
+    };
+
+    const updateGameDuration = () => {
+        if (detectedAt === null || currentGame.hidden) return;
+        gameDuration.textContent = durationLabel((Date.now() - detectedAt) / 1000);
+    };
+
+    const hideCurrentGame = () => {
+        detectedAt = null;
+        currentGame.hidden = true;
+        gameName.textContent = '';
+        gameDuration.textContent = '';
+        gameImage.hidden = true;
+        gameImage.removeAttribute('src');
+    };
+
+    const refreshSteamActivity = async () => {
+        if (document.hidden) return;
+        try {
+            const response = await fetch(steamActivityEndpoint, {
+                credentials: 'same-origin',
+                cache: 'no-store',
+            });
+            const data = await response.json();
+            if (!response.ok) return;
+            if (!data.active || !data.name) {
+                hideCurrentGame();
+                return;
+            }
+
+            gameName.textContent = data.name;
+            currentGame.title = data.name;
+            detectedAt = Date.now() - Math.max(0, Number(data.elapsed_seconds) || 0) * 1000;
+            if (data.image) {
+                gameImage.src = data.image;
+                gameImage.alt = '';
+                gameImage.hidden = false;
+            } else {
+                gameImage.hidden = true;
+                gameImage.removeAttribute('src');
+            }
+            currentGame.hidden = false;
+            updateGameDuration();
+        } catch (error) {
+            // Keep the last known game during a temporary connection failure.
+        }
+    };
+
+    gameImage.addEventListener('error', () => {
+        gameImage.hidden = true;
+    });
+    window.setInterval(refreshSteamActivity, 15 * 1000);
+    window.setInterval(updateGameDuration, 1000);
+    window.addEventListener('focus', refreshSteamActivity);
+    window.addEventListener('pageshow', refreshSteamActivity);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshSteamActivity();
+    });
+    refreshSteamActivity();
+}

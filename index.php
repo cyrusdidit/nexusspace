@@ -426,7 +426,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/message-popup.js?v=<?= filemtime(__DIR__ . '/assets/js/message-popup.js') ?>" defer></script>
     <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
 </head>
-<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php"' : '' ?>>
+<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
@@ -491,7 +491,11 @@ if (isset($_SESSION['user_id'])) {
                             <p></p>
                         </div>
                         <div class="status-item" data-current-game hidden>
-                            <p></p>
+                            <img src="" alt="" data-current-game-image hidden>
+                            <span>
+                                <p data-current-game-name></p>
+                                <small data-current-game-duration></small>
+                            </span>
                         </div>
                     </section>
                     <?php if ($statusError): ?>

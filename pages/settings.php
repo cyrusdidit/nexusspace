@@ -10,10 +10,42 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/spotify.php';
+require_once __DIR__ . '/../includes/steam.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $_SESSION['settings_token'] ??= bin2hex(random_bytes(32));
 $error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'disconnect_steam') {
+    $token = $_POST['token'] ?? '';
+    if (!is_string($token) || !hash_equals($_SESSION['settings_token'], $token)) {
+        http_response_code(403);
+        $error = 'Please refresh the page and try again.';
+    } else {
+        $statement = mysqli_prepare($conn, 'DELETE FROM steam_connections WHERE user_id = ?');
+        mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        header('Location: settings.php?steam=disconnected');
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'disconnect_spotify') {
+    $token = $_POST['token'] ?? '';
+    if (!is_string($token) || !hash_equals($_SESSION['settings_token'], $token)) {
+        http_response_code(403);
+        $error = 'Please refresh the page and try again.';
+    } else {
+        $statement = mysqli_prepare($conn, 'DELETE FROM spotify_connections WHERE user_id = ?');
+        mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        header('Location: settings.php?spotify=disconnected');
+        exit;
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'unblock') {
     $token = $_POST['token'] ?? '';
@@ -47,6 +79,39 @@ mysqli_stmt_bind_param($statement, 'i', $currentUserId);
 mysqli_stmt_execute($statement);
 $blockedUsers = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
 mysqli_stmt_close($statement);
+
+$statement = mysqli_prepare($conn, 'SELECT spotify_user_id, display_name, is_playing, playback_updated_at FROM spotify_connections WHERE user_id = ? LIMIT 1');
+mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+mysqli_stmt_execute($statement);
+$spotifyConnection = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+mysqli_stmt_close($statement);
+
+$spotifyNotices = [
+    'connected' => 'Spotify connected. Your current track can now appear on your dashboard.',
+    'disconnected' => 'Spotify disconnected.',
+    'denied' => 'Spotify connection was cancelled.',
+    'invalid' => 'That Spotify connection attempt expired. Please try again.',
+    'failed' => 'Spotify could not be connected. Please try again.',
+    'not-configured' => 'Spotify needs to be configured before it can be connected.',
+];
+$spotifyNotice = $spotifyNotices[$_GET['spotify'] ?? ''] ?? '';
+
+$statement = mysqli_prepare($conn, 'SELECT steam_id, persona_name, profile_url FROM steam_connections WHERE user_id = ? LIMIT 1');
+mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+mysqli_stmt_execute($statement);
+$steamConnection = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+mysqli_stmt_close($statement);
+
+$steamNotices = [
+    'connected' => 'Steam connected. Open games can now appear on your dashboard.',
+    'disconnected' => 'Steam disconnected.',
+    'cancelled' => 'Steam sign-in was cancelled.',
+    'invalid' => 'That Steam sign-in attempt expired. Please try again.',
+    'failed' => 'Steam could not verify that account. Please try again.',
+    'in-use' => 'That Steam account is already connected to another NexusSpace account.',
+    'not-configured' => 'Steam needs to be configured before accounts can be connected.',
+];
+$steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
 ?>
 <!doctype html>
 <html lang="en">
@@ -68,9 +133,72 @@ mysqli_stmt_close($statement);
         <?php if (isset($_GET['unblocked'])): ?>
             <p class="settings-notice" role="status">User unblocked. Your previous friendship, requests, messages, and visible content have been restored.</p>
         <?php endif; ?>
+        <?php if ($spotifyNotice !== ''): ?>
+            <p class="settings-notice" role="status"><?= htmlspecialchars($spotifyNotice, ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
+        <?php if ($steamNotice !== ''): ?>
+            <p class="settings-notice" role="status"><?= htmlspecialchars($steamNotice, ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
         <?php if ($error !== ''): ?>
             <p class="error-box" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
+
+        <section class="settings-integration" aria-labelledby="spotify-heading">
+            <h2 id="spotify-heading">Spotify</h2>
+            <div class="settings-integration-row">
+                <div class="settings-integration-copy">
+                    <?php if ($spotifyConnection): ?>
+                        <strong><?= htmlspecialchars($spotifyConnection['display_name'] ?: $spotifyConnection['spotify_user_id'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        <span>Connected</span>
+                    <?php elseif (spotifyIsConfigured()): ?>
+                        <strong>Share what you are listening to</strong>
+                        <span>Your current track appears while Spotify is playing.</span>
+                    <?php else: ?>
+                        <strong>Spotify setup required</strong>
+                        <span>Add your Spotify app credentials to the local environment file.</span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($spotifyConnection): ?>
+                    <form method="post">
+                        <input type="hidden" name="action" value="disconnect_spotify">
+                        <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="submit">Disconnect</button>
+                    </form>
+                <?php elseif (spotifyIsConfigured()): ?>
+                    <a class="button spotify-connect-button" href="spotify-connect.php">Connect Spotify</a>
+                <?php endif; ?>
+            </div>
+        </section>
+
+        <section class="settings-integration" aria-labelledby="steam-heading">
+            <h2 id="steam-heading">Steam</h2>
+            <?php if ($steamConnection): ?>
+                <div class="settings-integration-row">
+                    <div class="settings-integration-copy">
+                        <strong><?= htmlspecialchars($steamConnection['persona_name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                        <a href="<?= htmlspecialchars($steamConnection['profile_url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">View Steam profile</a>
+                    </div>
+                    <form method="post">
+                        <input type="hidden" name="action" value="disconnect_steam">
+                        <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
+                        <button type="submit">Disconnect</button>
+                    </form>
+                </div>
+            <?php elseif (steamIsConfigured()): ?>
+                <div class="settings-integration-row">
+                    <div class="settings-integration-copy">
+                        <strong>Verify your Steam account</strong>
+                        <span>Steam signs you in and returns only your verified SteamID.</span>
+                    </div>
+                    <a class="button spotify-connect-button" href="steam-connect.php">Sign in with Steam</a>
+                </div>
+            <?php else: ?>
+                <div class="settings-integration-copy">
+                    <strong>Steam setup required</strong>
+                    <span>Add the server's Steam Web API key to the local environment file.</span>
+                </div>
+            <?php endif; ?>
+        </section>
 
         <section class="blocked-users" aria-labelledby="blocked-users-heading">
             <h2 id="blocked-users-heading">Blocked users</h2>

@@ -1,6 +1,7 @@
 # Local secrets / database credentials
 .env
 .env.*
+!.env.example
 
 # Editor settings
 .vscode/

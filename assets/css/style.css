@@ -367,6 +367,15 @@ a {
 .settings-header h1 { margin: 0; }
 .settings-header a { display: grid; place-items: center; width: 34px; height: 34px; background: #238bc5; color: #fff; text-decoration: none; }
 .settings-notice { border: 1px solid #75c69a; background: #edfff4; color: #17613a; padding: 10px 12px; }
+.settings-integration { padding: 18px 0; border-bottom: 1px solid #9dcce8; }
+.settings-integration h2 { margin: 0 0 12px; font-size: 18px; }
+.settings-integration-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.settings-integration-copy { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.settings-integration-copy strong, .settings-integration-copy span { overflow-wrap: anywhere; }
+.settings-integration-copy span { color: #4d6b80; font-size: 13px; }
+.settings-integration form { flex: 0 0 auto; }
+.settings-integration button, .spotify-connect-button { margin: 0; white-space: nowrap; }
+.spotify-connect-button { display: inline-flex; align-items: center; min-height: 38px; text-decoration: none; }
 .blocked-users h2 { font-size: 18px; }
 .blocked-users ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid #cce7f5; }
 .blocked-users li { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; border-bottom: 1px solid #cce7f5; padding: 8px 0; }
@@ -935,6 +944,12 @@ body.dashboard-page {
 }
 
 .status-item[hidden] { display: none; }
+.status-item[data-current-game] { display: flex; align-items: center; gap: 8px; }
+.status-item[data-current-game][hidden] { display: none; }
+.status-item[data-current-game] img { flex: 0 0 30px; width: 30px; height: 30px; object-fit: cover; }
+.status-item[data-current-game] span { min-width: 0; }
+.status-item[data-current-game] p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-item[data-current-game] small { display: block; color: #4d6b80; font-size: 10px; }
 
 .sidebar-actions button, .sidebar-actions a {
     align-items: center;
