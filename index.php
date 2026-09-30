@@ -32,9 +32,8 @@ function postAvatarPath(?string $path): string
 
 function detectedDurationLabel(int $seconds): string
 {
-    $minutes = max(0, intdiv($seconds, 60));
-    $hours = intdiv($minutes, 60);
-    return sprintf('%02d:%02d', $hours, $minutes % 60);
+    $seconds = max(0, $seconds);
+    return sprintf('%02d:%02d:%02d', intdiv($seconds, 3600), intdiv($seconds, 60) % 60, $seconds % 60);
 }
 
 function renderPostAuthor(array $post): void

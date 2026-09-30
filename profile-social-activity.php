@@ -53,7 +53,7 @@ if (steamIsConfigured()) {
     }
 }
 
-$statement = mysqli_prepare($conn, 'SELECT u.username, s.current_game_id, s.current_game_name, s.current_game_started_at, TIMESTAMPDIFF(SECOND, s.activity_updated_at, NOW()) AS game_activity_age_seconds, p.current_item_name, p.current_artist_name, p.is_playing, TIMESTAMPDIFF(SECOND, p.playback_updated_at, NOW()) AS music_activity_age_seconds FROM users u LEFT JOIN steam_connections s ON s.user_id = u.id LEFT JOIN spotify_connections p ON p.user_id = u.id WHERE u.id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) LIMIT 1');
+$statement = mysqli_prepare($conn, 'SELECT u.username, s.current_game_id, s.current_game_name, s.current_game_started_at, TIMESTAMPDIFF(SECOND, s.activity_updated_at, NOW()) AS game_activity_age_seconds, p.current_item_id, p.current_item_name, p.current_artist_name, p.current_image_url, p.current_external_url, p.is_playing, TIMESTAMPDIFF(SECOND, p.playback_updated_at, NOW()) AS music_activity_age_seconds FROM users u LEFT JOIN steam_connections s ON s.user_id = u.id LEFT JOIN spotify_connections p ON p.user_id = u.id WHERE u.id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) LIMIT 1');
 mysqli_stmt_bind_param($statement, 'iii', $profileUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $activity = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
@@ -73,16 +73,13 @@ $artistName = trim((string) ($activity['current_artist_name'] ?? ''));
 $musicActive = (int) ($activity['is_playing'] ?? 0) === 1
     && $songName !== ''
     && (int) ($activity['music_activity_age_seconds'] ?? 999) <= 60;
-if (!$musicActive && strcasecmp((string) ($activity['username'] ?? ''), 'NexIsAdmin') === 0) {
-    $musicActive = true;
-    $songName = 'Song';
-    $artistName = 'Artist';
-}
-
 echo json_encode([
     'music' => $musicActive ? [
+        'id' => (string) ($activity['current_item_id'] ?? ''),
         'name' => $songName,
         'artist' => $artistName,
+        'image' => filter_var($activity['current_image_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $activity['current_image_url'] : null,
+        'url' => filter_var($activity['current_external_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $activity['current_external_url'] : null,
     ] : null,
     'game' => $gameActive ? [
         'name' => $gameName,

@@ -80,11 +80,12 @@ mysqli_stmt_execute($statement);
 $blockedUsers = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
 mysqli_stmt_close($statement);
 
-$statement = mysqli_prepare($conn, 'SELECT spotify_user_id, display_name, is_playing, playback_updated_at FROM spotify_connections WHERE user_id = ? LIMIT 1');
+$statement = mysqli_prepare($conn, 'SELECT spotify_user_id, display_name, scopes, is_playing, playback_updated_at FROM spotify_connections WHERE user_id = ? LIMIT 1');
 mysqli_stmt_bind_param($statement, 'i', $currentUserId);
 mysqli_stmt_execute($statement);
 $spotifyConnection = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
 mysqli_stmt_close($statement);
+$spotifyNeedsReconnect = $spotifyConnection && !in_array('user-library-modify', preg_split('/\s+/', trim((string) $spotifyConnection['scopes'])) ?: [], true);
 
 $spotifyNotices = [
     'connected' => 'Spotify connected. Your current track can now appear on your dashboard.',
@@ -149,7 +150,7 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                 <div class="settings-integration-copy">
                     <?php if ($spotifyConnection): ?>
                         <strong><?= htmlspecialchars($spotifyConnection['display_name'] ?: $spotifyConnection['spotify_user_id'], ENT_QUOTES, 'UTF-8') ?></strong>
-                        <span>Connected</span>
+                        <span><?= $spotifyNeedsReconnect ? 'Reconnect to enable adding songs to Liked Songs.' : 'Connected' ?></span>
                     <?php elseif (spotifyIsConfigured()): ?>
                         <strong>Share what you are listening to</strong>
                         <span>Your current track appears while Spotify is playing.</span>
@@ -159,11 +160,14 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                     <?php endif; ?>
                 </div>
                 <?php if ($spotifyConnection): ?>
-                    <form method="post">
-                        <input type="hidden" name="action" value="disconnect_spotify">
-                        <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
-                        <button type="submit">Disconnect</button>
-                    </form>
+                    <div class="settings-integration-actions">
+                        <?php if ($spotifyNeedsReconnect): ?><a class="button spotify-connect-button" href="spotify-connect.php">Reconnect Spotify</a><?php endif; ?>
+                        <form method="post">
+                            <input type="hidden" name="action" value="disconnect_spotify">
+                            <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
+                            <button type="submit">Disconnect</button>
+                        </form>
+                    </div>
                 <?php elseif (spotifyIsConfigured()): ?>
                     <a class="button spotify-connect-button" href="spotify-connect.php">Connect Spotify</a>
                 <?php endif; ?>

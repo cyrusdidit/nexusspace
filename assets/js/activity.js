@@ -135,6 +135,7 @@ if (spotifyActivityEndpoint) {
             });
             const data = await response.json();
             if (!response.ok) return;
+            document.dispatchEvent(new CustomEvent('nexusspace:spotify-activity-updated'));
             if (!data.active || !data.name) {
                 hideCurrentMusic();
                 return;

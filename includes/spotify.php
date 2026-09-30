@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/env.php';
 
-const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state user-read-private';
+const SPOTIFY_SCOPES = 'user-read-currently-playing user-read-playback-state user-read-private user-library-modify';
 
 function spotifyConfig(): array
 {

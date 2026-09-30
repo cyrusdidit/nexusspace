@@ -77,19 +77,19 @@ if ($user) {
         ];
     }
 
-    $statement = mysqli_prepare($conn, 'SELECT current_item_name, current_artist_name, is_playing, TIMESTAMPDIFF(SECOND, playback_updated_at, NOW()) AS activity_age_seconds FROM spotify_connections WHERE user_id = ? LIMIT 1');
+    $statement = mysqli_prepare($conn, 'SELECT current_item_id, current_item_name, current_artist_name, current_image_url, current_external_url, is_playing, TIMESTAMPDIFF(SECOND, playback_updated_at, NOW()) AS activity_age_seconds FROM spotify_connections WHERE user_id = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
     $musicRow = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
     mysqli_stmt_close($statement);
     if ($musicRow && (int) $musicRow['is_playing'] === 1 && trim((string) $musicRow['current_item_name']) !== '' && (int) ($musicRow['activity_age_seconds'] ?? 999) <= 60) {
         $profileMusic = [
+            'id' => trim((string) ($musicRow['current_item_id'] ?? '')),
             'name' => trim((string) $musicRow['current_item_name']),
             'artist' => trim((string) ($musicRow['current_artist_name'] ?? '')),
+            'image' => filter_var($musicRow['current_image_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $musicRow['current_image_url'] : '',
+            'url' => filter_var($musicRow['current_external_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $musicRow['current_external_url'] : '',
         ];
-    }
-    if (!$profileMusic && strcasecmp((string) $user['username'], 'NexIsAdmin') === 0) {
-        $profileMusic = ['name' => 'Song', 'artist' => 'Artist'];
     }
 }
 
@@ -102,6 +102,7 @@ $bioError = '';
 $avatarError = '';
 $bioDraft = (string) ($user['bio'] ?? '');
 $_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
+$_SESSION['spotify_action_token'] ??= bin2hex(random_bytes(32));
 $profileBackgroundSettings = $user ? readUserBackgroundSettings($conn, $userId) : defaultUserBackgroundSettings();
 $profilePostsOwnBackground = $profileBackgroundSettings['profile_posts'];
 $profilePostsBackground = resolveUserBackground($profileBackgroundSettings, 'profile_posts');
@@ -697,25 +698,20 @@ if ($isOwnProfile) {
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
-            <?php if ($isOwnProfile): ?>
-                <div class="profile-music-placeholder" aria-label="Profile music"><span aria-hidden="true">&#9835;</span></div>
-            <?php else: ?>
-                <section class="profile-sidebar-activity" aria-label="Current activity">
-                    <div class="profile-sidebar-activity-row" data-profile-music-row<?= $profileMusic ? '' : ' hidden' ?>>
-                        <span class="profile-sidebar-activity-icon" aria-hidden="true">&#9835;</span>
-                        <span class="profile-sidebar-activity-copy">
-                            <strong data-profile-music-name><?= $profileMusic ? htmlspecialchars($profileMusic['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span aria-hidden="true"> &bull; </span><span data-profile-music-artist><?= $profileMusic ? htmlspecialchars($profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span>
-                        </span>
-                    </div>
-                    <div class="profile-sidebar-activity-row" data-profile-game-row<?= $profileGame ? '' : ' hidden' ?>>
-                        <span class="profile-sidebar-activity-icon profile-sidebar-game-icon" aria-hidden="true">&#127918;</span>
-                        <span class="profile-sidebar-activity-copy">
-                            <strong data-profile-game-name><?= $profileGame ? htmlspecialchars($profileGame['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong>
-                        </span>
-                        <span class="sr-only" data-profile-game-duration data-elapsed-seconds="<?= $profileGame ? (int) $profileGame['elapsed'] : 0 ?>"><?= $profileGame ? sprintf('%02d:%02d', intdiv((int) $profileGame['elapsed'], 3600), intdiv((int) $profileGame['elapsed'], 60) % 60) : '' ?></span>
-                    </div>
-                </section>
-            <?php endif; ?>
+            <section class="profile-sidebar-activity" aria-label="Current activity" data-spotify-like-endpoint="../spotify-like-track.php" data-spotify-action-token="<?= htmlspecialchars($_SESSION['spotify_action_token'], ENT_QUOTES, 'UTF-8') ?>">
+                <div class="profile-sidebar-activity-row profile-sidebar-music-row" data-profile-music-row<?= $profileMusic ? '' : ' hidden' ?>>
+                    <a class="profile-sidebar-activity-main" href="<?= htmlspecialchars($profileMusic['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" title="<?= $profileMusic ? htmlspecialchars($profileMusic['name'] . ' • ' . $profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?>" data-profile-music-link>
+                        <img class="profile-sidebar-activity-art" src="<?= htmlspecialchars($profileMusic['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-music-image<?= !empty($profileMusic['image']) ? '' : ' hidden' ?>>
+                        <span class="profile-sidebar-activity-copy"><strong data-profile-music-name><?= $profileMusic ? htmlspecialchars($profileMusic['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span aria-hidden="true"> &bull; </span><span data-profile-music-artist><?= $profileMusic ? htmlspecialchars($profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></span>
+                    </a>
+                    <button class="profile-sidebar-music-add" type="button" aria-label="Add song to Liked Songs" title="Add to Liked Songs" data-profile-music-add data-track-id="<?= htmlspecialchars($profileMusic['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>">+</button>
+                </div>
+                <div class="profile-sidebar-activity-row" data-profile-game-row<?= $profileGame ? '' : ' hidden' ?>>
+                    <img class="profile-sidebar-activity-art" src="<?= htmlspecialchars($profileGame['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-game-image<?= !empty($profileGame['image']) ? '' : ' hidden' ?>>
+                    <span class="profile-sidebar-activity-copy"><strong data-profile-game-name><?= $profileGame ? htmlspecialchars($profileGame['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong> <small>(<span data-profile-game-duration data-elapsed-seconds="<?= $profileGame ? (int) $profileGame['elapsed'] : 0 ?>"><?= $profileGame ? sprintf('%02d:%02d:%02d', intdiv((int) $profileGame['elapsed'], 3600), intdiv((int) $profileGame['elapsed'], 60) % 60, (int) $profileGame['elapsed'] % 60) : '' ?></span>)</small></span>
+                </div>
+                <p class="profile-sidebar-activity-feedback" role="status" data-profile-activity-feedback hidden></p>
+            </section>
             <?php if (!$isOwnProfile): ?>
                 <form class="profile-friend-actions" method="post" action="profile.php?id=<?= $userId ?>">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['friend_request_token'], ENT_QUOTES, 'UTF-8') ?>">
