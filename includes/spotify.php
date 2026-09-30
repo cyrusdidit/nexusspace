@@ -73,7 +73,6 @@ function spotifyHttpRequest(string $method, string $url, array $headers = [], ?a
     $body = curl_exec($curl);
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     $error = curl_error($curl);
-    curl_close($curl);
 
     if ($body === false) throw new RuntimeException($error !== '' ? $error : 'Spotify could not be reached.');
     $data = $body === '' ? null : json_decode($body, true);

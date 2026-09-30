@@ -30,6 +30,13 @@ function postAvatarPath(?string $path): string
     return htmlspecialchars($path, ENT_QUOTES, 'UTF-8');
 }
 
+function detectedDurationLabel(int $seconds): string
+{
+    $minutes = max(0, intdiv($seconds, 60));
+    $hours = intdiv($minutes, 60);
+    return sprintf('%02d:%02d', $hours, $minutes % 60);
+}
+
 function renderPostAuthor(array $post): void
 {
     $name = htmlspecialchars($post['username'], ENT_QUOTES, 'UTF-8');
@@ -62,6 +69,7 @@ $postError = '';
 $postContent = '';
 $postVisibility = 'friends';
 $posts = [];
+$currentGame = null;
 $dashboardAppearanceError = '';
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['dashboard_appearance_csrf'] ??= bin2hex(random_bytes(32));
@@ -390,6 +398,18 @@ if (isset($_SESSION['user_id'])) {
         $dashboardAvatar = postAvatarPath($user['avatar_path'] ?? null);
     }
 
+    $statement = mysqli_prepare($conn, 'SELECT current_game_id, current_game_name, current_game_started_at FROM steam_connections WHERE user_id = ? AND current_game_id IS NOT NULL AND current_game_name IS NOT NULL LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'i', $userId);
+    mysqli_stmt_execute($statement);
+    $currentGame = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+    mysqli_stmt_close($statement);
+
+    if ($currentGame) {
+        $currentGameId = preg_match('/^\d+$/', (string) $currentGame['current_game_id']) ? (string) $currentGame['current_game_id'] : '';
+        $currentGameImage = $currentGameId !== '' ? 'https://cdn.akamai.steamstatic.com/steam/apps/' . $currentGameId . '/header.jpg' : '';
+        $currentGameElapsed = max(0, time() - (strtotime((string) $currentGame['current_game_started_at']) ?: time()));
+    }
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
         $basicStatus = trim($_POST['status'] ?? '');
 
@@ -418,6 +438,7 @@ if (isset($_SESSION['user_id'])) {
     <title>NexusSpace</title>
     <link rel="stylesheet" href="assets/css/style.css?v=<?= filemtime(__DIR__ . '/assets/css/style.css') ?>">
     <script src="assets/js/activity.js?v=<?= filemtime(__DIR__ . '/assets/js/activity.js') ?>" defer></script>
+    <script src="assets/js/steam-status.js?v=<?= filemtime(__DIR__ . '/assets/js/steam-status.js') ?>" defer></script>
     <script src="assets/js/dashboard.js?v=<?= filemtime(__DIR__ . '/assets/js/dashboard.js') ?>" defer></script>
     <script src="assets/js/profile-preview.js?v=<?= filemtime(__DIR__ . '/assets/js/profile-preview.js') ?>" defer></script>
     <script src="assets/js/message-updates.js?v=<?= filemtime(__DIR__ . '/assets/js/message-updates.js') ?>" defer></script>
@@ -490,11 +511,11 @@ if (isset($_SESSION['user_id'])) {
                         <div class="status-item" data-current-music hidden>
                             <p></p>
                         </div>
-                        <div class="status-item" data-current-game hidden>
-                            <img src="" alt="" data-current-game-image hidden>
+                        <div class="status-item" data-current-game data-elapsed-seconds="<?= $currentGame ? (int) $currentGameElapsed : 0 ?>"<?= $currentGame ? '' : ' hidden' ?>>
+                            <img src="<?= htmlspecialchars($currentGameImage ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-current-game-image<?= !empty($currentGameImage) ? '' : ' hidden' ?>>
                             <span>
-                                <p data-current-game-name></p>
-                                <small data-current-game-duration></small>
+                                <p data-current-game-name><?= $currentGame ? htmlspecialchars($currentGame['current_game_name'], ENT_QUOTES, 'UTF-8') : '' ?></p>
+                                <small data-current-game-duration><?= $currentGame ? htmlspecialchars(detectedDurationLabel($currentGameElapsed), ENT_QUOTES, 'UTF-8') : '' ?></small>
                             </span>
                         </div>
                     </section>
