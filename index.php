@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/db_connect.php';
 require_once __DIR__ . '/includes/background_customization.php';
+require_once __DIR__ . '/includes/post_interactions.php';
 
 session_start();
 
@@ -68,6 +69,7 @@ $postError = '';
 $postContent = '';
 $postVisibility = 'friends';
 $posts = [];
+$postInteractions = [];
 $currentGame = null;
 $currentMusic = null;
 $dashboardAppearanceError = '';
@@ -370,11 +372,12 @@ if (isset($_SESSION['user_id'])) {
     if (isset($submittedColor) && preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         $dashboardBackgroundColor = $submittedColor;
     }
-    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     mysqli_stmt_bind_param($feedStatement, 'iiiii', $userId, $userId, $userId, $userId, $userId);
     mysqli_stmt_execute($feedStatement);
     $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($feedStatement);
+    $postInteractions = loadPostInteractions($conn, array_column($posts, 'id'), $userId);
     $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
     mysqli_stmt_bind_param($topStatement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($topStatement);
@@ -452,8 +455,9 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/mini-chat-resize.js?v=<?= filemtime(__DIR__ . '/assets/js/mini-chat-resize.js') ?>" defer></script>
     <script src="assets/js/message-popup.js?v=<?= filemtime(__DIR__ . '/assets/js/message-popup.js') ?>" defer></script>
     <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
+    <?php if (isset($_SESSION['user_id'])): ?><script src="assets/js/posts.js?v=<?= filemtime(__DIR__ . '/assets/js/posts.js') ?>" defer></script><?php endif; ?>
 </head>
-<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php"' : '' ?>>
+<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
@@ -591,24 +595,20 @@ if (isset($_SESSION['user_id'])) {
                     </div>
                     <?php if ($postError): ?><p class="post-error" role="alert"><?= htmlspecialchars($postError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 </form>
-                <?php if (!$posts): ?><p class="post-empty">No posts yet.</p><?php endif; ?>
+                <p class="post-empty" data-post-empty<?= $posts ? ' hidden' : '' ?>>No posts yet.</p>
+                <div class="post-list" data-post-list>
                 <?php foreach ($posts as $post): ?>
-                    <article class="post-card">
+                    <article class="post-card<?= (int) $post['user_id'] === $userId ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
                         <header class="post-header">
                             <?php renderPostAuthor($post); ?>
-                            <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if ((int) $post['user_id'] === $userId): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
+                            <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ((int) $post['user_id'] === $userId): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
                         </header>
-                        <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <?php if ((int) $post['user_id'] === $userId): ?>
-                            <form method="post" class="post-delete-form">
-                                <input type="hidden" name="action" value="delete_post">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
-                                <input type="hidden" name="post_id" value="<?= (int) $post['id'] ?>">
-                                <button type="submit">Delete</button>
-                            </form>
-                        <?php endif; ?>
+                        <p class="post-content" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                        <?php if ((int) $post['user_id'] === $userId): ?><form class="post-edit-form" data-post-edit-form hidden><textarea maxlength="2500" required><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></textarea><div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div></form><?php endif; ?>
+                        <?php renderPostInteractions($post, $postInteractions[(int) $post['id']] ?? [], $userId); ?>
                     </article>
                 <?php endforeach; ?>
+                </div>
             </section>
 
             <aside class="dashboard-right-rail">

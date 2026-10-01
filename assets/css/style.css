@@ -1146,6 +1146,7 @@ main.dashboard {
 .user-search button { background: #238bc5; }
 
 .post-card {
+    position: relative;
     background: #ffffff;
     border: 1px solid #9dcce8;
     color: #163b5c;
@@ -1189,6 +1190,40 @@ main.dashboard {
 .post-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .post-delete-form { text-align: right; }
 .dashboard .post-delete-form button { color: #a12c42; padding: 4px; cursor: pointer; font-size: 12px; background: transparent; }
+.post-edit-form { margin: 10px 0; }
+.post-edit-form[hidden], .post-reply-form[hidden], .post-comment-edit[hidden], .post-comment-actions[hidden], .post-interaction-status[hidden] { display: none; }
+.post-edit-form textarea { width: 100%; min-height: 84px; resize: vertical; }
+.post-edit-form > div { display: flex; justify-content: flex-end; gap: 6px; margin-top: 5px; }
+.post-interactions { border-top: 1px solid #d4e8f3; margin-top: 10px; padding-top: 6px; }
+.post-action-bar { display: flex; align-items: center; gap: 4px; }
+.post-action-bar button, .post-comment-actions button { border: 0; background: transparent; color: #2878a8; padding: 4px 6px; font-size: 12px; cursor: pointer; }
+.post-action-bar button:hover, .post-comment-actions button:hover { background: #edf8fd; }
+.post-action-bar .post-heart.is-liked { color: #c32f54; }
+.post-card.is-owned .post-header { padding-right: 76px; }
+.post-owner-actions { position: absolute; top: 5px; right: 6px; display: flex; gap: 2px; }
+.post-owner-actions button { border: 0; background: transparent; color: #2878a8; padding: 3px 4px; font-size: 11px; cursor: pointer; }
+.post-owner-actions [data-post-delete] { color: #a12c42; }
+.post-owner-actions button:hover { background: #edf8fd; }
+.post-comment-form, .post-reply-form { display: flex; align-items: flex-end; gap: 6px; margin-top: 6px; }
+.post-comment-form textarea, .post-reply-form textarea, .post-comment-edit textarea { flex: 1; min-width: 0; min-height: 34px; max-height: 110px; padding: 6px; resize: vertical; font: inherit; }
+.post-comment-form button, .post-reply-form button, .post-comment-edit button { flex: 0 0 auto; padding: 6px 9px; }
+.post-interaction-status { margin: 6px 0 0; color: #a12c42; font-size: 12px; }
+.post-comments { margin-top: 8px; }
+.post-comment { padding: 7px 0; border-top: 1px solid #e1eef5; }
+.post-comment.is-pinned { border-left: 3px solid #238bc5; padding-left: 7px; }
+.post-comment.is-deleted { color: #668298; }
+.post-comment header { display: flex; align-items: center; gap: 5px; margin: 0; }
+.post-comment header .post-avatar { flex-basis: 20px; width: 20px; height: 20px; font-size: 10px; }
+.post-comment header strong { font-size: 12px; }
+.post-comment header time { color: #668298; font-size: 10px; }
+.post-comment-pinned { margin-left: auto; color: #2878a8; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.post-comment > p { margin: 5px 0 2px 25px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.post-comment-actions { display: flex; gap: 1px; margin-left: 19px; }
+.post-comment-edit, .post-reply-form { margin-left: 25px; }
+.post-comment-edit button + button { margin-left: 4px; }
+.post-comment-replies { margin-left: 24px; border-left: 1px solid #b9d9ea; padding-left: 8px; }
+.post-comment-replies.is-orphaned { margin-left: 0; border-left: 0; padding-left: 0; }
+.post-comment.is-reply { border-top-style: dashed; }
 .post-error { color: #a12c42; font-size: 13px; }
 .post-empty { color: #4d6b80; font-size: 13px; }
 .notifications-panel { background: #f6fcff; border: 1px solid #9dcce8; }

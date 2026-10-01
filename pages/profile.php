@@ -14,6 +14,7 @@ require_once __DIR__ . '/../includes/profile_customization.php';
 require_once __DIR__ . '/../includes/background_customization.php';
 require_once __DIR__ . '/../includes/activity.php';
 require_once __DIR__ . '/../includes/blocks.php';
+require_once __DIR__ . '/../includes/post_interactions.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
@@ -103,6 +104,7 @@ $avatarError = '';
 $bioDraft = (string) ($user['bio'] ?? '');
 $_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
 $_SESSION['spotify_action_token'] ??= bin2hex(random_bytes(32));
+$_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
 $profileBackgroundSettings = $user ? readUserBackgroundSettings($conn, $userId) : defaultUserBackgroundSettings();
 $profilePostsOwnBackground = $profileBackgroundSettings['profile_posts'];
 $profilePostsBackground = resolveUserBackground($profileBackgroundSettings, 'profile_posts');
@@ -592,6 +594,7 @@ if ($user && !$isOwnProfile) {
     $friendState = $readFriendState();
 }
 $profilePosts = [];
+$postInteractions = [];
 $topFriends = [];
 $allFriends = [];
 $temporaryProfileUsers = array_map(
@@ -599,11 +602,12 @@ $temporaryProfileUsers = array_map(
     range(1, 20)
 );
 if ($user) {
-    $statement = mysqli_prepare($conn, "SELECT p.content, p.visibility, p.created_at FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, p.edited_at FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     mysqli_stmt_bind_param($statement, 'iiii', $userId, $currentUserId, $currentUserId, $currentUserId);
     mysqli_stmt_execute($statement);
     $profilePosts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
     mysqli_stmt_close($statement);
+    $postInteractions = loadPostInteractions($conn, array_column($profilePosts, 'id'), $currentUserId);
     $statement = mysqli_prepare($conn, "SELECT u.id, u.username, u.avatar_path, f.top_eight_position, GREATEST(f.created_at, COALESCE(MAX(m.created_at), f.created_at)) AS last_interaction_at FROM friends f JOIN users u ON u.id = f.friend_id LEFT JOIN messages m ON ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id)) AND m.deleted_at IS NULL WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) GROUP BY u.id, u.username, u.avatar_path, f.top_eight_position, f.created_at ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, last_interaction_at DESC, u.username, u.id");
     mysqli_stmt_bind_param($statement, 'iiiii', $userId, $userId, $userId, $currentUserId, $currentUserId);
     mysqli_stmt_execute($statement);
@@ -650,12 +654,13 @@ if ($isOwnProfile) {
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
     <script src="../assets/js/profile-social-activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-social-activity.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
+    <script src="../assets/js/posts.js?v=<?= filemtime(__DIR__ . '/../assets/js/posts.js') ?>" defer></script>
     <?php if ($user && $isOwnProfile): ?>
         <script src="../assets/js/profile-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-appearance.js') ?>" defer></script>
         <script src="../assets/js/profile-cover-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-cover-appearance.js') ?>" defer></script>
     <?php endif; ?>
 </head>
-<body class="profile-page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
+<body class="profile-page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <?php if ($profileNotice !== ''): ?>
         <div class="profile-customization-toast" data-profile-customization-toast role="status">
             <span><?= htmlspecialchars($profileNotice, ENT_QUOTES, 'UTF-8') ?></span>
@@ -858,19 +863,23 @@ if ($isOwnProfile) {
                 </div>
             <?php endif; ?>
             <h2 id="profile-posts-heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
-            <?php if (!$profilePosts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
+            <p class="post-empty" data-post-empty<?= $profilePosts ? ' hidden' : '' ?>>No posts to show yet.</p>
+            <div class="post-list" data-post-list>
             <?php foreach ($profilePosts as $post): ?>
-                <article class="post-card">
+                <article class="post-card<?= $isOwnProfile ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
                     <header class="post-header">
                         <span class="post-author">
                             <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatarPath): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                             <span><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></span>
                         </span>
-                        <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y \a\t H:i', strtotime($post['created_at'])), ENT_QUOTES, 'UTF-8') ?></time><?php if ($isOwnProfile): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
+                        <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y \a\t H:i', strtotime($post['created_at'])), ENT_QUOTES, 'UTF-8') ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ($isOwnProfile): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
                     </header>
-                    <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="post-content" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php if ($isOwnProfile): ?><form class="post-edit-form" data-post-edit-form hidden><textarea maxlength="2500" required><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></textarea><div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div></form><?php endif; ?>
+                    <?php renderPostInteractions($post, $postInteractions[(int) $post['id']] ?? [], $currentUserId, '../'); ?>
                 </article>
             <?php endforeach; ?>
+            </div>
             <?php if ($isOwnProfile): ?><button class="profile-wallpaper-edit-corner" type="button" aria-label="Customize profile wallpaper" title="Customize profile wallpaper" aria-controls="profile-appearance-panel" aria-expanded="false" data-profile-appearance-toggle>&#9998;</button><?php endif; ?>
         </section>
         <?php $profilePostsFragment = ob_get_clean(); ?>
