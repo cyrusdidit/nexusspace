@@ -82,31 +82,31 @@ $avatar = previewAvatarPath($user['avatar_path'] ?? '');
 
 ob_start();
 ?>
-<div class="profile-cover" aria-hidden="true"></div>
-<section class="profile-identity">
-    <div class="profile-picture" aria-hidden="true"><span><?= previewEscape($initial) ?></span><?php if ($avatar): ?><img src="<?= previewEscape($avatar) ?>" alt=""><?php endif; ?></div>
-    <h1><?= previewEscape($username) ?></h1>
-    <p class="profile-handle">@<?= previewEscape($username) ?></p>
+<div class="profile-cover" data-profile-style="cover.container" aria-hidden="true"></div>
+<section class="profile-identity" data-profile-style="identity.container">
+    <div class="profile-picture" data-profile-style="avatar.container" aria-hidden="true"><span><?= previewEscape($initial) ?></span><?php if ($avatar): ?><img src="<?= previewEscape($avatar) ?>" alt="" data-profile-style="avatar.image"><?php endif; ?></div>
+    <h1 data-profile-style="identity.display-name"><?= previewEscape($username) ?></h1>
+    <p class="profile-handle" data-profile-style="identity.handle">@<?= previewEscape($username) ?></p>
 </section>
 <?php
 $profileHeader = ob_get_clean();
 
 ob_start();
 ?>
-<section class="profile-bio-section" aria-label="Bio">
-    <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio"><?= previewEscape($user['bio']) ?></p><?php endif; ?>
+<section class="profile-bio-section" data-profile-style="bio.container" aria-label="Bio">
+    <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio" data-profile-style="bio.text"><?= previewEscape($user['bio']) ?></p><?php endif; ?>
 </section>
 <?php
 $bio = ob_get_clean();
 
 ob_start();
 ?>
-<section class="profile-top-eight">
-    <div class="panel-heading"><h2 class="friends-link">My top 8 friends</h2></div>
-    <ol class="friends-list">
+<section class="profile-top-eight" data-profile-style="top-eight.container">
+    <div class="panel-heading" data-profile-style="top-eight.header"><h2 class="friends-link" data-profile-style="top-eight.heading">My top 8 friends</h2></div>
+    <ol class="friends-list" data-profile-style="top-eight.list">
         <?php foreach ($topFriends as $friend): ?>
             <?php $friendAvatar = previewAvatarPath($friend['avatar_path'] ?? ''); ?>
-            <li><span class="top-friend-link"><span class="post-avatar" aria-hidden="true"><span><?= previewEscape(mb_strtoupper(mb_substr($friend['username'], 0, 1))) ?></span><?php if ($friendAvatar): ?><img src="<?= previewEscape($friendAvatar) ?>" alt=""><?php endif; ?></span><span><?= previewEscape($friend['username']) ?></span></span></li>
+            <li data-profile-style="top-eight.item"><span class="top-friend-link" data-profile-style="top-eight.name"><span class="post-avatar" data-profile-style="top-eight.avatar" aria-hidden="true"><span><?= previewEscape(mb_strtoupper(mb_substr($friend['username'], 0, 1))) ?></span><?php if ($friendAvatar): ?><img src="<?= previewEscape($friendAvatar) ?>" alt=""><?php endif; ?></span><span><?= previewEscape($friend['username']) ?></span></span></li>
         <?php endforeach; ?>
     </ol>
 </section>
@@ -115,13 +115,13 @@ $topEight = ob_get_clean();
 
 ob_start();
 ?>
-<section class="profile-posts">
-    <h2>My posts</h2>
-    <?php if (!$posts): ?><p class="post-empty">No posts to show yet.</p><?php endif; ?>
+<section class="profile-posts" data-profile-style="layout.content">
+    <h2 data-profile-style="posts.heading">My posts</h2>
+    <?php if (!$posts): ?><p class="post-empty" data-profile-style="posts.empty-state">No posts to show yet.</p><?php endif; ?>
     <?php foreach ($posts as $post): ?>
-        <article class="post-card">
-            <header class="post-header"><span class="post-author"><?= previewEscape($username) ?></span><time datetime="<?= previewEscape(str_replace(' ', 'T', $post['created_at'])) ?>"><?= previewEscape(date('M j, Y \a\t H:i', strtotime($post['created_at']))) ?></time></header>
-            <p class="post-content"><?= previewEscape($post['content']) ?></p>
+        <article class="post-card" data-profile-style="post.card">
+            <header class="post-header" data-profile-style="post.header"><span class="post-author" data-profile-style="post.author"><?= previewEscape($username) ?></span><time data-profile-style="post.metadata" datetime="<?= previewEscape(str_replace(' ', 'T', $post['created_at'])) ?>"><?= previewEscape(date('M j, Y \a\t H:i', strtotime($post['created_at']))) ?></time></header>
+            <p class="post-content" data-profile-style="post.body"><?= previewEscape($post['content']) ?></p>
         </article>
     <?php endforeach; ?>
 </section>
@@ -140,6 +140,7 @@ if (preg_match('/^[a-f0-9]{24}$/', $draftToken) && isset($_SESSION['profile_prev
 }
 
 $safeTemplate = sanitizeProfileTemplate($templateHtml);
+$safeTemplate = decorateProfileTemplate($safeTemplate);
 $renderedTemplate = strtr($safeTemplate, [
     '{{profile_header}}' => $profileHeader,
     '{{bio}}' => $bio,

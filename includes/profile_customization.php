@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 const DEFAULT_PROFILE_TEMPLATE = <<<'HTML'
-<div class="profile-layout">
-    <aside class="profile-sidebar">
+<div class="profile-layout" data-profile-style="layout.root">
+    <aside class="profile-sidebar" data-profile-style="layout.sidebar">
         {{profile_header}}
         {{bio}}
         {{top_eight}}
@@ -14,36 +14,190 @@ const DEFAULT_PROFILE_TEMPLATE = <<<'HTML'
 HTML;
 
 const DEFAULT_PROFILE_CSS = '';
+const PROFILE_CUSTOMIZATION_SCHEMA_VERSION = 2;
+const PROFILE_SIDEBAR_DEFAULT_WIDTH = 280;
+const PROFILE_SIDEBAR_MIN_WIDTH = 220;
+const PROFILE_SIDEBAR_MAX_WIDTH = 520;
+const PROFILE_CUSTOMIZATION_REVISION_LIMIT = 20;
+
+function defaultProfileSimpleSettings(): array
+{
+    return [];
+}
+
+function normalizeProfileSimpleSettings(mixed $settings): array
+{
+    if (is_string($settings)) {
+        try {
+            $settings = json_decode($settings, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return defaultProfileSimpleSettings();
+        }
+    }
+    return is_array($settings) ? $settings : defaultProfileSimpleSettings();
+}
+
+function encodeProfileSimpleSettings(array $settings): string
+{
+    return json_encode($settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+}
+
+function normalizeProfileSidebarWidth(mixed $width): int
+{
+    return min(PROFILE_SIDEBAR_MAX_WIDTH, max(PROFILE_SIDEBAR_MIN_WIDTH, (int) $width));
+}
+
+function defaultProfileCustomization(): array
+{
+    return [
+        'schema_version' => PROFILE_CUSTOMIZATION_SCHEMA_VERSION,
+        'simple_settings' => defaultProfileSimpleSettings(),
+        'sidebar_width' => PROFILE_SIDEBAR_DEFAULT_WIDTH,
+        'template_html' => DEFAULT_PROFILE_TEMPLATE,
+        'custom_css' => DEFAULT_PROFILE_CSS,
+        'published_revision' => 0,
+        'updated_at' => null,
+    ];
+}
 
 function readProfileCustomization(mysqli $conn, int $userId): array
 {
-    $statement = mysqli_prepare($conn, 'SELECT template_html, custom_css, updated_at FROM profile_customizations WHERE user_id = ? LIMIT 1');
+    $statement = mysqli_prepare($conn, 'SELECT schema_version, simple_settings, sidebar_width, template_html, custom_css, published_revision, updated_at FROM profile_customizations WHERE user_id = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
     $customization = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
     mysqli_stmt_close($statement);
 
-    return $customization ?: [
-        'template_html' => DEFAULT_PROFILE_TEMPLATE,
-        'custom_css' => DEFAULT_PROFILE_CSS,
-        'updated_at' => null,
-    ];
+    if (!$customization) return defaultProfileCustomization();
+    $customization['schema_version'] = max(1, (int) $customization['schema_version']);
+    $customization['simple_settings'] = normalizeProfileSimpleSettings($customization['simple_settings']);
+    $customization['sidebar_width'] = normalizeProfileSidebarWidth($customization['sidebar_width']);
+    $customization['published_revision'] = max(0, (int) $customization['published_revision']);
+    return $customization;
 }
 
-function saveProfileCustomization(mysqli $conn, int $userId, string $templateHtml, string $customCss): void
+function saveProfileCustomization(
+    mysqli $conn,
+    int $userId,
+    string $templateHtml,
+    string $customCss,
+    ?array $simpleSettings = null,
+    ?int $sidebarWidth = null
+): int
 {
-    $statement = mysqli_prepare($conn, 'INSERT INTO profile_customizations (user_id, template_html, custom_css) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE template_html = VALUES(template_html), custom_css = VALUES(custom_css)');
-    mysqli_stmt_bind_param($statement, 'iss', $userId, $templateHtml, $customCss);
-    mysqli_stmt_execute($statement);
-    mysqli_stmt_close($statement);
+    mysqli_begin_transaction($conn);
+    try {
+        $statement = mysqli_prepare($conn, 'SELECT simple_settings, sidebar_width, published_revision FROM profile_customizations WHERE user_id = ? LIMIT 1 FOR UPDATE');
+        mysqli_stmt_bind_param($statement, 'i', $userId);
+        mysqli_stmt_execute($statement);
+        $current = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+        mysqli_stmt_close($statement);
+
+        $settings = $simpleSettings ?? normalizeProfileSimpleSettings($current['simple_settings'] ?? null);
+        $width = normalizeProfileSidebarWidth($sidebarWidth ?? $current['sidebar_width'] ?? PROFILE_SIDEBAR_DEFAULT_WIDTH);
+        $revision = max(0, (int) ($current['published_revision'] ?? 0)) + 1;
+        $settingsJson = encodeProfileSimpleSettings($settings);
+        $schemaVersion = PROFILE_CUSTOMIZATION_SCHEMA_VERSION;
+
+        $statement = mysqli_prepare($conn, 'INSERT INTO profile_customizations (user_id, schema_version, simple_settings, sidebar_width, template_html, custom_css, published_revision) VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version), simple_settings = VALUES(simple_settings), sidebar_width = VALUES(sidebar_width), template_html = VALUES(template_html), custom_css = VALUES(custom_css), published_revision = VALUES(published_revision)');
+        mysqli_stmt_bind_param($statement, 'iisissi', $userId, $schemaVersion, $settingsJson, $width, $templateHtml, $customCss, $revision);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+
+        $statement = mysqli_prepare($conn, 'INSERT INTO profile_customization_revisions (user_id, revision_number, schema_version, simple_settings, sidebar_width, template_html, custom_css) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        mysqli_stmt_bind_param($statement, 'iiisiss', $userId, $revision, $schemaVersion, $settingsJson, $width, $templateHtml, $customCss);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+
+        $oldestRevision = max(1, $revision - PROFILE_CUSTOMIZATION_REVISION_LIMIT + 1);
+        $statement = mysqli_prepare($conn, 'DELETE FROM profile_customization_revisions WHERE user_id = ? AND revision_number < ?');
+        mysqli_stmt_bind_param($statement, 'ii', $userId, $oldestRevision);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+
+        $statement = mysqli_prepare($conn, 'DELETE FROM profile_customization_drafts WHERE user_id = ?');
+        mysqli_stmt_bind_param($statement, 'i', $userId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        mysqli_commit($conn);
+        return $revision;
+    } catch (Throwable $error) {
+        mysqli_rollback($conn);
+        throw $error;
+    }
 }
 
 function resetProfileCustomization(mysqli $conn, int $userId): void
 {
-    $statement = mysqli_prepare($conn, 'DELETE FROM profile_customizations WHERE user_id = ?');
+    saveProfileCustomization(
+        $conn,
+        $userId,
+        DEFAULT_PROFILE_TEMPLATE,
+        DEFAULT_PROFILE_CSS,
+        defaultProfileSimpleSettings(),
+        PROFILE_SIDEBAR_DEFAULT_WIDTH
+    );
+}
+
+function readProfileCustomizationDraft(mysqli $conn, int $userId): ?array
+{
+    $statement = mysqli_prepare($conn, 'SELECT schema_version, simple_settings, sidebar_width, template_html, custom_css, updated_at FROM profile_customization_drafts WHERE user_id = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
+    $draft = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
     mysqli_stmt_close($statement);
+    if (!$draft) return null;
+    $draft['schema_version'] = max(1, (int) $draft['schema_version']);
+    $draft['simple_settings'] = normalizeProfileSimpleSettings($draft['simple_settings']);
+    $draft['sidebar_width'] = normalizeProfileSidebarWidth($draft['sidebar_width']);
+    return $draft;
+}
+
+function saveProfileCustomizationDraft(mysqli $conn, int $userId, array $customization): void
+{
+    $settingsJson = encodeProfileSimpleSettings(normalizeProfileSimpleSettings($customization['simple_settings'] ?? null));
+    $width = normalizeProfileSidebarWidth($customization['sidebar_width'] ?? PROFILE_SIDEBAR_DEFAULT_WIDTH);
+    $templateHtml = (string) ($customization['template_html'] ?? DEFAULT_PROFILE_TEMPLATE);
+    $customCss = (string) ($customization['custom_css'] ?? DEFAULT_PROFILE_CSS);
+    $schemaVersion = PROFILE_CUSTOMIZATION_SCHEMA_VERSION;
+    $statement = mysqli_prepare($conn, 'INSERT INTO profile_customization_drafts (user_id, schema_version, simple_settings, sidebar_width, template_html, custom_css) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE schema_version = VALUES(schema_version), simple_settings = VALUES(simple_settings), sidebar_width = VALUES(sidebar_width), template_html = VALUES(template_html), custom_css = VALUES(custom_css)');
+    mysqli_stmt_bind_param($statement, 'iisiss', $userId, $schemaVersion, $settingsJson, $width, $templateHtml, $customCss);
+    mysqli_stmt_execute($statement);
+    mysqli_stmt_close($statement);
+}
+
+function readProfileCustomizationRevisions(mysqli $conn, int $userId, int $limit = PROFILE_CUSTOMIZATION_REVISION_LIMIT): array
+{
+    $limit = min(PROFILE_CUSTOMIZATION_REVISION_LIMIT, max(1, $limit));
+    $statement = mysqli_prepare($conn, 'SELECT revision_number, schema_version, sidebar_width, created_at FROM profile_customization_revisions WHERE user_id = ? ORDER BY revision_number DESC LIMIT ?');
+    mysqli_stmt_bind_param($statement, 'ii', $userId, $limit);
+    mysqli_stmt_execute($statement);
+    $revisions = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+    mysqli_stmt_close($statement);
+    return array_map(static function (array $revision): array {
+        $revision['revision_number'] = (int) $revision['revision_number'];
+        $revision['schema_version'] = (int) $revision['schema_version'];
+        $revision['sidebar_width'] = normalizeProfileSidebarWidth($revision['sidebar_width']);
+        return $revision;
+    }, $revisions);
+}
+
+function restoreProfileCustomizationRevision(mysqli $conn, int $userId, int $revisionNumber): int
+{
+    $statement = mysqli_prepare($conn, 'SELECT simple_settings, sidebar_width, template_html, custom_css FROM profile_customization_revisions WHERE user_id = ? AND revision_number = ? LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'ii', $userId, $revisionNumber);
+    mysqli_stmt_execute($statement);
+    $revision = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+    mysqli_stmt_close($statement);
+    if (!$revision) throw new InvalidArgumentException('That profile revision no longer exists.');
+    return saveProfileCustomization(
+        $conn,
+        $userId,
+        (string) $revision['template_html'],
+        (string) $revision['custom_css'],
+        normalizeProfileSimpleSettings($revision['simple_settings']),
+        normalizeProfileSidebarWidth($revision['sidebar_width'])
+    );
 }
 
 function sanitizeProfileTemplate(string $templateHtml): string
@@ -74,7 +228,7 @@ function sanitizeProfileTemplate(string $templateHtml): string
         foreach ($attributes as $attributeName) {
             $lowerName = strtolower($attributeName);
             $value = $element->getAttribute($attributeName);
-            if (str_starts_with($lowerName, 'on') || in_array($lowerName, ['formaction', 'srcdoc', 'style'], true) || str_contains($value, '{{')) {
+            if (str_starts_with($lowerName, 'on') || in_array($lowerName, ['data-profile-style', 'formaction', 'srcdoc', 'style'], true) || str_contains($value, '{{')) {
                 $element->removeAttribute($attributeName);
                 continue;
             }
@@ -93,6 +247,31 @@ function sanitizeProfileTemplate(string $templateHtml): string
     $safeHtml = '';
     foreach ($root->childNodes as $child) $safeHtml .= $document->saveHTML($child);
     return $safeHtml;
+}
+
+function decorateProfileTemplate(string $safeTemplate): string
+{
+    $document = new DOMDocument('1.0', 'UTF-8');
+    $previousErrors = libxml_use_internal_errors(true);
+    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $safeTemplate . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousErrors);
+
+    $xpath = new DOMXPath($document);
+    $targets = [
+        'profile-layout' => 'layout.root',
+        'profile-sidebar' => 'layout.sidebar',
+    ];
+    foreach ($targets as $className => $target) {
+        $elements = $xpath->query('//*[contains(concat(" ", normalize-space(@class), " "), " ' . $className . ' ")]');
+        foreach ($elements ?: [] as $element) $element->setAttribute('data-profile-style', $target);
+    }
+
+    $root = $xpath->query('//*[@id="profile-template-root"]')->item(0);
+    if (!$root) return $safeTemplate;
+    $decorated = '';
+    foreach ($root->childNodes as $child) $decorated .= $document->saveHTML($child);
+    return $decorated;
 }
 
 function appendLockedProfileControlsPlaceholder(string $safeTemplate): string

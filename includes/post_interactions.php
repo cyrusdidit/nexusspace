@@ -56,7 +56,7 @@ function renderPostComment(array $comment, int $viewerId, int $postOwnerId, stri
     $deleted = $comment['deleted_at'] !== null;
     if ($deleted && $viewerId !== $postOwnerId) {
         if (!$reply && !empty($comment['replies'])) {
-            ?><div class="post-comment-replies is-orphaned"><?php foreach ($comment['replies'] as $child) renderPostComment($child, $viewerId, $postOwnerId, $assetPrefix, true); ?></div><?php
+            ?><div class="post-comment-replies is-orphaned" data-profile-style="comment.replies-thread"><?php foreach ($comment['replies'] as $child) renderPostComment($child, $viewerId, $postOwnerId, $assetPrefix, true); ?></div><?php
         }
         return;
     }
@@ -64,35 +64,35 @@ function renderPostComment(array $comment, int $viewerId, int $postOwnerId, stri
     $avatar = $avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath) ? $assetPrefix . ltrim($avatarPath, '/') : '';
     $name = htmlspecialchars($comment['username'], ENT_QUOTES, 'UTF-8');
     ?>
-    <article class="post-comment<?= $reply ? ' is-reply' : '' ?><?= $comment['pinned_at'] ? ' is-pinned' : '' ?><?= $deleted ? ' is-deleted' : '' ?>" data-comment-id="<?= (int) $comment['id'] ?>">
-        <header>
-            <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($comment['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatar): ?><img src="<?= htmlspecialchars($avatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
-            <strong><?= $name ?></strong>
-            <time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $comment['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= postInteractionTimestamp($comment['created_at']) ?></time>
-            <?php if ($comment['pinned_at']): ?><span class="post-comment-pinned">Pinned</span><?php endif; ?>
+    <article class="post-comment<?= $reply ? ' is-reply' : '' ?><?= $comment['pinned_at'] ? ' is-pinned' : '' ?><?= $deleted ? ' is-deleted' : '' ?>" data-profile-style="comment.card" data-comment-id="<?= (int) $comment['id'] ?>">
+        <header data-profile-style="comment.header">
+            <span class="post-avatar" data-profile-style="comment.avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($comment['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatar): ?><img src="<?= htmlspecialchars($avatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
+            <strong data-profile-style="comment.author"><?= $name ?></strong>
+            <time data-profile-style="comment.timestamp" datetime="<?= htmlspecialchars(str_replace(' ', 'T', $comment['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= postInteractionTimestamp($comment['created_at']) ?></time>
+            <?php if ($comment['pinned_at']): ?><span class="post-comment-pinned" data-profile-style="comment.pinned">Pinned</span><?php endif; ?>
         </header>
-        <p data-comment-content><?= $deleted ? '<em>Comment deleted</em>' : htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?><?php if (!$deleted && $comment['edited_at']): ?> <small>(edited)</small><?php endif; ?></p>
+        <p data-profile-style="comment.body" data-comment-content><?= $deleted ? '<em>Comment deleted</em>' : htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?><?php if (!$deleted && $comment['edited_at']): ?> <small>(edited)</small><?php endif; ?></p>
         <?php if ($deleted): ?>
-            <div class="post-comment-actions"><button type="button" data-comment-purge>Remove</button></div>
+            <div class="post-comment-actions" data-profile-style="comment.actions"><button type="button" data-comment-purge>Remove</button></div>
         <?php else: ?>
-            <div class="post-comment-actions">
+            <div class="post-comment-actions" data-profile-style="comment.actions">
                 <?php if (!$reply): ?><button type="button" data-comment-reply>Reply</button><?php endif; ?>
                 <?php if ((int) $comment['user_id'] === $viewerId): ?><button type="button" data-comment-edit>Edit</button><button type="button" data-comment-delete>Delete</button><?php endif; ?>
                 <?php if (!$reply && $postOwnerId === $viewerId): ?><button type="button" data-comment-pin><?= $comment['pinned_at'] ? 'Unpin' : 'Pin' ?></button><?php endif; ?>
             </div>
-            <form class="post-comment-edit" data-comment-edit-form hidden>
+            <form class="post-comment-edit" data-profile-style="comment.edit-form" data-comment-edit-form hidden>
                 <textarea maxlength="1000" required><?= htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?></textarea>
                 <button type="submit">Save</button><button type="button" data-comment-edit-cancel>Cancel</button>
             </form>
             <?php if (!$reply): ?>
-                <form class="post-reply-form" data-comment-reply-form hidden>
+                <form class="post-reply-form" data-profile-style="comment.reply-form" data-comment-reply-form hidden>
                     <input type="hidden" name="parent_id" value="<?= (int) $comment['id'] ?>">
                     <textarea name="content" maxlength="1000" placeholder="Write a reply..." required></textarea>
                     <button type="submit">Reply</button>
                 </form>
             <?php endif; ?>
         <?php endif; ?>
-        <?php if (!$reply && !empty($comment['replies'])): ?><div class="post-comment-replies"><?php foreach ($comment['replies'] as $child) renderPostComment($child, $viewerId, $postOwnerId, $assetPrefix, true); ?></div><?php endif; ?>
+        <?php if (!$reply && !empty($comment['replies'])): ?><div class="post-comment-replies" data-profile-style="comment.replies-thread"><?php foreach ($comment['replies'] as $child) renderPostComment($child, $viewerId, $postOwnerId, $assetPrefix, true); ?></div><?php endif; ?>
     </article>
     <?php
 }
@@ -112,18 +112,18 @@ function renderPostInteractions(array $post, array $interaction, int $viewerId, 
     }
     $version = substr(hash('sha256', json_encode([$post['title'] ?? '', $post['content'] ?? '', $post['media'] ?? [$post['media_path'] ?? null, $post['media_type'] ?? null], $post['edited_at'] ?? null, $interaction])), 0, 16);
     ?>
-    <div class="post-interactions" data-post-interactions data-post-version="<?= $version ?>">
-        <?php if ($ownerId === $viewerId): ?><div class="post-owner-actions"><button type="button" data-post-edit>Edit</button><button type="button" data-post-delete>Delete</button></div><?php endif; ?>
-        <div class="post-action-bar">
-            <button type="button" class="post-heart<?= $liked ? ' is-liked' : '' ?>" data-post-like aria-pressed="<?= $liked ? 'true' : 'false' ?>"><span aria-hidden="true"><?= $liked ? '&#9829;' : '&#9825;' ?></span> <span data-like-count><?= (int) ($interaction['like_count'] ?? 0) ?></span></button>
+    <div class="post-interactions" data-profile-style="post.interactions" data-post-interactions data-post-version="<?= $version ?>">
+        <?php if ($ownerId === $viewerId): ?><div class="post-owner-actions" data-profile-style="post.owner-actions"><button type="button" data-profile-style="post.edit-control" data-post-edit>Edit</button><button type="button" data-profile-style="post.delete-control" data-post-delete>Delete</button></div><?php endif; ?>
+        <div class="post-action-bar" data-profile-style="post.action-bar">
+            <button type="button" class="post-heart<?= $liked ? ' is-liked' : '' ?>" data-profile-style="post.heart-control" data-post-like aria-pressed="<?= $liked ? 'true' : 'false' ?>"><span aria-hidden="true"><?= $liked ? '&#9829;' : '&#9825;' ?></span> <span data-like-count><?= (int) ($interaction['like_count'] ?? 0) ?></span></button>
             <button type="button" data-comment-focus>Comment <span><?= $commentCount ?></span></button>
         </div>
-        <form class="post-comment-form" data-post-comment-form>
+        <form class="post-comment-form" data-profile-style="comment.composer" data-post-comment-form>
             <textarea name="content" maxlength="1000" placeholder="Write a comment..." required></textarea>
             <button type="submit">Comment</button>
         </form>
-        <p class="post-interaction-status" data-post-interaction-status role="status" hidden></p>
-        <div class="post-comments" data-post-comments>
+        <p class="post-interaction-status" data-profile-style="comment.status" data-post-interaction-status role="status" hidden></p>
+        <div class="post-comments" data-profile-style="comment.list" data-post-comments>
             <?php foreach ($comments as $comment) renderPostComment($comment, $viewerId, $ownerId, $assetPrefix); ?>
         </div>
     </div>
@@ -139,16 +139,16 @@ function renderLivePostCard(array $post, array $interaction, int $viewerId, stri
     $avatarPath = trim((string) ($post['avatar_path'] ?? ''));
     $avatar = $avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath) ? $assetPrefix . ltrim($avatarPath, '/') : '';
     ?>
-    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $owned ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>">
-        <header class="post-header">
-            <a class="post-author" href="<?= $profileLink . (int) $post['user_id'] ?>">
-                <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($post['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatar): ?><img src="<?= htmlspecialchars($avatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
+    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $owned ? ' is-owned' : '' ?>" data-profile-style="post.card" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>">
+        <header class="post-header" data-profile-style="post.header">
+            <a class="post-author" data-profile-style="post.author" href="<?= $profileLink . (int) $post['user_id'] ?>">
+                <span class="post-avatar" data-profile-style="post.avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($post['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatar): ?><img src="<?= htmlspecialchars($avatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                 <span><?= htmlspecialchars($post['username'], ENT_QUOTES, 'UTF-8') ?></span>
             </a>
-            <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= postInteractionTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ($owned): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
+            <div class="post-meta" data-profile-style="post.metadata"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= postInteractionTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ($owned): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
         </header>
-        <?php if (($post['title'] ?? '') !== ''): ?><h3 class="post-title" data-post-title><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
-        <p class="post-content" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+        <?php if (($post['title'] ?? '') !== ''): ?><h3 class="post-title" data-profile-style="post.title" data-post-title><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
+        <p class="post-content" data-profile-style="post.body" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
         <?php renderPostMedia($post, $assetPrefix, $owned); ?>
         <?php if ($owned) renderPostEditForm($post); ?>
         <?php renderPostInteractions($post, $interaction, $viewerId, $assetPrefix); ?>
