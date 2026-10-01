@@ -30,6 +30,7 @@
     let gameStartedAt = gameRow.hidden ? null : Date.now() - (Number(gameDuration.dataset.elapsedSeconds) || 0) * 1000;
     let musicActive = !musicRow.hidden;
     let nowPlayingDismissed = false;
+    let refreshInFlight = false;
 
     const renderNowPlaying = () => {
         if (!root) return;
@@ -57,7 +58,8 @@
     };
 
     const refresh = async () => {
-        if (!endpoint || document.hidden) return;
+        if (!endpoint || document.hidden || refreshInFlight) return;
+        refreshInFlight = true;
         try {
             const url = new URL(endpoint, window.location.href);
             url.searchParams.set('user', profileId);
@@ -127,6 +129,8 @@
             updateClock();
         } catch (error) {
             // Preserve the last known activity during a temporary failure.
+        } finally {
+            refreshInFlight = false;
         }
     };
 
@@ -167,7 +171,7 @@
         }
     });
     window.setInterval(updateClock, 1000);
-    window.setInterval(refresh, 15 * 1000);
+    window.setInterval(refresh, 5 * 1000);
     window.addEventListener('focus', refresh);
     document.addEventListener('nexusspace:spotify-activity-updated', refresh);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });

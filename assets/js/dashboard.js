@@ -585,6 +585,47 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const statusVisibilityEndpoint = document.body.dataset.statusVisibilityEndpoint;
+    const statusVisibilityCsrf = document.body.dataset.statusVisibilityCsrf;
+    const statusVisibilityButtons = [...document.querySelectorAll('[data-status-visibility-toggle]')];
+    const statusTypeLabels = { custom: 'custom', spotify: 'Spotify', steam: 'Steam' };
+    const renderStatusVisibility = (button, audience) => {
+        const visible = audience !== 'none';
+        const label = statusTypeLabels[button.dataset.statusType] || 'status';
+        button.dataset.statusAudience = audience;
+        button.setAttribute('aria-pressed', String(visible));
+        button.setAttribute('aria-label', visible ? `Hide ${label} status from everyone` : `Show ${label} status to friends`);
+        button.title = visible ? 'Visible to friends' : 'Hidden from everyone';
+    };
+    statusVisibilityButtons.forEach((button) => {
+        renderStatusVisibility(button, button.dataset.statusAudience || 'friends');
+        button.addEventListener('pointerdown', (event) => event.preventDefault());
+        button.addEventListener('click', async () => {
+            if (!statusVisibilityEndpoint || !statusVisibilityCsrf || button.disabled) return;
+            const audience = button.dataset.statusAudience === 'none' ? 'friends' : 'none';
+            const formData = new FormData();
+            formData.set('csrf_token', statusVisibilityCsrf);
+            formData.set('type', button.dataset.statusType);
+            formData.set('audience', audience);
+            button.disabled = true;
+            try {
+                const response = await fetch(statusVisibilityEndpoint, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                    headers: { Accept: 'application/json' },
+                });
+                const data = await response.json();
+                if (!response.ok || !data.ok) throw new Error(data.error || 'Visibility could not be changed.');
+                renderStatusVisibility(button, data.audience);
+            } catch (error) {
+                button.title = error.message || 'Visibility could not be changed.';
+            } finally {
+                button.disabled = false;
+            }
+        });
+    });
+
     const appearanceToggle = document.querySelector('[data-dashboard-appearance-toggle]');
     const appearancePanel = document.querySelector('[data-dashboard-appearance-panel]');
     const appearanceClose = document.querySelector('[data-dashboard-appearance-close]');

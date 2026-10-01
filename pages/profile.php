@@ -26,7 +26,7 @@ $userId = $userId === false ? 0 : $userId;
 $isOwnProfile = $userId === $currentUserId;
 $statement = mysqli_prepare(
     $conn,
-    'SELECT username, email, registration_date, avatar_path, bio, status_text, spotify_track_id, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
+    'SELECT username, email, registration_date, avatar_path, bio, status_text, spotify_track_id, custom_status_audience, spotify_status_audience, steam_status_audience, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
 );
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);
@@ -637,6 +637,17 @@ if ($user && !$isOwnProfile) {
     }
     $friendState = $readFriendState();
 }
+$viewerIsFriend = $friendState === 'friends';
+$statusIsVisible = static function (string $audience) use ($isOwnProfile, $viewerIsFriend): bool {
+    return $isOwnProfile || $audience === 'public' || ($audience === 'friends' && $viewerIsFriend);
+};
+$profileWrittenStatusVisible = $user && $statusIsVisible((string) ($user['custom_status_audience'] ?? 'friends'));
+if ($user && !$statusIsVisible((string) ($user['spotify_status_audience'] ?? 'friends'))) {
+    $profileMusic = null;
+}
+if ($user && !$statusIsVisible((string) ($user['steam_status_audience'] ?? 'friends'))) {
+    $profileGame = null;
+}
 $profilePosts = [];
 $postInteractions = [];
 $topFriends = [];
@@ -753,7 +764,7 @@ if ($isOwnProfile) {
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <div class="profile-handle-row"><p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p><button class="profile-username-copy" type="button" aria-label="Copy @<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>" title="Copy username" data-copy-username="@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>"><span class="profile-copy-icon" aria-hidden="true"></span></button><span class="sr-only" aria-live="polite" data-copy-username-status></span></div>
-            <?php if ($isOwnProfile): ?><form class="profile-inline-status" method="post" action="profile.php?id=<?= $userId ?>" data-inline-status-form><input type="hidden" name="action" value="update_status"><input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>"><label class="sr-only" for="profile-status-input">Status</label><input id="profile-status-input" name="status" type="text" maxlength="40" autocomplete="off" placeholder="Write a status" value="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" data-profile-written-status data-profile-status-input><button class="status-edit-pencil" type="button" aria-label="Edit status" title="Edit status" data-status-edit-pencil>&#9998;</button><?php if ($statusError !== ''): ?><p class="post-error" role="alert"><?= htmlspecialchars($statusError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?></form><?php else: ?><div class="profile-written-status-wrap"><p class="profile-written-status" title="<?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?>" data-profile-written-status<?= trim((string) ($user['status_text'] ?? '')) !== '' ? '' : ' hidden' ?>><?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?></p></div><?php endif; ?>
+            <?php if ($isOwnProfile): ?><form class="profile-inline-status" method="post" action="profile.php?id=<?= $userId ?>" data-inline-status-form><input type="hidden" name="action" value="update_status"><input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>"><label class="sr-only" for="profile-status-input">Status</label><input id="profile-status-input" name="status" type="text" maxlength="40" autocomplete="off" placeholder="Write a status" value="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" data-profile-written-status data-profile-status-input><button class="status-edit-pencil" type="button" aria-label="Edit status" title="Edit status" data-status-edit-pencil>&#9998;</button><?php if ($statusError !== ''): ?><p class="post-error" role="alert"><?= htmlspecialchars($statusError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?></form><?php else: ?><div class="profile-written-status-wrap"><p class="profile-written-status" title="<?= $profileWrittenStatusVisible ? htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') : '' ?>" data-profile-written-status<?= $profileWrittenStatusVisible && trim((string) ($user['status_text'] ?? '')) !== '' ? '' : ' hidden' ?>><?= $profileWrittenStatusVisible ? htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') : '' ?></p></div><?php endif; ?>
             <section class="profile-sidebar-activity" aria-label="Current activity" data-spotify-like-endpoint="../spotify-like-track.php" data-spotify-action-token="<?= htmlspecialchars($_SESSION['spotify_action_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <div class="profile-sidebar-activity-row profile-sidebar-music-row" data-profile-music-row<?= $profileMusic ? '' : ' hidden' ?>>
                     <a class="profile-sidebar-activity-main" href="<?= htmlspecialchars($profileMusic['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" title="<?= $profileMusic ? htmlspecialchars($profileMusic['name'] . ' • ' . $profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?>" data-profile-music-link>

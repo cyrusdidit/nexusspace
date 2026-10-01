@@ -863,7 +863,15 @@ body.dashboard-page {
 
 .status-text-item { gap: 4px; }
 .status-text-item input { flex: 1; min-width: 0; }
-.dashboard .status-edit-pencil { flex: 0 0 22px; cursor: pointer; }
+.dashboard .status-edit-pencil,
+.dashboard .status-visibility-toggle { display: grid; place-items: center; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; background: #238bc5; color: #fff; cursor: pointer; }
+.dashboard .status-edit-pencil:hover,
+.dashboard .status-edit-pencil:focus-visible,
+.dashboard .status-visibility-toggle:hover,
+.dashboard .status-visibility-toggle:focus-visible { background: #166da5; color: #fff; }
+.status-eye-icon { position: relative; display: block; width: 14px; height: 9px; border: 1.5px solid currentColor; border-radius: 50%; }
+.status-eye-icon::after { position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; border-radius: 50%; background: currentColor; content: ''; transform: translate(-50%, -50%); }
+.status-visibility-toggle[data-status-audience="none"] .status-eye-icon::before { position: absolute; z-index: 1; top: 3px; left: -2px; width: 17px; height: 1.5px; background: currentColor; box-shadow: 0 0 0 1px #f6fcff; content: ''; transform: rotate(-35deg); }
 
 .status-item + .status-item { border-top: 1px solid #b9e3f8; }
 
@@ -1001,7 +1009,7 @@ body.dashboard-page {
 .status-item[data-current-music] img,
 .status-item[data-current-game] img { flex: 0 0 30px; width: 30px; height: 30px; object-fit: cover; }
 .status-item[data-current-music] p,
-.status-item[data-current-game] span { flex: 1 1 0; width: 0; min-width: 0; max-width: 100%; }
+.status-item[data-current-game] > span { flex: 1 1 0; width: 0; min-width: 0; max-width: 100%; }
 .status-item[data-current-music] p,
 .status-item[data-current-game] p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-item[data-current-game] small { display: block; color: #4d6b80; font-size: 10px; }

@@ -66,6 +66,7 @@ function renderPostAuthor(array $post): void
 
 $basicStatus = '';
 $statusError = '';
+$statusAudiences = ['custom' => 'friends', 'spotify' => 'friends', 'steam' => 'friends'];
 $postError = '';
 $postContent = '';
 $postTitle = '';
@@ -86,6 +87,7 @@ $dashboardAppearanceError = '';
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['notifications_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['dashboard_appearance_csrf'] ??= bin2hex(random_bytes(32));
+$_SESSION['status_visibility_csrf'] ??= bin2hex(random_bytes(32));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_dashboard_background') {
     $dashboardAppearanceJson = ($_POST['response_format'] ?? '') === 'json'
@@ -455,7 +457,7 @@ if (isset($_SESSION['user_id'])) {
     mysqli_stmt_execute($activityStatement);
     mysqli_stmt_close($activityStatement);
 
-    $statement = mysqli_prepare($conn, 'SELECT status_text, avatar_path FROM users WHERE id = ? LIMIT 1');
+    $statement = mysqli_prepare($conn, 'SELECT status_text, avatar_path, custom_status_audience, spotify_status_audience, steam_status_audience FROM users WHERE id = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
     $result = mysqli_stmt_get_result($statement);
@@ -465,6 +467,11 @@ if (isset($_SESSION['user_id'])) {
     if ($user) {
         $basicStatus = (string) ($user['status_text'] ?? '');
         $dashboardAvatar = postAvatarPath($user['avatar_path'] ?? null);
+        $statusAudiences = [
+            'custom' => (string) ($user['custom_status_audience'] ?? 'friends'),
+            'spotify' => (string) ($user['spotify_status_audience'] ?? 'friends'),
+            'steam' => (string) ($user['steam_status_audience'] ?? 'friends'),
+        ];
     }
 
     $statement = mysqli_prepare($conn, 'SELECT current_game_id, current_game_name, current_game_started_at FROM steam_connections WHERE user_id = ? AND current_game_id IS NOT NULL AND current_game_name IS NOT NULL LIMIT 1');
@@ -479,7 +486,7 @@ if (isset($_SESSION['user_id'])) {
         $currentGameElapsed = max(0, time() - (strtotime((string) $currentGame['current_game_started_at']) ?: time()));
     }
 
-    $statement = mysqli_prepare($conn, 'SELECT current_item_name, current_artist_name, current_image_url FROM spotify_connections WHERE user_id = ? AND is_playing = 1 AND current_item_name IS NOT NULL AND TIMESTAMPDIFF(SECOND, playback_updated_at, NOW()) <= 60 LIMIT 1');
+    $statement = mysqli_prepare($conn, 'SELECT current_item_name, current_artist_name, current_image_url FROM spotify_connections WHERE user_id = ? AND is_playing = 1 AND current_item_name IS NOT NULL LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
     mysqli_stmt_execute($statement);
     $currentMusic = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
@@ -525,7 +532,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
     <?php if (isset($_SESSION['user_id'])): ?><script src="assets/js/posts.js?v=<?= filemtime(__DIR__ . '/assets/js/posts.js') ?>" defer></script><?php endif; ?>
 </head>
-<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard" data-notifications-endpoint="notifications.php" data-notifications-csrf="' . htmlspecialchars($_SESSION['notifications_csrf'], ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
+<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-status-visibility-endpoint="status-visibility.php" data-status-visibility-csrf="' . htmlspecialchars($_SESSION['status_visibility_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard" data-notifications-endpoint="notifications.php" data-notifications-csrf="' . htmlspecialchars($_SESSION['notifications_csrf'], ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
@@ -601,10 +608,12 @@ if (isset($_SESSION['user_id'])) {
                             <label class="sr-only" for="basic-status">Basic status</label>
                             <input id="basic-status" name="status" type="text" value="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" maxlength="40" autocomplete="off" placeholder="your status???" title="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" data-status-input>
                             <button class="status-edit-pencil" type="button" aria-label="Edit status" title="Edit status" data-status-edit-pencil>&#9998;</button>
+                            <button class="status-visibility-toggle" type="button" data-status-visibility-toggle data-status-type="custom" data-status-audience="<?= htmlspecialchars($statusAudiences['custom'], ENT_QUOTES, 'UTF-8') ?>" aria-pressed="<?= $statusAudiences['custom'] === 'none' ? 'false' : 'true' ?>" aria-label="<?= $statusAudiences['custom'] === 'none' ? 'Show custom status to friends' : 'Hide custom status from everyone' ?>" title="<?= $statusAudiences['custom'] === 'none' ? 'Hidden from everyone' : 'Visible to friends' ?>"><span class="status-eye-icon" aria-hidden="true"></span></button>
                         </div>
                         <div class="status-item" data-current-music title="<?= $currentMusic ? htmlspecialchars($currentMusic['current_item_name'] . ($currentMusic['current_artist_name'] ? ' • ' . $currentMusic['current_artist_name'] : ''), ENT_QUOTES, 'UTF-8') : '' ?>"<?= $currentMusic ? '' : ' hidden' ?>>
                             <img src="<?= htmlspecialchars($currentMusic['current_image_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-current-music-image<?= !empty($currentMusic['current_image_url']) ? '' : ' hidden' ?>>
                             <p><?= $currentMusic ? htmlspecialchars($currentMusic['current_item_name'] . ($currentMusic['current_artist_name'] ? ' • ' . $currentMusic['current_artist_name'] : ''), ENT_QUOTES, 'UTF-8') : '' ?></p>
+                            <button class="status-visibility-toggle" type="button" data-status-visibility-toggle data-status-type="spotify" data-status-audience="<?= htmlspecialchars($statusAudiences['spotify'], ENT_QUOTES, 'UTF-8') ?>" aria-pressed="<?= $statusAudiences['spotify'] === 'none' ? 'false' : 'true' ?>" aria-label="<?= $statusAudiences['spotify'] === 'none' ? 'Show Spotify status to friends' : 'Hide Spotify status from everyone' ?>" title="<?= $statusAudiences['spotify'] === 'none' ? 'Hidden from everyone' : 'Visible to friends' ?>"><span class="status-eye-icon" aria-hidden="true"></span></button>
                         </div>
                         <div class="status-item" data-current-game data-elapsed-seconds="<?= $currentGame ? (int) $currentGameElapsed : 0 ?>" title="<?= $currentGame ? htmlspecialchars($currentGame['current_game_name'], ENT_QUOTES, 'UTF-8') : '' ?>"<?= $currentGame ? '' : ' hidden' ?>>
                             <img src="<?= htmlspecialchars($currentGameImage ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-current-game-image<?= !empty($currentGameImage) ? '' : ' hidden' ?>>
@@ -612,6 +621,7 @@ if (isset($_SESSION['user_id'])) {
                                 <p data-current-game-name><?= $currentGame ? htmlspecialchars($currentGame['current_game_name'], ENT_QUOTES, 'UTF-8') : '' ?></p>
                                 <small data-current-game-duration><?= $currentGame ? htmlspecialchars(detectedDurationLabel($currentGameElapsed), ENT_QUOTES, 'UTF-8') : '' ?></small>
                             </span>
+                            <button class="status-visibility-toggle" type="button" data-status-visibility-toggle data-status-type="steam" data-status-audience="<?= htmlspecialchars($statusAudiences['steam'], ENT_QUOTES, 'UTF-8') ?>" aria-pressed="<?= $statusAudiences['steam'] === 'none' ? 'false' : 'true' ?>" aria-label="<?= $statusAudiences['steam'] === 'none' ? 'Show Steam status to friends' : 'Hide Steam status from everyone' ?>" title="<?= $statusAudiences['steam'] === 'none' ? 'Hidden from everyone' : 'Visible to friends' ?>"><span class="status-eye-icon" aria-hidden="true"></span></button>
                         </div>
                     </section>
                     <?php if ($statusError): ?>

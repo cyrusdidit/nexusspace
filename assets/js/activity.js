@@ -120,6 +120,7 @@ const currentMusic = document.querySelector('[data-current-music]');
 if (spotifyActivityEndpoint) {
     const currentMusicText = currentMusic?.querySelector('p');
     const currentMusicImage = currentMusic?.querySelector('[data-current-music-image]');
+    let spotifyRefreshInFlight = false;
 
     const hideCurrentMusic = () => {
         if (!currentMusic || !currentMusicText) return;
@@ -132,7 +133,8 @@ if (spotifyActivityEndpoint) {
     };
 
     const refreshSpotifyActivity = async () => {
-        if (document.hidden) return;
+        if (spotifyRefreshInFlight) return;
+        spotifyRefreshInFlight = true;
         try {
             const response = await fetch(spotifyActivityEndpoint, {
                 credentials: 'same-origin',
@@ -160,10 +162,12 @@ if (spotifyActivityEndpoint) {
             }
         } catch (error) {
             // Keep the last known track during a temporary connection failure.
+        } finally {
+            spotifyRefreshInFlight = false;
         }
     };
 
-    window.setInterval(refreshSpotifyActivity, 15 * 1000);
+    window.setInterval(refreshSpotifyActivity, 5 * 1000);
     window.addEventListener('focus', refreshSpotifyActivity);
     window.addEventListener('pageshow', refreshSpotifyActivity);
     currentMusicImage?.addEventListener('error', () => { currentMusicImage.hidden = true; });

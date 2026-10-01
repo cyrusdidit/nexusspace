@@ -59,8 +59,9 @@ try {
     $externalUrl = $active ? (string) ($item['external_urls']['spotify'] ?? '') : null;
     $isPlaying = $active ? 1 : 0;
 
-    $statement = mysqli_prepare($conn, 'UPDATE spotify_connections SET current_item_type = ?, current_item_id = ?, current_item_name = ?, current_artist_name = ?, current_image_url = ?, current_external_url = ?, is_playing = ?, playback_updated_at = NOW() WHERE user_id = ?');
-    mysqli_stmt_bind_param($statement, 'ssssssii', $itemType, $itemId, $itemName, $artistName, $imageUrl, $externalUrl, $isPlaying, $userId);
+    $spotifyUserId = (string) $connection['spotify_user_id'];
+    $statement = mysqli_prepare($conn, 'UPDATE spotify_connections SET current_item_type = ?, current_item_id = ?, current_item_name = ?, current_artist_name = ?, current_image_url = ?, current_external_url = ?, is_playing = ?, playback_updated_at = NOW() WHERE spotify_user_id = ?');
+    mysqli_stmt_bind_param($statement, 'ssssssis', $itemType, $itemId, $itemName, $artistName, $imageUrl, $externalUrl, $isPlaying, $spotifyUserId);
     mysqli_stmt_execute($statement);
     mysqli_stmt_close($statement);
 

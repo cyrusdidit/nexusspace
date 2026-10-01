@@ -53,7 +53,7 @@ if (steamIsConfigured()) {
     }
 }
 
-$statement = mysqli_prepare($conn, 'SELECT u.username, u.status_text, s.current_game_id, s.current_game_name, s.current_game_started_at, TIMESTAMPDIFF(SECOND, s.activity_updated_at, NOW()) AS game_activity_age_seconds, p.current_item_id, p.current_item_name, p.current_artist_name, p.current_image_url, p.current_external_url, p.is_playing, TIMESTAMPDIFF(SECOND, p.playback_updated_at, NOW()) AS music_activity_age_seconds FROM users u LEFT JOIN steam_connections s ON s.user_id = u.id LEFT JOIN spotify_connections p ON p.user_id = u.id WHERE u.id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) LIMIT 1');
+$statement = mysqli_prepare($conn, 'SELECT u.username, u.status_text, u.custom_status_audience, u.spotify_status_audience, u.steam_status_audience, s.current_game_id, s.current_game_name, s.current_game_started_at, TIMESTAMPDIFF(SECOND, s.activity_updated_at, NOW()) AS game_activity_age_seconds, p.current_item_id, p.current_item_name, p.current_artist_name, p.current_image_url, p.current_external_url, p.is_playing, TIMESTAMPDIFF(SECOND, p.playback_updated_at, NOW()) AS music_activity_age_seconds FROM users u LEFT JOIN steam_connections s ON s.user_id = u.id LEFT JOIN spotify_connections p ON p.user_id = u.id WHERE u.id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) LIMIT 1');
 mysqli_stmt_bind_param($statement, 'iii', $profileUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $activity = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
@@ -65,16 +65,31 @@ if (!$activity) {
     exit;
 }
 
+$viewerIsFriend = false;
+if ($currentUserId !== $profileUserId) {
+    $statement = mysqli_prepare($conn, 'SELECT id FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?) LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $profileUserId, $profileUserId, $currentUserId);
+    mysqli_stmt_execute($statement);
+    $viewerIsFriend = mysqli_num_rows(mysqli_stmt_get_result($statement)) > 0;
+    mysqli_stmt_close($statement);
+}
+$statusIsVisible = static function (string $audience) use ($currentUserId, $profileUserId, $viewerIsFriend): bool {
+    return $currentUserId === $profileUserId || $audience === 'public' || ($audience === 'friends' && $viewerIsFriend);
+};
+$customStatusVisible = $statusIsVisible((string) ($activity['custom_status_audience'] ?? 'friends'));
+$spotifyStatusVisible = $statusIsVisible((string) ($activity['spotify_status_audience'] ?? 'friends'));
+$steamStatusVisible = $statusIsVisible((string) ($activity['steam_status_audience'] ?? 'friends'));
+
 $gameId = trim((string) ($activity['current_game_id'] ?? ''));
 $gameName = trim((string) ($activity['current_game_name'] ?? ''));
-$gameActive = $gameId !== '' && $gameName !== '' && (int) ($activity['game_activity_age_seconds'] ?? 999) <= 60;
+$gameActive = $steamStatusVisible && $gameId !== '' && $gameName !== '' && (int) ($activity['game_activity_age_seconds'] ?? 999) <= 60;
 $songName = trim((string) ($activity['current_item_name'] ?? ''));
 $artistName = trim((string) ($activity['current_artist_name'] ?? ''));
-$musicActive = (int) ($activity['is_playing'] ?? 0) === 1
+$musicActive = $spotifyStatusVisible && (int) ($activity['is_playing'] ?? 0) === 1
     && $songName !== ''
     && (int) ($activity['music_activity_age_seconds'] ?? 999) <= 60;
 echo json_encode([
-    'status' => trim((string) ($activity['status_text'] ?? '')),
+    'status' => $customStatusVisible ? trim((string) ($activity['status_text'] ?? '')) : '',
     'music' => $musicActive ? [
         'id' => (string) ($activity['current_item_id'] ?? ''),
         'name' => $songName,
