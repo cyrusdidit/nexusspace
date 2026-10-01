@@ -19,6 +19,7 @@ function postActionResponse(array $payload, int $status = 200): never
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') postActionResponse(['ok' => false, 'error' => 'Method not allowed.'], 405);
+if (empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) postActionResponse(['ok' => false, 'error' => 'The upload is larger than the server accepts. Choose fewer or smaller files.'], 413);
 if (!isset($_SESSION['user_id'])) postActionResponse(['ok' => false, 'error' => 'Log in again to continue.'], 401);
 
 $token = $_POST['csrf_token'] ?? '';
@@ -29,10 +30,10 @@ if (!is_string($token) || !isset($_SESSION['posts_csrf']) || !hash_equals($_SESS
 $viewerId = (int) $_SESSION['user_id'];
 $postId = filter_var($_POST['post_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
-$allowedActions = ['edit_post', 'delete_post', 'remove_media', 'toggle_like', 'add_comment', 'edit_comment', 'delete_comment', 'purge_comment', 'toggle_pin'];
+$allowedActions = ['edit_post', 'delete_post', 'add_media', 'replace_media', 'reorder_media', 'remove_media', 'toggle_like', 'add_comment', 'edit_comment', 'delete_comment', 'purge_comment', 'toggle_pin'];
 if (!$postId || !in_array($action, $allowedActions, true)) postActionResponse(['ok' => false, 'error' => 'Invalid post action.'], 422);
 
-$statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1");
+$statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1");
 mysqli_stmt_bind_param($statement, 'iiiiii', $postId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId);
 mysqli_stmt_execute($statement);
 $post = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
@@ -42,16 +43,21 @@ $post['media'] = loadPostMedia($conn, [$postId])[$postId] ?? [];
 
 $postOwnerId = (int) $post['user_id'];
 $content = is_string($_POST['content'] ?? null) ? trim($_POST['content']) : '';
+$title = is_string($_POST['title'] ?? null) ? trim($_POST['title']) : '';
 $commentId = filter_var($_POST['comment_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+$newMediaFiles = [];
+$replacedMediaPath = null;
 
 try {
     if ($action === 'edit_post') {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can edit this post.'], 403);
-        if (mb_strlen($content, 'UTF-8') > 2500 || ($content === '' && !$post['media'])) postActionResponse(['ok' => false, 'error' => 'Write something or keep the attached media, using no more than 2,500 characters.'], 422);
-        $statement = mysqli_prepare($conn, 'UPDATE posts SET content = ?, edited_at = NOW() WHERE id = ? AND user_id = ?');
-        mysqli_stmt_bind_param($statement, 'sii', $content, $postId, $viewerId);
+        if (mb_strlen($title, 'UTF-8') > 100) postActionResponse(['ok' => false, 'error' => 'Keep the post title under 100 characters.'], 422);
+        if (mb_strlen($content, 'UTF-8') > 2500 || ($title === '' && $content === '' && !$post['media'])) postActionResponse(['ok' => false, 'error' => 'Add a title, write something, or keep the attached media, using no more than 2,500 characters.'], 422);
+        $statement = mysqli_prepare($conn, 'UPDATE posts SET title = ?, content = ?, edited_at = NOW() WHERE id = ? AND user_id = ?');
+        mysqli_stmt_bind_param($statement, 'ssii', $title, $content, $postId, $viewerId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
+        $post['title'] = $title;
         $post['content'] = $content;
         $post['edited_at'] = date('Y-m-d H:i:s');
     } elseif ($action === 'delete_post') {
@@ -63,6 +69,62 @@ try {
         deletePostMedia($post['media_path'], $viewerId);
         foreach ($post['media'] as $media) deletePostMedia($media['media_path'], $viewerId);
         postActionResponse(['ok' => true, 'deleted' => true]);
+    } elseif ($action === 'add_media') {
+        if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can add media.'], 403);
+        $upload = is_array($_FILES['media'] ?? null) ? $_FILES['media'] : ['error' => UPLOAD_ERR_NO_FILE];
+        $uploadCount = postMediaUploadCount($upload);
+        if ($uploadCount < 1) postActionResponse(['ok' => false, 'error' => 'Choose at least one media file.'], 422);
+        if (count($post['media']) + $uploadCount > POST_MEDIA_MAX_FILES) postActionResponse(['ok' => false, 'error' => 'A post can contain up to five media files.'], 422);
+        $newMediaFiles = storePostMediaBatch($upload, $viewerId);
+        $nextOrder = count($post['media']);
+        mysqli_begin_transaction($conn);
+        foreach ($newMediaFiles as $offset => $media) {
+            $sortOrder = $nextOrder + $offset;
+            $statement = mysqli_prepare($conn, 'INSERT INTO post_media (post_id, media_path, media_type, sort_order) VALUES (?, ?, ?, ?)');
+            mysqli_stmt_bind_param($statement, 'issi', $postId, $media['path'], $media['type'], $sortOrder);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+        }
+        mysqli_commit($conn);
+    } elseif ($action === 'replace_media') {
+        if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can replace media.'], 403);
+        $mediaId = filter_var($_POST['media_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $mediaIndex = false;
+        foreach ($post['media'] as $index => $media) if ((int) $media['id'] === $mediaId) { $mediaIndex = $index; break; }
+        if ($mediaIndex === false) postActionResponse(['ok' => false, 'error' => 'That media is no longer attached.'], 404);
+        $upload = is_array($_FILES['media'] ?? null) ? $_FILES['media'] : ['error' => UPLOAD_ERR_NO_FILE];
+        $replacement = storePostMedia($upload, $viewerId);
+        if (!$replacement) postActionResponse(['ok' => false, 'error' => 'Choose a replacement media file.'], 422);
+        $newMediaFiles = [$replacement];
+        $replacedMediaPath = $post['media'][$mediaIndex]['media_path'];
+        $statement = mysqli_prepare($conn, 'UPDATE post_media SET media_path = ?, media_type = ? WHERE id = ? AND post_id = ?');
+        mysqli_stmt_bind_param($statement, 'ssii', $replacement['path'], $replacement['type'], $mediaId, $postId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        deletePostMedia($replacedMediaPath, $viewerId);
+        $replacedMediaPath = null;
+    } elseif ($action === 'reorder_media') {
+        if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can reorder media.'], 403);
+        $mediaId = filter_var($_POST['media_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $direction = (int) ($_POST['direction'] ?? 0);
+        $mediaIndex = false;
+        foreach ($post['media'] as $index => $media) if ((int) $media['id'] === $mediaId) { $mediaIndex = $index; break; }
+        $targetIndex = $mediaIndex === false ? -1 : $mediaIndex + ($direction < 0 ? -1 : 1);
+        if ($mediaIndex === false || !isset($post['media'][$targetIndex])) postActionResponse(['ok' => false, 'error' => 'That media cannot move further.'], 422);
+        $currentOrder = (int) $post['media'][$mediaIndex]['sort_order'];
+        $targetId = (int) $post['media'][$targetIndex]['id'];
+        $targetOrder = (int) $post['media'][$targetIndex]['sort_order'];
+        mysqli_begin_transaction($conn);
+        $temporaryOrder = 255;
+        $statement = mysqli_prepare($conn, 'UPDATE post_media SET sort_order = ? WHERE id = ? AND post_id = ?');
+        mysqli_stmt_bind_param($statement, 'iii', $temporaryOrder, $mediaId, $postId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_bind_param($statement, 'iii', $currentOrder, $targetId, $postId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_bind_param($statement, 'iii', $targetOrder, $mediaId, $postId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        mysqli_commit($conn);
     } elseif ($action === 'remove_media') {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can remove its media.'], 403);
         $mediaId = filter_var($_POST['media_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -86,6 +148,13 @@ try {
             $post['media_type'] = null;
         }
         array_splice($post['media'], $mediaIndex, 1);
+        $statement = mysqli_prepare($conn, 'UPDATE post_media SET sort_order = ? WHERE id = ? AND post_id = ?');
+        foreach ($post['media'] as $sortOrder => $remainingMedia) {
+            $remainingId = (int) $remainingMedia['id'];
+            mysqli_stmt_bind_param($statement, 'iii', $sortOrder, $remainingId, $postId);
+            mysqli_stmt_execute($statement);
+        }
+        mysqli_stmt_close($statement);
         deletePostMedia($mediaPath, $viewerId);
     } elseif ($action === 'toggle_like') {
         mysqli_begin_transaction($conn);
@@ -208,9 +277,12 @@ try {
     }
 } catch (Throwable $exception) {
     if (mysqli_errno($conn)) @mysqli_rollback($conn);
-    postActionResponse(['ok' => false, 'error' => 'The post could not be updated. Please try again.'], 500);
+    foreach ($newMediaFiles as $media) deletePostMedia($media['path'], $viewerId);
+    $message = $exception instanceof InvalidArgumentException || $exception instanceof RuntimeException ? $exception->getMessage() : 'The post could not be updated. Please try again.';
+    postActionResponse(['ok' => false, 'error' => $message], $exception instanceof InvalidArgumentException ? 422 : 500);
 }
 
+$post['media'] = loadPostMedia($conn, [$postId])[$postId] ?? [];
 $interactions = loadPostInteractions($conn, [$postId], $viewerId);
 $assetPrefix = ($_POST['context'] ?? '') === 'profile' ? '../' : '';
 ob_start();
@@ -221,6 +293,7 @@ renderPostMedia($post, $assetPrefix, $postOwnerId === $viewerId);
 $mediaHtml = ob_get_clean();
 postActionResponse([
     'ok' => true,
+    'title' => $post['title'],
     'content' => $post['content'],
     'edited' => $post['edited_at'] !== null,
     'mediaKey' => implode('|', array_map(static fn(array $item): string => (string) $item['id'] . ':' . $item['media_path'], $post['media'])),

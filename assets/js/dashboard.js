@@ -127,32 +127,83 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const postContent = document.querySelector('[data-post-content]');
+    const postTitleInput = document.querySelector('[data-post-title-input]');
     const postCharacterCount = document.querySelector('[data-post-character-count]');
     const postComposerBox = document.querySelector('[data-post-composer-box]');
     const postComposerExpand = document.querySelector('[data-post-composer-expand]');
+    const postComposerClose = document.querySelector('[data-post-composer-close]');
+    const postAudienceSelect = document.querySelector('[data-post-audience-select]');
+    const postAudienceValue = document.querySelector('[data-post-audience-value]');
     const postComposer = document.querySelector('[data-post-composer]');
     const postMediaInput = document.querySelector('[data-post-media-input]');
     const postMediaPreview = document.querySelector('[data-post-media-preview]');
     const postMediaPreviewContent = postMediaPreview?.querySelector('[data-post-media-preview-content]');
     const postMediaClear = postMediaPreview?.querySelector('[data-post-media-clear]');
     let postMediaObjectUrls = [];
+    let postMediaValidationPending = 0;
+    let postMediaSelectionVersion = 0;
+    let updatePostComposerSize = () => {};
     if (postContent && postCharacterCount) {
         const updatePostCharacterCount = () => {
             postCharacterCount.textContent = `${postContent.value.length}/2500`;
+            updatePostComposerSize();
         };
         postContent.addEventListener('input', updatePostCharacterCount);
         updatePostCharacterCount();
     }
     const expandPostComposer = () => {
         postComposerBox?.classList.add('is-expanded');
+        updatePostComposerSize();
+    };
+    const collapsePostComposer = () => {
+        if (!postComposerBox?.classList.contains('is-expanded')) return;
+        postComposerBox.classList.remove('is-expanded');
+        if (postComposer?.contains(document.activeElement)) document.activeElement.blur();
     };
     postComposerExpand?.addEventListener('click', () => {
         expandPostComposer();
         postContent?.focus();
     });
+    postComposerClose?.addEventListener('click', collapsePostComposer);
+    const updatePostAudienceLabel = () => {
+        if (!postAudienceSelect || !postAudienceValue) return;
+        if (postAudienceSelect.value === 'friends') {
+            const firstLine = document.createElement('span');
+            const secondLine = document.createElement('span');
+            firstLine.textContent = 'Friends';
+            secondLine.textContent = 'Only';
+            postAudienceValue.replaceChildren(firstLine, secondLine);
+        } else {
+            postAudienceValue.textContent = 'Public';
+        }
+    };
+    postAudienceSelect?.addEventListener('change', updatePostAudienceLabel);
+    updatePostAudienceLabel();
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+        collapsePostComposer();
+    });
     postContent?.addEventListener('focus', expandPostComposer);
 
+    updatePostComposerSize = () => {
+        if (!postContent || !postComposerBox || !postComposerBox.classList.contains('is-expanded')) return;
+        postComposerBox.style.setProperty('--post-textarea-height', '0px');
+        postContent.style.height = 'auto';
+        const minimum = postComposerBox.classList.contains('has-media') ? 42 : 110;
+        const contentHeight = postContent.scrollHeight;
+        const textHeight = Math.min(420, Math.max(minimum, contentHeight));
+        postContent.style.height = '';
+        postComposerBox.classList.toggle('is-text-scrollable', contentHeight > 420);
+        postComposerBox.style.setProperty('--post-textarea-height', `${textHeight}px`);
+        postComposerBox.style.setProperty('--post-composer-text-height', `${textHeight}px`);
+        const previewHeight = Number(postComposerBox.dataset.previewHeight || 0);
+        if (previewHeight > 0) postComposerBox.style.setProperty('--post-composer-media-height', `${textHeight + previewHeight + 46}px`);
+    };
+    updatePostComposerSize();
+
     const clearPostMedia = () => {
+        postMediaSelectionVersion++;
+        postMediaValidationPending = 0;
         postMediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
         postMediaObjectUrls = [];
         if (postMediaInput) postMediaInput.value = '';
@@ -161,9 +212,13 @@ document.addEventListener('DOMContentLoaded', () => {
         postComposerBox?.classList.remove('has-media');
         postComposerBox?.style.removeProperty('--post-media-preview-height');
         postComposerBox?.style.removeProperty('--post-composer-media-height');
+        if (postComposerBox) delete postComposerBox.dataset.previewHeight;
+        updatePostComposerSize();
     };
     postMediaInput?.addEventListener('change', () => {
+        const selectionVersion = ++postMediaSelectionVersion;
         const files = [...(postMediaInput.files || [])];
+        postMediaValidationPending = 0;
         postMediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
         postMediaObjectUrls = [];
         postMediaPreviewContent?.replaceChildren();
@@ -172,6 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
         postComposerBox?.classList.remove('has-media');
         postComposerBox?.style.removeProperty('--post-media-preview-height');
         postComposerBox?.style.removeProperty('--post-composer-media-height');
+        if (postComposerBox) delete postComposerBox.dataset.previewHeight;
         if (!files.length) return;
         if (files.length > 5) {
             window.alert('Attach up to five media files per post.');
@@ -181,17 +237,19 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const file of files) {
             const image = file.type.startsWith('image/');
             const video = file.type === 'video/mp4' || file.type === 'video/webm';
-            const limit = image ? 10 * 1024 * 1024 : 50 * 1024 * 1024;
+            const limit = image ? 10 * 1024 * 1024 : 120 * 1024 * 1024;
             if ((!image && !video) || file.size > limit) {
-                window.alert(!image && !video ? 'Choose JPG, PNG, WebP, GIF, MP4, or WebM files.' : `${image ? 'Images' : 'Videos'} must be ${image ? '10' : '50'}MB or smaller.`);
+                window.alert(!image && !video ? 'Choose JPG, PNG, WebP, GIF, MP4, or WebM files.' : `${image ? 'Images' : 'Videos'} must be ${image ? '10' : '120'}MB or smaller.`);
                 clearPostMedia();
                 return;
             }
+            if (video) postMediaValidationPending++;
         }
         const setPreviewHeight = (previewHeight) => {
             if (!postComposerBox) return;
+            postComposerBox.dataset.previewHeight = String(previewHeight);
             postComposerBox.style.setProperty('--post-media-preview-height', `${previewHeight}px`);
-            postComposerBox.style.setProperty('--post-composer-media-height', `${previewHeight + 88}px`);
+            updatePostComposerSize();
         };
         if (files.length > 1) {
             postMediaPreviewContent?.classList.add('is-multiple');
@@ -200,6 +258,13 @@ document.addEventListener('DOMContentLoaded', () => {
         files.forEach((file, index) => {
             const image = file.type.startsWith('image/');
             const preview = document.createElement(image ? 'img' : 'video');
+            const previewItem = document.createElement('span');
+            const removePreview = document.createElement('button');
+            previewItem.className = 'post-media-preview-item';
+            removePreview.type = 'button';
+            removePreview.dataset.postMediaPreviewRemove = String(index);
+            removePreview.setAttribute('aria-label', `Remove selected media ${index + 1}`);
+            removePreview.textContent = '\u00d7';
             const objectUrl = URL.createObjectURL(file);
             postMediaObjectUrls.push(objectUrl);
             preview.src = objectUrl;
@@ -208,6 +273,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 preview.controls = true;
                 preview.muted = true;
                 preview.preload = 'metadata';
+                preview.addEventListener('loadedmetadata', () => {
+                    if (selectionVersion !== postMediaSelectionVersion) return;
+                    postMediaValidationPending = Math.max(0, postMediaValidationPending - 1);
+                    if (preview.duration > 3600) {
+                        window.alert('Videos can be no longer than one hour.');
+                        clearPostMedia();
+                    }
+                }, { once: true });
+                preview.addEventListener('error', () => {
+                    if (selectionVersion === postMediaSelectionVersion) postMediaValidationPending = Math.max(0, postMediaValidationPending - 1);
+                }, { once: true });
             }
             if (files.length === 1) {
                 const sizePreview = () => {
@@ -219,18 +295,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 preview.addEventListener(image ? 'load' : 'loadedmetadata', sizePreview, { once: true });
             }
-            postMediaPreviewContent?.append(preview);
+            previewItem.append(preview, removePreview);
+            postMediaPreviewContent?.append(previewItem);
         });
         if (postMediaPreview) postMediaPreview.hidden = false;
         postComposerBox?.classList.add('is-expanded', 'has-media');
+        updatePostComposerSize();
+    });
+    postMediaPreviewContent?.addEventListener('click', (event) => {
+        const remove = event.target.closest('[data-post-media-preview-remove]');
+        if (!remove || !postMediaInput) return;
+        const removeIndex = Number(remove.dataset.postMediaPreviewRemove);
+        const transfer = new DataTransfer();
+        [...postMediaInput.files].forEach((file, index) => { if (index !== removeIndex) transfer.items.add(file); });
+        postMediaInput.files = transfer.files;
+        postMediaInput.dispatchEvent(new Event('change', { bubbles: true }));
     });
     postMediaClear?.addEventListener('click', clearPostMedia);
     postComposer?.addEventListener('submit', (event) => {
-        if (postContent?.value.trim() || postMediaInput?.files?.length) return;
         event.preventDefault();
-        postContent?.setCustomValidity('Write something or attach media.');
-        postContent?.reportValidity();
-        postContent?.setCustomValidity('');
+        if (postMediaValidationPending > 0) {
+            window.alert('Wait a moment while the selected video is checked.');
+            return;
+        }
+        if (!postTitleInput?.value.trim() && !postContent?.value.trim() && !postMediaInput?.files?.length) {
+            postContent?.setCustomValidity('Add a title, write something, or attach media.');
+            postContent?.reportValidity();
+            postContent?.setCustomValidity('');
+            return;
+        }
+        const submit = postComposer.querySelector('[type="submit"]');
+        const uploadState = postComposer.querySelector('[data-post-upload-state]');
+        const progress = postComposer.querySelector('[data-post-upload-progress]');
+        const status = postComposer.querySelector('[data-post-upload-status]');
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', postComposer.action || window.location.href);
+        xhr.setRequestHeader('Accept', 'application/json');
+        if (submit) submit.disabled = true;
+        if (uploadState) uploadState.hidden = false;
+        if (progress) progress.value = 0;
+        if (status) status.textContent = 'Publishing...';
+        xhr.upload.addEventListener('progress', (uploadEvent) => {
+            if (!uploadEvent.lengthComputable) return;
+            const percent = Math.round((uploadEvent.loaded / uploadEvent.total) * 100);
+            if (progress) progress.value = percent;
+            if (status) status.textContent = `Uploading ${percent}%`;
+        });
+        xhr.addEventListener('load', () => {
+            let data;
+            try { data = JSON.parse(xhr.responseText); } catch { data = { ok: false, error: 'The server returned an invalid upload response.' }; }
+            if (xhr.status < 200 || xhr.status >= 300 || !data.ok) {
+                if (status) status.textContent = data.error || 'The post could not be published.';
+                if (submit) submit.disabled = false;
+                return;
+            }
+            if (status) status.textContent = 'Published.';
+            if (postTitleInput) postTitleInput.value = '';
+            postContent.value = '';
+            postContent.dispatchEvent(new Event('input'));
+            clearPostMedia();
+            postComposerBox?.classList.remove('is-expanded');
+            window.dispatchEvent(new CustomEvent('nexusspace:posts-refresh'));
+            if (submit) submit.disabled = false;
+            window.setTimeout(() => { if (uploadState) uploadState.hidden = true; }, 1200);
+        });
+        xhr.addEventListener('error', () => {
+            if (status) status.textContent = 'The upload connection failed. Please try again.';
+            if (submit) submit.disabled = false;
+        });
+        xhr.send(new FormData(postComposer));
     });
 
     const notificationsPanel = document.querySelector('[data-notifications]');

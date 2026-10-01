@@ -68,8 +68,17 @@ $basicStatus = '';
 $statusError = '';
 $postError = '';
 $postContent = '';
+$postTitle = '';
 $postVisibility = 'friends';
 $posts = [];
+$hasMorePosts = false;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0 && str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
+    http_response_code(413);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => false, 'error' => 'The upload is larger than the server accepts. Choose fewer or smaller files.']);
+    exit;
+}
 $postInteractions = [];
 $currentGame = null;
 $currentMusic = null;
@@ -317,11 +326,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['create_post', 'delete_post'], true)) {
+    $postJson = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
     if (!isset($_SESSION['user_id'])) {
+        if ($postJson) {
+            http_response_code(401);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'Log in again to publish this post.']);
+            exit;
+        }
         header('Location: pages/login.php');
         exit;
     }
     $postContent = is_string($_POST['content'] ?? null) ? trim($_POST['content']) : '';
+    $postTitle = is_string($_POST['title'] ?? null) ? trim($_POST['title']) : '';
     $postVisibility = is_string($_POST['visibility'] ?? null) ? $_POST['visibility'] : 'friends';
     $token = $_POST['csrf_token'] ?? '';
     if (!is_string($token) || !hash_equals($_SESSION['posts_csrf'], $token)) {
@@ -329,20 +346,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     } elseif ($_POST['action'] === 'create_post') {
         $postUpload = is_array($_FILES['post_media'] ?? null) ? $_FILES['post_media'] : ['error' => UPLOAD_ERR_NO_FILE];
         $postMediaCount = postMediaUploadCount($postUpload);
-        if (!in_array($postVisibility, ['friends', 'public'], true)) {
+        if (mb_strlen($postTitle, 'UTF-8') > 100) {
+            $postError = 'Keep the post title under 100 characters.';
+        } elseif (!in_array($postVisibility, ['friends', 'public'], true)) {
             $postError = 'Choose Friends Only or Public.';
         } elseif ($postMediaCount > POST_MEDIA_MAX_FILES) {
             $postError = 'Attach up to five media files per post.';
-        } elseif (mb_strlen($postContent, 'UTF-8') > 2500 || ($postContent === '' && $postMediaCount === 0)) {
-            $postError = 'Write something or attach media, using no more than 2,500 characters.';
+        } elseif (mb_strlen($postContent, 'UTF-8') > 2500 || ($postTitle === '' && $postContent === '' && $postMediaCount === 0)) {
+            $postError = 'Add a title, write something, or attach media, using no more than 2,500 characters.';
         } else {
             $authorId = (int) $_SESSION['user_id'];
             $storedMedia = [];
             try {
                 $storedMedia = storePostMediaBatch($postUpload, $authorId);
                 mysqli_begin_transaction($conn);
-                $statement = mysqli_prepare($conn, 'INSERT INTO posts (user_id, content, visibility) VALUES (?, ?, ?)');
-                mysqli_stmt_bind_param($statement, 'iss', $authorId, $postContent, $postVisibility);
+                $statement = mysqli_prepare($conn, 'INSERT INTO posts (user_id, title, content, visibility) VALUES (?, ?, ?, ?)');
+                mysqli_stmt_bind_param($statement, 'isss', $authorId, $postTitle, $postContent, $postVisibility);
                 mysqli_stmt_execute($statement);
                 $newPostId = (int) mysqli_insert_id($conn);
                 mysqli_stmt_close($statement);
@@ -353,6 +372,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
                     mysqli_stmt_close($statement);
                 }
                 mysqli_commit($conn);
+                if ($postJson) {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['ok' => true, 'postId' => $newPostId]);
+                    exit;
+                }
                 header('Location: index.php');
                 exit;
             } catch (Throwable $exception) {
@@ -385,6 +409,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
             exit;
         }
     }
+    if ($postJson && $postError !== '') {
+        http_response_code(422);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => $postError]);
+        exit;
+    }
 }
 
 if (isset($_SESSION['user_id'])) {
@@ -405,11 +435,13 @@ if (isset($_SESSION['user_id'])) {
     if (isset($submittedColor) && preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         $dashboardBackgroundColor = $submittedColor;
     }
-    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 51");
     mysqli_stmt_bind_param($feedStatement, 'iiiii', $userId, $userId, $userId, $userId, $userId);
     mysqli_stmt_execute($feedStatement);
     $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($feedStatement);
+    $hasMorePosts = count($posts) > 50;
+    if ($hasMorePosts) array_pop($posts);
     attachPostMedia($posts, loadPostMedia($conn, array_column($posts, 'id')));
     $postInteractions = loadPostInteractions($conn, array_column($posts, 'id'), $userId);
     $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
@@ -469,7 +501,7 @@ if (isset($_SESSION['user_id'])) {
         }
     }
 } else {
-    $publicResult = mysqli_query($conn, "SELECT p.id, p.user_id, p.content, p.media_path, p.media_type, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $publicResult = mysqli_query($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     $posts = mysqli_fetch_all($publicResult, MYSQLI_ASSOC);
     attachPostMedia($posts, loadPostMedia($conn, array_column($posts, 'id')));
 }
@@ -484,6 +516,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/activity.js?v=<?= filemtime(__DIR__ . '/assets/js/activity.js') ?>" defer></script>
     <script src="assets/js/steam-status.js?v=<?= filemtime(__DIR__ . '/assets/js/steam-status.js') ?>" defer></script>
     <script src="assets/js/dashboard.js?v=<?= filemtime(__DIR__ . '/assets/js/dashboard.js') ?>" defer></script>
+    <script src="assets/js/media.js?v=<?= filemtime(__DIR__ . '/assets/js/media.js') ?>" defer></script>
     <script src="assets/js/profile-preview.js?v=<?= filemtime(__DIR__ . '/assets/js/profile-preview.js') ?>" defer></script>
     <script src="assets/js/message-updates.js?v=<?= filemtime(__DIR__ . '/assets/js/message-updates.js') ?>" defer></script>
     <script src="assets/js/mini-chat.js?v=<?= filemtime(__DIR__ . '/assets/js/mini-chat.js') ?>" defer></script>
@@ -632,37 +665,33 @@ if (isset($_SESSION['user_id'])) {
                     <input type="hidden" name="action" value="create_post">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
                     <div class="post-composer-box<?= $postContent !== '' || $postError !== '' ? ' is-expanded' : '' ?>" data-post-composer-box>
+                        <div class="post-composer-header"><label class="sr-only" for="post-title">Post title</label><input id="post-title" name="title" maxlength="100" placeholder="Post title" value="<?= htmlspecialchars($postTitle, ENT_QUOTES, 'UTF-8') ?>" data-post-title-input><div class="post-composer-header-actions"><label class="sr-only" for="post-visibility">Audience</label><span class="post-audience-select"><select id="post-visibility" name="visibility" aria-label="Post audience" data-post-audience-select><option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option><option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option></select><span class="post-audience-value" aria-hidden="true" data-post-audience-value><?= $postVisibility === 'public' ? 'Public' : "Friends<br>Only" ?></span></span><button class="post-composer-close" type="button" aria-label="Close post composer" title="Close" data-post-composer-close>&times;</button></div></div>
                         <label class="sr-only" for="post-content">Write a post</label>
                         <textarea id="post-content" name="content" rows="4" maxlength="2500" placeholder="What's on your mind?" data-post-content><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
                         <button class="post-composer-expand" type="button" aria-label="Create a post" title="Create a post" data-post-composer-expand>+</button>
-                        <label class="sr-only" for="post-visibility">Audience</label>
-                        <select id="post-visibility" name="visibility" aria-label="Post audience">
-                            <option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option>
-                            <option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option>
-                        </select>
-                        <span class="post-character-count" data-post-character-count>0/2500</span>
-                        <label class="post-media-picker" for="post-media" title="Attach media">Media</label>
-                        <input id="post-media" class="sr-only" type="file" name="post_media[]" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-input multiple>
-                        <button class="post-submit-button" type="submit">Post</button>
-                        <div class="post-media-preview" data-post-media-preview hidden><div data-post-media-preview-content></div><button type="button" data-post-media-clear aria-label="Remove selected media">&times;</button></div>
+                        <div class="post-composer-footer"><span class="post-character-count" data-post-character-count>0/2500</span><div class="post-composer-actions"><label class="post-media-picker" for="post-media" title="Attach media" aria-label="Attach media">+</label><input id="post-media" class="sr-only" type="file" name="post_media[]" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-input multiple><button class="post-submit-button" type="submit">Post</button></div></div>
+                        <div class="post-media-preview" data-post-media-preview hidden><div data-post-media-preview-content></div></div>
                     </div>
+                    <div class="post-upload-state" data-post-upload-state hidden><progress max="100" value="0" data-post-upload-progress></progress><span data-post-upload-status role="status"></span></div>
                     <?php if ($postError): ?><p class="post-error" role="alert"><?= htmlspecialchars($postError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 </form>
                 <p class="post-empty" data-post-empty<?= $posts ? ' hidden' : '' ?>>No posts yet.</p>
                 <div class="post-list" data-post-list>
                 <?php foreach ($posts as $post): ?>
-                    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= (int) $post['user_id'] === $userId ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
+                    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= (int) $post['user_id'] === $userId ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>">
                         <header class="post-header">
                             <?php renderPostAuthor($post); ?>
                             <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ((int) $post['user_id'] === $userId): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
                         </header>
+                        <?php if ($post['title'] !== ''): ?><h3 class="post-title" data-post-title><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
                         <p class="post-content" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
                         <?php renderPostMedia($post, '', (int) $post['user_id'] === $userId); ?>
-                        <?php if ((int) $post['user_id'] === $userId): ?><form class="post-edit-form" data-post-edit-form hidden><textarea maxlength="2500"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></textarea><div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div></form><?php endif; ?>
+                        <?php if ((int) $post['user_id'] === $userId) renderPostEditForm($post); ?>
                         <?php renderPostInteractions($post, $postInteractions[(int) $post['id']] ?? [], $userId); ?>
                     </article>
                 <?php endforeach; ?>
                 </div>
+                <button class="post-load-more" type="button" data-post-load-more<?= $hasMorePosts ? '' : ' hidden' ?>>Load more</button>
             </section>
 
             <aside class="dashboard-right-rail">
@@ -802,6 +831,7 @@ if (isset($_SESSION['user_id'])) {
                         <?php renderPostAuthor($post); ?>
                         <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time></div>
                     </header>
+                    <?php if ($post['title'] !== ''): ?><h3 class="post-title"><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
                     <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
                     <?php renderPostMedia($post); ?>
                 </article>
