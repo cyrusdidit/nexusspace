@@ -156,8 +156,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const notificationsPopover = notificationsPanel.querySelector('.notifications-popover');
         const notificationList = notificationsPanel.querySelector('[data-notifications-list]');
         const readAllButton = notificationsPanel.querySelector('[data-read-all-notifications]');
-        const friendNotifications = notificationsPanel.querySelector('[data-friend-notifications]');
-        const readRequests = new Set();
+        const notificationsFeed = notificationsPanel.querySelector('[data-notifications-feed]');
+        const notificationFilter = notificationsPanel.querySelector('[data-notification-filter]');
+        const notificationCount = notificationsPanel.querySelector('[data-notification-count]');
+        const notificationsEndpoint = document.body.dataset.notificationsEndpoint;
+        const notificationsCsrf = document.body.dataset.notificationsCsrf;
+        let unreadTotal = 0;
         let notificationCloseTimer;
         const closeNotifications = () => {
             clearTimeout(notificationCloseTimer);
@@ -169,21 +173,33 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(notificationCloseTimer);
             notificationCloseTimer = window.setTimeout(closeNotifications, 5000);
         };
-        const markRead = (item) => {
+        const postNotificationAction = (action, notificationId = '') => {
+            if (!notificationsEndpoint || !notificationsCsrf) return;
+            const body = new FormData();
+            body.set('action', action);
+            body.set('csrf_token', notificationsCsrf);
+            if (notificationId) body.set('notification_id', notificationId);
+            fetch(notificationsEndpoint, { method: 'POST', body, credentials: 'same-origin', keepalive: true }).catch(() => {});
+        };
+        const markRead = (item, persist = true) => {
+            if (item.dataset.unread !== 'true') return;
             item.dataset.unread = 'false';
             item.classList.remove('is-unread');
-            if (item.dataset.requestKey) {
-                readRequests.add(item.dataset.requestKey);
-                try { sessionStorage.setItem(item.dataset.requestKey, 'read'); } catch {}
-            }
+            unreadTotal = Math.max(0, unreadTotal - 1);
+            if (persist) postNotificationAction('read', item.dataset.notificationId);
         };
 
         const updateUnreadCount = () => {
-            const unreadCount = notificationsPanel.querySelectorAll('[data-notification-item][data-unread="true"]').length;
+            const unreadCount = unreadTotal;
 
             if (notificationBadge) {
                 notificationBadge.hidden = unreadCount === 0;
-                notificationBadge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+                notificationBadge.textContent = '';
+            }
+            if (notificationCount) {
+                notificationCount.hidden = unreadCount === 0;
+                notificationCount.textContent = String(unreadCount);
+                notificationCount.setAttribute('aria-label', `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`);
             }
             if (notificationBell) {
                 notificationBell.src = unreadCount > 0 ? notificationBell.dataset.unreadSrc : notificationBell.dataset.defaultSrc;
@@ -195,41 +211,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateUnreadCount();
 
-        if (friendNotifications) {
+        const notificationCategory = (type) => ({
+            post_like: 'likes',
+            post_comment: 'comments',
+            comment_reply: 'replies',
+            comment_pin: 'pins',
+            message: 'messages',
+            friend_request: 'friends',
+            friend_accept: 'friends',
+            profile_view: 'profile',
+        })[type] || 'other';
+        const applyNotificationFilter = () => {
+            if (!notificationsFeed) return;
+            const selected = notificationFilter?.value || 'all';
+            let visibleCount = 0;
+            notificationsFeed.querySelectorAll('[data-notification-item]').forEach((item) => {
+                item.hidden = selected !== 'all' && item.dataset.notificationCategory !== selected;
+                if (!item.hidden) visibleCount++;
+            });
+            let empty = notificationsFeed.querySelector('[data-notification-empty]');
+            if (!empty) {
+                empty = document.createElement('p');
+                empty.className = 'notification-empty';
+                empty.dataset.notificationEmpty = '';
+                notificationsFeed.append(empty);
+            }
+            empty.textContent = selected === 'all' ? 'No notifications yet.' : `No ${notificationFilter.selectedOptions[0].text.toLowerCase()} notifications.`;
+            empty.hidden = visibleCount > 0;
+        };
+        notificationFilter?.addEventListener('change', applyNotificationFilter);
+
+        if (notificationsFeed && notificationsEndpoint) {
             let fetching = false;
-            const refreshRequests = async () => {
+            const refreshNotifications = async () => {
                 if (fetching) return;
                 fetching = true;
                 try {
-                    const response = await fetch('friend-notifications.php', { credentials: 'same-origin', cache: 'no-store' });
+                    const response = await fetch(notificationsEndpoint, { credentials: 'same-origin', cache: 'no-store' });
                     if (!response.ok) return;
                     const data = await response.json();
-                    const activeKeys = new Set();
-                    data.requests.forEach((request) => {
-                        const key = `friend-request:${data.userId}:${request.id}:${request.created_at}`;
-                        activeKeys.add(key);
-                        let item = Array.from(friendNotifications.children).find((child) => child.dataset.requestKey === key);
-                        if (item) {
-                            if (request.status !== 'pending') markRead(item);
-                            return;
-                        }
-                        item = document.createElement('p');
-                        item.className = 'notification-item is-unread';
+                    unreadTotal = Number(data.unreadTotal) || 0;
+                    notificationsFeed.replaceChildren();
+                    data.notifications.forEach((notification) => {
+                        const item = document.createElement('p');
+                        item.className = `notification-item${notification.is_read ? '' : ' is-unread'}`;
                         item.dataset.notificationItem = '';
-                        item.dataset.requestKey = key;
-                        item.dataset.unread = 'true';
+                        item.dataset.notificationId = notification.id;
+                        item.dataset.notificationCategory = notificationCategory(notification.type);
+                        item.dataset.unread = notification.is_read ? 'false' : 'true';
                         const link = document.createElement('a');
-                        link.href = `pages/profile.php?id=${encodeURIComponent(request.sender_id)}`;
-                        link.textContent = `${request.username} sent you a friend request!`;
-                        item.append(link);
-                        let alreadyRead = request.status !== 'pending' || readRequests.has(key);
-                        try { alreadyRead ||= sessionStorage.getItem(key) === 'read'; } catch {}
-                        if (alreadyRead) markRead(item);
-                        friendNotifications.append(item);
+                        link.href = notification.url;
+                        link.textContent = notification.text;
+                        const time = document.createElement('time');
+                        time.dateTime = notification.created_at.replace(' ', 'T');
+                        time.textContent = new Date(notification.created_at.replace(' ', 'T')).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        item.append(link, time);
+                        notificationsFeed.append(item);
                     });
-                    Array.from(friendNotifications.children).forEach((item) => {
-                        if (!activeKeys.has(item.dataset.requestKey)) item.remove();
-                    });
+                    applyNotificationFilter();
                     updateUnreadCount();
                 } catch {
                     // Retain existing notifications during a temporary connection failure.
@@ -237,16 +276,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     fetching = false;
                 }
             };
-            refreshRequests();
-            window.setInterval(refreshRequests, 5000);
-            window.addEventListener('focus', refreshRequests);
+            refreshNotifications();
+            window.setInterval(refreshNotifications, 3000);
+            window.addEventListener('focus', refreshNotifications);
         }
 
         if (readAllButton) {
             readAllButton.addEventListener('click', () => {
                 notificationsPanel.querySelectorAll('[data-notification-item]').forEach((item) => {
-                    markRead(item);
+                    markRead(item, false);
                 });
+                unreadTotal = 0;
+                postNotificationAction('read_all');
                 updateUnreadCount();
             });
         }

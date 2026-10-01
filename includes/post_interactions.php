@@ -137,7 +137,7 @@ function renderLivePostCard(array $post, array $interaction, int $viewerId, stri
     $avatarPath = trim((string) ($post['avatar_path'] ?? ''));
     $avatar = $avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath) ? $assetPrefix . ltrim($avatarPath, '/') : '';
     ?>
-    <article class="post-card<?= $owned ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
+    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $owned ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
         <header class="post-header">
             <a class="post-author" href="<?= $profileLink . (int) $post['user_id'] ?>">
                 <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($post['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatar): ?><img src="<?= htmlspecialchars($avatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>

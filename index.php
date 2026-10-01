@@ -74,6 +74,7 @@ $currentGame = null;
 $currentMusic = null;
 $dashboardAppearanceError = '';
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
+$_SESSION['notifications_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['dashboard_appearance_csrf'] ??= bin2hex(random_bytes(32));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_dashboard_background') {
@@ -457,7 +458,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
     <?php if (isset($_SESSION['user_id'])): ?><script src="assets/js/posts.js?v=<?= filemtime(__DIR__ . '/assets/js/posts.js') ?>" defer></script><?php endif; ?>
 </head>
-<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard"' : '' ?>>
+<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard" data-notifications-endpoint="notifications.php" data-notifications-csrf="' . htmlspecialchars($_SESSION['notifications_csrf'], ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
@@ -483,11 +484,26 @@ if (isset($_SESSION['user_id'])) {
                         <div class="notifications-heading">
                             <button class="notifications-toggle" type="button" aria-expanded="false" aria-controls="notifications-list" aria-label="Notifications">
                                 <img class="notification-bell-icon" src="assets/images/notification-bell.png" data-notification-bell data-default-src="assets/images/notification-bell.png" data-unread-src="assets/images/notification-bell-unread.png" alt="" aria-hidden="true">
+                                <span class="notification-badge" data-notification-badge hidden>0</span>
                             </button>
                         </div>
                         <div class="notifications-popover">
+                            <div class="notifications-toolbar">
+                                <label for="notification-filter">Filter:</label>
+                                <select id="notification-filter" data-notification-filter aria-label="Filter notifications">
+                                    <option value="all">All</option>
+                                    <option value="likes">Likes</option>
+                                    <option value="comments">Comments</option>
+                                    <option value="replies">Replies</option>
+                                    <option value="pins">Pins</option>
+                                    <option value="messages">Messages</option>
+                                    <option value="friends">Friends</option>
+                                    <option value="profile">Profile</option>
+                                </select>
+                                <span class="notifications-unread-count" data-notification-count aria-label="0 unread notifications" hidden>0</span>
+                            </div>
                             <div class="notifications-list" id="notifications-list" data-notifications-list tabindex="0" role="region" aria-label="Notifications">
-                                <div data-friend-notifications></div>
+                                <div data-notifications-feed></div>
                             </div>
                             <button class="notifications-read-all" type="button" data-read-all-notifications>Read all</button>
                             <div class="message-popup" data-message-popup hidden>
@@ -598,7 +614,7 @@ if (isset($_SESSION['user_id'])) {
                 <p class="post-empty" data-post-empty<?= $posts ? ' hidden' : '' ?>>No posts yet.</p>
                 <div class="post-list" data-post-list>
                 <?php foreach ($posts as $post): ?>
-                    <article class="post-card<?= (int) $post['user_id'] === $userId ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
+                    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= (int) $post['user_id'] === $userId ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
                         <header class="post-header">
                             <?php renderPostAuthor($post); ?>
                             <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ((int) $post['user_id'] === $userId): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>

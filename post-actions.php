@@ -8,6 +8,7 @@ header('Cache-Control: no-store');
 
 require_once __DIR__ . '/includes/db_connect.php';
 require_once __DIR__ . '/includes/post_interactions.php';
+require_once __DIR__ . '/includes/notifications.php';
 
 function postActionResponse(array $payload, int $status = 200): never
 {
@@ -69,15 +70,18 @@ try {
         mysqli_stmt_bind_param($statement, 'ii', $postId, $viewerId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
+        if ($liked) removeNotification($conn, $postOwnerId, 'post_like:' . $postId . ':' . $viewerId);
+        else createNotification($conn, $postOwnerId, $viewerId, 'post_like', (int) $postId, (int) $postId, 'post_like:' . $postId . ':' . $viewerId);
         mysqli_commit($conn);
     } elseif ($action === 'add_comment') {
         if ($content === '' || mb_strlen($content, 'UTF-8') > 1000) postActionResponse(['ok' => false, 'error' => 'Use 1 to 1,000 characters.'], 422);
         $parentId = filter_var($_POST['parent_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($parentId) {
-            $statement = mysqli_prepare($conn, 'SELECT id FROM post_comments WHERE id = ? AND post_id = ? AND parent_id IS NULL AND deleted_at IS NULL LIMIT 1');
+            $statement = mysqli_prepare($conn, 'SELECT id, user_id FROM post_comments WHERE id = ? AND post_id = ? AND parent_id IS NULL AND deleted_at IS NULL LIMIT 1');
             mysqli_stmt_bind_param($statement, 'ii', $parentId, $postId);
             mysqli_stmt_execute($statement);
-            $validParent = mysqli_num_rows(mysqli_stmt_get_result($statement)) > 0;
+            $parentComment = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
+            $validParent = $parentComment !== null;
             mysqli_stmt_close($statement);
             if (!$validParent) postActionResponse(['ok' => false, 'error' => 'That comment cannot be replied to.'], 422);
             $statement = mysqli_prepare($conn, 'INSERT INTO post_comments (post_id, user_id, parent_id, content) VALUES (?, ?, ?, ?)');
@@ -87,7 +91,10 @@ try {
             mysqli_stmt_bind_param($statement, 'iis', $postId, $viewerId, $content);
         }
         mysqli_stmt_execute($statement);
+        $newCommentId = (int) mysqli_insert_id($conn);
         mysqli_stmt_close($statement);
+        if ($parentId) createNotification($conn, (int) $parentComment['user_id'], $viewerId, 'comment_reply', $newCommentId, (int) $postId, 'comment_reply:' . $newCommentId);
+        else createNotification($conn, $postOwnerId, $viewerId, 'post_comment', $newCommentId, (int) $postId, 'post_comment:' . $newCommentId);
     } elseif (in_array($action, ['edit_comment', 'delete_comment'], true)) {
         if (!$commentId) postActionResponse(['ok' => false, 'error' => 'Choose a valid comment.'], 422);
         if ($action === 'edit_comment') {
@@ -103,6 +110,12 @@ try {
         $changed = mysqli_stmt_affected_rows($statement);
         mysqli_stmt_close($statement);
         if ($changed < 1) postActionResponse(['ok' => false, 'error' => 'You cannot change that comment.'], 403);
+        if ($action === 'delete_comment') {
+            $statement = mysqli_prepare($conn, "DELETE FROM notifications WHERE entity_id = ? AND type IN ('post_comment', 'comment_reply', 'comment_pin')");
+            mysqli_stmt_bind_param($statement, 'i', $commentId);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+        }
     } elseif ($action === 'purge_comment') {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can remove deleted comments.'], 403);
         if (!$commentId) postActionResponse(['ok' => false, 'error' => 'Choose a valid comment.'], 422);
@@ -135,7 +148,7 @@ try {
         mysqli_stmt_bind_param($statement, 'i', $postId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
-        $statement = mysqli_prepare($conn, 'SELECT pinned_at FROM post_comments WHERE id = ? AND post_id = ? AND parent_id IS NULL AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
+        $statement = mysqli_prepare($conn, 'SELECT pinned_at, user_id FROM post_comments WHERE id = ? AND post_id = ? AND parent_id IS NULL AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
         mysqli_stmt_bind_param($statement, 'ii', $commentId, $postId);
         mysqli_stmt_execute($statement);
         $comment = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
@@ -161,6 +174,8 @@ try {
         mysqli_stmt_bind_param($statement, 'i', $commentId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
+        if ($comment['pinned_at']) removeNotification($conn, (int) $comment['user_id'], 'comment_pin:' . $commentId);
+        else createNotification($conn, (int) $comment['user_id'], $viewerId, 'comment_pin', (int) $commentId, (int) $postId, 'comment_pin:' . $commentId, true);
         mysqli_commit($conn);
     }
 } catch (Throwable $exception) {

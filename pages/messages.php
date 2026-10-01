@@ -17,6 +17,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/notifications.php';
 require_once __DIR__ . '/../includes/background_customization.php';
 require_once __DIR__ . '/../includes/activity.php';
 $currentUserId = (int) $_SESSION['user_id'];
@@ -283,6 +284,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_execute($statement);
             $deleted = mysqli_stmt_affected_rows($statement);
             mysqli_stmt_close($statement);
+            if ($deleted === 1) removeNotification($conn, $selectedId, 'message:' . $messageId);
             if ($deleted !== 1) {
                 http_response_code(404);
                 $error = 'That message could not be deleted.';
@@ -305,6 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_bind_param($statement, 'iiii', $selectedId, $currentUserId, $first, $last);
             mysqli_stmt_execute($statement);
             mysqli_stmt_close($statement);
+            markMessageNotificationsRead($conn, $currentUserId, $selectedId, (int) $first, (int) $last);
             if ($isJson) { echo json_encode(['ok' => true]); exit; }
         }
     } else {
@@ -317,7 +320,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $statement = mysqli_prepare($conn, 'INSERT INTO messages (sender_id, receiver_id, content) VALUES (?, ?, ?)');
             mysqli_stmt_bind_param($statement, 'iis', $currentUserId, $selectedId, $content);
             mysqli_stmt_execute($statement);
+            $newMessageId = (int) mysqli_insert_id($conn);
             mysqli_stmt_close($statement);
+            createNotification($conn, $selectedId, $currentUserId, 'message', $newMessageId, null, 'message:' . $newMessageId);
             if ($isJson) {
                 echo json_encode(['ok' => true]);
                 exit;
@@ -373,6 +378,7 @@ if ($selectedFriend && $error === '') {
         mysqli_stmt_bind_param($statement, 'iiii', $selectedId, $currentUserId, $firstId, $lastId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
+        markMessageNotificationsRead($conn, $currentUserId, $selectedId, $firstId, $lastId);
     }
 
     $statement = mysqli_prepare($conn, 'SELECT COALESCE(MAX(id), 0) AS last_read_id FROM messages WHERE sender_id = ? AND receiver_id = ? AND is_read = 1 AND deleted_at IS NULL');

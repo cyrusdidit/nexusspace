@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/background_customization.php';
 require_once __DIR__ . '/../includes/activity.php';
 require_once __DIR__ . '/../includes/blocks.php';
 require_once __DIR__ . '/../includes/post_interactions.php';
+require_once __DIR__ . '/../includes/notifications.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
@@ -37,6 +38,9 @@ if ($user && !$isOwnProfile && usersAreBlocked($conn, $currentUserId, $userId)) 
 }
 if (!$user) {
     http_response_code(404);
+}
+if ($user && !$isOwnProfile && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    createNotification($conn, $userId, $currentUserId, 'profile_view', $currentUserId, null, 'profile_view:' . $currentUserId . ':' . $userId . ':' . date('Y-m-d'));
 }
 $profileNickname = '';
 if ($user && !$isOwnProfile) {
@@ -540,6 +544,12 @@ if ($user && !$isOwnProfile) {
                     mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
                     mysqli_stmt_execute($statement);
                     mysqli_stmt_close($statement);
+                    $statement = mysqli_prepare($conn, 'SELECT id FROM friend_requests WHERE sender_id = ? AND receiver_id = ? LIMIT 1');
+                    mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
+                    mysqli_stmt_execute($statement);
+                    $requestId = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['id'] ?? 0);
+                    mysqli_stmt_close($statement);
+                    createNotification($conn, $userId, $currentUserId, 'friend_request', $requestId, null, 'friend_request:' . $requestId, true);
                 }
                 if (in_array($action, ['accept', 'decline'], true) && $state === 'received') {
                     $decision = $action === 'accept' ? 'accepted' : 'declined';
@@ -553,11 +563,20 @@ if ($user && !$isOwnProfile) {
                         mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
                         mysqli_stmt_execute($statement);
                         mysqli_stmt_close($statement);
+                        createNotification($conn, $userId, $currentUserId, 'friend_accept', $currentUserId, null, 'friend_accept:' . $userId . ':' . $currentUserId, true);
                     }
+                    $statement = mysqli_prepare($conn, "DELETE FROM notifications WHERE recipient_id = ? AND actor_id = ? AND type = 'friend_request'");
+                    mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
                 }
                 if ($action === 'cancel_request' && $state === 'sent') {
                     $statement = mysqli_prepare($conn, "DELETE FROM friend_requests WHERE sender_id = ? AND receiver_id = ? AND status = 'pending'");
                     mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+                    $statement = mysqli_prepare($conn, "DELETE FROM notifications WHERE recipient_id = ? AND actor_id = ? AND type = 'friend_request'");
+                    mysqli_stmt_bind_param($statement, 'ii', $userId, $currentUserId);
                     mysqli_stmt_execute($statement);
                     mysqli_stmt_close($statement);
                 }
@@ -866,7 +885,7 @@ if ($isOwnProfile) {
             <p class="post-empty" data-post-empty<?= $profilePosts ? ' hidden' : '' ?>>No posts to show yet.</p>
             <div class="post-list" data-post-list>
             <?php foreach ($profilePosts as $post): ?>
-                <article class="post-card<?= $isOwnProfile ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
+                <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $isOwnProfile ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>">
                     <header class="post-header">
                         <span class="post-author">
                             <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatarPath): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
