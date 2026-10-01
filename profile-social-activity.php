@@ -53,7 +53,7 @@ if (steamIsConfigured()) {
     }
 }
 
-$statement = mysqli_prepare($conn, 'SELECT u.username, s.current_game_id, s.current_game_name, s.current_game_started_at, TIMESTAMPDIFF(SECOND, s.activity_updated_at, NOW()) AS game_activity_age_seconds, p.current_item_id, p.current_item_name, p.current_artist_name, p.current_image_url, p.current_external_url, p.is_playing, TIMESTAMPDIFF(SECOND, p.playback_updated_at, NOW()) AS music_activity_age_seconds FROM users u LEFT JOIN steam_connections s ON s.user_id = u.id LEFT JOIN spotify_connections p ON p.user_id = u.id WHERE u.id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) LIMIT 1');
+$statement = mysqli_prepare($conn, 'SELECT u.username, u.status_text, s.current_game_id, s.current_game_name, s.current_game_started_at, TIMESTAMPDIFF(SECOND, s.activity_updated_at, NOW()) AS game_activity_age_seconds, p.current_item_id, p.current_item_name, p.current_artist_name, p.current_image_url, p.current_external_url, p.is_playing, TIMESTAMPDIFF(SECOND, p.playback_updated_at, NOW()) AS music_activity_age_seconds FROM users u LEFT JOIN steam_connections s ON s.user_id = u.id LEFT JOIN spotify_connections p ON p.user_id = u.id WHERE u.id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) LIMIT 1');
 mysqli_stmt_bind_param($statement, 'iii', $profileUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $activity = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
@@ -74,6 +74,7 @@ $musicActive = (int) ($activity['is_playing'] ?? 0) === 1
     && $songName !== ''
     && (int) ($activity['music_activity_age_seconds'] ?? 999) <= 60;
 echo json_encode([
+    'status' => trim((string) ($activity['status_text'] ?? '')),
     'music' => $musicActive ? [
         'id' => (string) ($activity['current_item_id'] ?? ''),
         'name' => $songName,

@@ -13,6 +13,7 @@
     const endpoint = document.body.dataset.profileSocialActivityEndpoint;
     const activitySection = document.querySelector('.profile-sidebar-activity');
     const activityFeedback = document.querySelector('[data-profile-activity-feedback]');
+    const writtenStatus = document.querySelector('[data-profile-written-status]');
     const close = root?.querySelector('[data-profile-now-playing-close]');
     const musicRow = document.querySelector('[data-profile-music-row]');
     const musicName = document.querySelector('[data-profile-music-name]');
@@ -63,6 +64,11 @@
             const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
             const data = await response.json();
             if (!response.ok) return;
+
+            const statusText = typeof data.status === 'string' ? data.status.trim() : '';
+            writtenStatus.textContent = statusText;
+            writtenStatus.title = statusText;
+            writtenStatus.hidden = statusText === '';
 
             if (!data.music) {
                 musicActive = false;

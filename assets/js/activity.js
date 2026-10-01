@@ -119,11 +119,16 @@ const currentMusic = document.querySelector('[data-current-music]');
 
 if (spotifyActivityEndpoint) {
     const currentMusicText = currentMusic?.querySelector('p');
+    const currentMusicImage = currentMusic?.querySelector('[data-current-music-image]');
 
     const hideCurrentMusic = () => {
         if (!currentMusic || !currentMusicText) return;
         currentMusic.hidden = true;
         currentMusicText.textContent = '';
+        if (currentMusicImage) {
+            currentMusicImage.hidden = true;
+            currentMusicImage.removeAttribute('src');
+        }
     };
 
     const refreshSpotifyActivity = async () => {
@@ -142,8 +147,15 @@ if (spotifyActivityEndpoint) {
             }
 
             if (currentMusic && currentMusicText) {
-                currentMusicText.textContent = data.artist ? `${data.name} - ${data.artist}` : data.name;
+                currentMusicText.textContent = data.artist ? `${data.name} • ${data.artist}` : data.name;
                 currentMusic.title = currentMusicText.textContent;
+                if (currentMusicImage && data.image) {
+                    currentMusicImage.src = data.image;
+                    currentMusicImage.hidden = false;
+                } else if (currentMusicImage) {
+                    currentMusicImage.hidden = true;
+                    currentMusicImage.removeAttribute('src');
+                }
                 currentMusic.hidden = false;
             }
         } catch (error) {
@@ -154,6 +166,7 @@ if (spotifyActivityEndpoint) {
     window.setInterval(refreshSpotifyActivity, 15 * 1000);
     window.addEventListener('focus', refreshSpotifyActivity);
     window.addEventListener('pageshow', refreshSpotifyActivity);
+    currentMusicImage?.addEventListener('error', () => { currentMusicImage.hidden = true; });
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) refreshSpotifyActivity();
     });

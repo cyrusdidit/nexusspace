@@ -69,6 +69,7 @@ $postContent = '';
 $postVisibility = 'friends';
 $posts = [];
 $currentGame = null;
+$currentMusic = null;
 $dashboardAppearanceError = '';
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['dashboard_appearance_csrf'] ??= bin2hex(random_bytes(32));
@@ -409,6 +410,12 @@ if (isset($_SESSION['user_id'])) {
         $currentGameElapsed = max(0, time() - (strtotime((string) $currentGame['current_game_started_at']) ?: time()));
     }
 
+    $statement = mysqli_prepare($conn, 'SELECT current_item_name, current_artist_name, current_image_url FROM spotify_connections WHERE user_id = ? AND is_playing = 1 AND current_item_name IS NOT NULL AND TIMESTAMPDIFF(SECOND, playback_updated_at, NOW()) <= 60 LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'i', $userId);
+    mysqli_stmt_execute($statement);
+    $currentMusic = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+    mysqli_stmt_close($statement);
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
         $basicStatus = trim($_POST['status'] ?? '');
 
@@ -507,10 +514,11 @@ if (isset($_SESSION['user_id'])) {
                             <label class="sr-only" for="basic-status">Basic status</label>
                             <input id="basic-status" name="status" type="text" value="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" maxlength="160" autocomplete="off" placeholder="your status???" data-status-input>
                         </div>
-                        <div class="status-item" data-current-music hidden>
-                            <p></p>
+                        <div class="status-item" data-current-music title="<?= $currentMusic ? htmlspecialchars($currentMusic['current_item_name'] . ($currentMusic['current_artist_name'] ? ' • ' . $currentMusic['current_artist_name'] : ''), ENT_QUOTES, 'UTF-8') : '' ?>"<?= $currentMusic ? '' : ' hidden' ?>>
+                            <img src="<?= htmlspecialchars($currentMusic['current_image_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-current-music-image<?= !empty($currentMusic['current_image_url']) ? '' : ' hidden' ?>>
+                            <p><?= $currentMusic ? htmlspecialchars($currentMusic['current_item_name'] . ($currentMusic['current_artist_name'] ? ' • ' . $currentMusic['current_artist_name'] : ''), ENT_QUOTES, 'UTF-8') : '' ?></p>
                         </div>
-                        <div class="status-item" data-current-game data-elapsed-seconds="<?= $currentGame ? (int) $currentGameElapsed : 0 ?>"<?= $currentGame ? '' : ' hidden' ?>>
+                        <div class="status-item" data-current-game data-elapsed-seconds="<?= $currentGame ? (int) $currentGameElapsed : 0 ?>" title="<?= $currentGame ? htmlspecialchars($currentGame['current_game_name'], ENT_QUOTES, 'UTF-8') : '' ?>"<?= $currentGame ? '' : ' hidden' ?>>
                             <img src="<?= htmlspecialchars($currentGameImage ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-current-game-image<?= !empty($currentGameImage) ? '' : ' hidden' ?>>
                             <span>
                                 <p data-current-game-name><?= $currentGame ? htmlspecialchars($currentGame['current_game_name'], ENT_QUOTES, 'UTF-8') : '' ?></p>

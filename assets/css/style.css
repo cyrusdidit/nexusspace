@@ -260,21 +260,23 @@ a {
 .profile-sidebar .profile-identity { padding: 0 16px 14px; }
 .profile-sidebar .profile-identity h1 { font-size: 16px; }
 .profile-sidebar .profile-handle { font-size: 12px; margin-bottom: 6px; }
+.profile-written-status { width: 100%; margin: 1px 0 5px; overflow: hidden; color: #163b5c; font-size: 12px; line-height: 18px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.profile-written-status[hidden] { display: none; }
 .profile-music-placeholder { height: 18px; width: 100%; margin: 0; color: #166da5; text-align: center; font-size: 12px; line-height: 18px; }
 .profile-sidebar-activity { display: flex; width: 100%; margin: 2px auto 8px; flex-direction: column; color: #166da5; }
 .profile-sidebar-activity:not(:has(.profile-sidebar-activity-row:not([hidden]))) { display: none; }
-.profile-sidebar-activity-row { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; min-height: 44px; gap: 7px; padding: 2px 4px; text-align: left; }
-.profile-sidebar-music-row { grid-template-columns: minmax(0, 1fr) 24px; }
+.profile-sidebar-activity-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; min-height: 38px; gap: 6px; padding: 2px 4px; text-align: left; }
+.profile-sidebar-music-row { grid-template-columns: minmax(0, 1fr) 21px; }
 .profile-sidebar-activity-row[hidden] { display: none; }
-.profile-sidebar-activity-main { display: flex; align-items: center; min-width: 0; gap: 7px; color: inherit; text-decoration: none; }
+.profile-sidebar-activity-main { display: flex; align-items: center; min-width: 0; gap: 6px; color: inherit; text-decoration: none; }
 .profile-sidebar-activity-main:hover { color: inherit; text-decoration: none; }
-.profile-sidebar-activity-art { display: block; flex: 0 0 40px; width: 40px; height: 40px; object-fit: cover; background: #dff2ff; }
+.profile-sidebar-activity-art { display: block; flex: 0 0 34px; width: 34px; height: 34px; object-fit: cover; background: #dff2ff; }
 .profile-sidebar-activity-art[hidden] { visibility: hidden; }
 .profile-sidebar-activity-copy { display: block; min-width: 0; overflow: hidden; color: #496b82; font-size: 11px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .profile-sidebar-activity-copy strong { display: inline; }
-.profile-sidebar-activity-copy strong { color: #163b5c; font-size: 13px; font-weight: 600; }
+.profile-sidebar-activity-copy strong { color: #163b5c; font-size: 12px; font-weight: 600; }
 .profile-sidebar-activity-copy small { display: inline; margin: 0; color: #496b82; font-size: 10px; }
-.profile-sidebar-music-add { display: grid; place-items: center; width: 24px; height: 24px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #166da5; font-size: 20px; line-height: 1; }
+.profile-sidebar-music-add { display: grid; place-items: center; width: 21px; height: 21px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #166da5; font-size: 17px; line-height: 1; }
 .profile-sidebar-music-add:hover { background: #dff2ff; }
 .profile-sidebar-music-add:disabled { cursor: default; opacity: 0.7; }
 .profile-sidebar-activity-feedback { margin: 3px 4px 0; color: #28744f; font-size: 10px; line-height: 13px; text-align: center; }
@@ -819,7 +821,7 @@ body.dashboard-page {
 .status-panel {
     background: #05e4e8;
     display: grid;
-    grid-auto-rows: 35px;
+    grid-auto-rows: minmax(35px, auto);
     margin: 5px;
     min-height: 35px;
     padding: 0;
@@ -971,10 +973,15 @@ body.dashboard-page {
 }
 
 .status-item[hidden] { display: none; }
-.status-item[data-current-game] { display: flex; align-items: center; gap: 8px; }
+.status-item[data-current-music],
+.status-item[data-current-game] { display: flex; align-items: center; width: 100%; min-width: 0; gap: 8px; overflow: hidden; box-sizing: border-box; }
+.status-item[data-current-music][hidden],
 .status-item[data-current-game][hidden] { display: none; }
+.status-item[data-current-music] img,
 .status-item[data-current-game] img { flex: 0 0 30px; width: 30px; height: 30px; object-fit: cover; }
-.status-item[data-current-game] span { min-width: 0; }
+.status-item[data-current-music] p,
+.status-item[data-current-game] span { flex: 1 1 0; width: 0; min-width: 0; max-width: 100%; }
+.status-item[data-current-music] p,
 .status-item[data-current-game] p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-item[data-current-game] small { display: block; color: #4d6b80; font-size: 10px; }
 
