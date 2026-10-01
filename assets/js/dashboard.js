@@ -560,15 +560,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusInput = document.querySelector('[data-status-input]');
 
     if (statusInput) {
+        const statusPencil = statusInput.form.querySelector('[data-status-edit-pencil]');
+        const savedStatus = statusInput.value.trim();
+        let statusSubmitting = false;
+        const saveStatus = () => {
+            if (statusSubmitting || statusInput.value.trim() === savedStatus) return;
+            statusSubmitting = true;
+            statusInput.form.requestSubmit();
+        };
+        statusInput.addEventListener('input', () => { statusInput.title = statusInput.value.trim(); });
         statusInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
-                statusInput.form.submit();
+                saveStatus();
+                if (!statusSubmitting) statusInput.blur();
             }
         });
-
-        statusInput.addEventListener('change', () => {
-            statusInput.form.submit();
+        statusInput.addEventListener('blur', saveStatus);
+        statusPencil?.addEventListener('pointerdown', (event) => event.preventDefault());
+        statusPencil?.addEventListener('click', () => {
+            statusInput.focus();
+            const end = statusInput.value.length;
+            statusInput.setSelectionRange(end, end);
         });
     }
 

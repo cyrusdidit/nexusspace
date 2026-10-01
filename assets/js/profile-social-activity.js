@@ -66,9 +66,13 @@
             if (!response.ok) return;
 
             const statusText = typeof data.status === 'string' ? data.status.trim() : '';
-            writtenStatus.textContent = statusText;
+            if (writtenStatus instanceof HTMLInputElement) {
+                if (document.activeElement !== writtenStatus) writtenStatus.value = statusText;
+            } else {
+                writtenStatus.textContent = statusText;
+                writtenStatus.hidden = statusText === '';
+            }
             writtenStatus.title = statusText;
-            writtenStatus.hidden = statusText === '';
 
             if (!data.music) {
                 musicActive = false;

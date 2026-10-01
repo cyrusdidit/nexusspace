@@ -22,3 +22,31 @@ if (bioInput && bioCounter) {
     bioEditor.addEventListener('toggle', updateBioEditor);
     updateBioEditor();
 }
+
+const statusInput = document.getElementById('profile-status-input');
+const statusForm = statusInput?.closest('[data-inline-status-form]');
+const statusPencil = statusForm?.querySelector('[data-status-edit-pencil]');
+
+if (statusInput && statusForm) {
+    const savedStatus = statusInput.value.trim();
+    let statusSubmitting = false;
+    const saveStatus = () => {
+        if (statusSubmitting || statusInput.value.trim() === savedStatus) return;
+        statusSubmitting = true;
+        statusForm.requestSubmit();
+    };
+    statusInput.addEventListener('input', () => { statusInput.title = statusInput.value.trim(); });
+    statusInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        saveStatus();
+        if (!statusSubmitting) statusInput.blur();
+    });
+    statusInput.addEventListener('blur', saveStatus);
+    statusPencil?.addEventListener('pointerdown', (event) => event.preventDefault());
+    statusPencil?.addEventListener('click', () => {
+        statusInput.focus();
+        const end = statusInput.value.length;
+        statusInput.setSelectionRange(end, end);
+    });
+}

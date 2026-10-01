@@ -486,10 +486,10 @@ if (isset($_SESSION['user_id'])) {
     mysqli_stmt_close($statement);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
-        $basicStatus = trim($_POST['status'] ?? '');
+        $basicStatus = is_string($_POST['status'] ?? null) ? trim($_POST['status']) : '';
 
-        if (strlen($basicStatus) > 160) {
-            $statusError = 'Use 160 characters or fewer.';
+        if (!mb_check_encoding($basicStatus, 'UTF-8') || mb_strlen($basicStatus, 'UTF-8') > 40) {
+            $statusError = 'Use 40 characters or fewer.';
         } else {
             $updateStatement = mysqli_prepare($conn, 'UPDATE users SET status_text = ? WHERE id = ?');
             mysqli_stmt_bind_param($updateStatement, 'si', $basicStatus, $userId);
@@ -597,9 +597,10 @@ if (isset($_SESSION['user_id'])) {
                 <form class="status-form" method="post">
                     <input type="hidden" name="action" value="update_status">
                     <section class="status-panel" aria-label="Status information">
-                        <div class="status-item">
+                        <div class="status-item status-text-item">
                             <label class="sr-only" for="basic-status">Basic status</label>
-                            <input id="basic-status" name="status" type="text" value="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" maxlength="160" autocomplete="off" placeholder="your status???" data-status-input>
+                            <input id="basic-status" name="status" type="text" value="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" maxlength="40" autocomplete="off" placeholder="your status???" title="<?= htmlspecialchars($basicStatus, ENT_QUOTES, 'UTF-8') ?>" data-status-input>
+                            <button class="status-edit-pencil" type="button" aria-label="Edit status" title="Edit status" data-status-edit-pencil>&#9998;</button>
                         </div>
                         <div class="status-item" data-current-music title="<?= $currentMusic ? htmlspecialchars($currentMusic['current_item_name'] . ($currentMusic['current_artist_name'] ? ' • ' . $currentMusic['current_artist_name'] : ''), ENT_QUOTES, 'UTF-8') : '' ?>"<?= $currentMusic ? '' : ' hidden' ?>>
                             <img src="<?= htmlspecialchars($currentMusic['current_image_url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-current-music-image<?= !empty($currentMusic['current_image_url']) ? '' : ' hidden' ?>>

@@ -105,8 +105,10 @@ $friendState = 'none';
 $friendError = '';
 $topEightError = '';
 $bioError = '';
+$statusError = '';
 $avatarError = '';
 $bioDraft = (string) ($user['bio'] ?? '');
+$statusDraft = (string) ($user['status_text'] ?? '');
 $_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
 $_SESSION['spotify_action_token'] ??= bin2hex(random_bytes(32));
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
@@ -454,6 +456,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
+    $token = $_POST['token'] ?? '';
+    $statusDraft = is_string($_POST['status'] ?? null) ? trim($_POST['status']) : '';
+    $statusDraft = str_replace(["\r\n", "\r", "\n"], ' ', $statusDraft);
+    if (!$user || !$isOwnProfile) {
+        http_response_code(403);
+        $statusError = 'You can only edit your own status.';
+    } elseif (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+        $statusError = 'Please refresh the page and try again.';
+    } elseif (!mb_check_encoding($statusDraft, 'UTF-8') || mb_strlen($statusDraft, 'UTF-8') > 40) {
+        $statusError = 'Use 40 characters or fewer.';
+    } else {
+        $statement = mysqli_prepare($conn, 'UPDATE users SET status_text = ? WHERE id = ?');
+        mysqli_stmt_bind_param($statement, 'si', $statusDraft, $currentUserId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        header('Location: profile.php?id=' . $currentUserId);
+        exit;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_top_eight') {
     $token = $_POST['token'] ?? '';
     $slots = $_POST['top_eight_slots'] ?? [];
@@ -729,7 +753,7 @@ if ($isOwnProfile) {
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <div class="profile-handle-row"><p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p><button class="profile-username-copy" type="button" aria-label="Copy @<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>" title="Copy username" data-copy-username="@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>"><span class="profile-copy-icon" aria-hidden="true"></span></button><span class="sr-only" aria-live="polite" data-copy-username-status></span></div>
-            <p class="profile-written-status" title="<?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?>" data-profile-written-status<?= trim((string) ($user['status_text'] ?? '')) !== '' ? '' : ' hidden' ?>><?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?></p>
+            <?php if ($isOwnProfile): ?><form class="profile-inline-status" method="post" action="profile.php?id=<?= $userId ?>" data-inline-status-form><input type="hidden" name="action" value="update_status"><input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>"><label class="sr-only" for="profile-status-input">Status</label><input id="profile-status-input" name="status" type="text" maxlength="40" autocomplete="off" placeholder="Write a status" value="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" data-profile-written-status data-profile-status-input><button class="status-edit-pencil" type="button" aria-label="Edit status" title="Edit status" data-status-edit-pencil>&#9998;</button><?php if ($statusError !== ''): ?><p class="post-error" role="alert"><?= htmlspecialchars($statusError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?></form><?php else: ?><div class="profile-written-status-wrap"><p class="profile-written-status" title="<?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?>" data-profile-written-status<?= trim((string) ($user['status_text'] ?? '')) !== '' ? '' : ' hidden' ?>><?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?></p></div><?php endif; ?>
             <section class="profile-sidebar-activity" aria-label="Current activity" data-spotify-like-endpoint="../spotify-like-track.php" data-spotify-action-token="<?= htmlspecialchars($_SESSION['spotify_action_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <div class="profile-sidebar-activity-row profile-sidebar-music-row" data-profile-music-row<?= $profileMusic ? '' : ' hidden' ?>>
                     <a class="profile-sidebar-activity-main" href="<?= htmlspecialchars($profileMusic['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" title="<?= $profileMusic ? htmlspecialchars($profileMusic['name'] . ' • ' . $profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?>" data-profile-music-link>
