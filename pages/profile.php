@@ -26,7 +26,7 @@ $userId = $userId === false ? 0 : $userId;
 $isOwnProfile = $userId === $currentUserId;
 $statement = mysqli_prepare(
     $conn,
-    'SELECT username, email, registration_date, avatar_path, bio, status_text, spotify_track_id, custom_status_audience, spotify_status_audience, steam_status_audience, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
+    'SELECT username, email, registration_date, avatar_path, bio, status_text, spotify_track_id, profile_song_name, profile_song_artist, profile_song_image_url, profile_song_url, custom_status_audience, spotify_status_audience, steam_status_audience, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
 );
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);
@@ -68,6 +68,16 @@ if ($avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPa
 
 $profileGame = null;
 $profileMusic = null;
+$profileSong = null;
+if ($user && preg_match('/^[A-Za-z0-9]{22}$/', (string) ($user['spotify_track_id'] ?? '')) && trim((string) ($user['profile_song_name'] ?? '')) !== '') {
+    $profileSong = [
+        'id' => (string) $user['spotify_track_id'],
+        'name' => trim((string) $user['profile_song_name']),
+        'artist' => trim((string) ($user['profile_song_artist'] ?? '')),
+        'image' => filter_var($user['profile_song_image_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $user['profile_song_image_url'] : '',
+        'url' => filter_var($user['profile_song_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $user['profile_song_url'] : '',
+    ];
+}
 if ($user) {
     $statement = mysqli_prepare($conn, 'SELECT current_game_id, current_game_name, current_game_started_at, TIMESTAMPDIFF(SECOND, activity_updated_at, NOW()) AS activity_age_seconds FROM steam_connections WHERE user_id = ? AND current_game_id IS NOT NULL AND current_game_name IS NOT NULL LIMIT 1');
     mysqli_stmt_bind_param($statement, 'i', $userId);
@@ -111,6 +121,7 @@ $bioDraft = (string) ($user['bio'] ?? '');
 $statusDraft = (string) ($user['status_text'] ?? '');
 $_SESSION['profile_edit_token'] ??= bin2hex(random_bytes(32));
 $_SESSION['spotify_action_token'] ??= bin2hex(random_bytes(32));
+$_SESSION['settings_token'] ??= bin2hex(random_bytes(32));
 $_SESSION['posts_csrf'] ??= bin2hex(random_bytes(32));
 $profileBackgroundSettings = $user ? readUserBackgroundSettings($conn, $userId) : defaultUserBackgroundSettings();
 $profilePostsOwnBackground = $profileBackgroundSettings['profile_posts'];
@@ -713,6 +724,7 @@ if ($isOwnProfile) {
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
     <script src="../assets/js/profile-username-copy.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-username-copy.js') ?>" defer></script>
     <script src="../assets/js/profile-social-activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-social-activity.js') ?>" defer></script>
+    <script src="../assets/js/spotify-profile-song.js?v=<?= filemtime(__DIR__ . '/../assets/js/spotify-profile-song.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <script src="../assets/js/posts.js?v=<?= filemtime(__DIR__ . '/../assets/js/posts.js') ?>" defer></script>
     <script src="../assets/js/media.js?v=<?= filemtime(__DIR__ . '/../assets/js/media.js') ?>" defer></script>
@@ -721,7 +733,7 @@ if ($isOwnProfile) {
         <script src="../assets/js/profile-cover-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-cover-appearance.js') ?>" defer></script>
     <?php endif; ?>
 </head>
-<body class="profile-page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
+<body class="profile-page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-spotify-profile-playback-endpoint="../spotify-profile-playback.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <?php if ($profileNotice !== ''): ?>
         <div class="profile-customization-toast" data-profile-customization-toast role="status">
             <span><?= htmlspecialchars($profileNotice, ENT_QUOTES, 'UTF-8') ?></span>
@@ -915,13 +927,36 @@ if ($isOwnProfile) {
             <span class="profile-wallpaper-surface" data-profile-wallpaper-surface<?= $profilePostsBackgroundType === 'image' ? '' : ' hidden' ?> style="filter: blur(<?= $profilePostsBackgroundBlur ?>px)<?php if ($profilePostsBackgroundType === 'image' && $profilePostsBackgroundFit === 'tile'): ?>; background-image: <?= $profilePostsBackgroundImageCss ?><?php endif; ?>">
                 <img src="<?= htmlspecialchars($profilePostsBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-wallpaper-preview style="object-fit: <?= $profilePostsBackgroundFit === 'contain' ? 'contain' : 'cover' ?>; object-position: <?= $profilePostsBackgroundPositionX ?>% <?= $profilePostsBackgroundPositionY ?>%; transform: scale(<?= $profilePostsBackgroundZoom ?>); transform-origin: <?= $profilePostsBackgroundPositionX ?>% <?= $profilePostsBackgroundPositionY ?>%"<?= $profilePostsBackgroundType !== 'image' || $profilePostsBackgroundFit === 'tile' ? ' hidden' : '' ?>>
             </span>
-            <?php if (!$isOwnProfile): ?>
-                <div class="profile-now-playing" data-profile-now-playing<?= $profileMusic ? '' : ' hidden' ?>>
-                    <div class="profile-now-playing-bar">
-                        <span>Now playing: <strong data-profile-now-playing-name><?= $profileMusic ? htmlspecialchars($profileMusic['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong> &bull; <span data-profile-now-playing-artist><?= $profileMusic ? htmlspecialchars($profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></span>
-                        <button type="button" aria-label="Close now playing" title="Close now playing" data-profile-now-playing-close>&times;</button>
-                    </div>
+            <div class="profile-now-playing profile-song-banner" data-profile-song-banner data-has-song="<?= $profileSong ? 'true' : 'false' ?>" data-track-id="<?= htmlspecialchars($profileSong['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>"<?= !$profileSong && !$isOwnProfile ? ' hidden' : '' ?>>
+                <div class="profile-now-playing-bar">
+                    <span>Profile song: <a href="<?= htmlspecialchars($profileSong['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" data-profile-song-link<?= !empty($profileSong['url']) ? '' : ' hidden' ?>><strong data-profile-song-name><?= $profileSong ? htmlspecialchars($profileSong['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span data-profile-song-separator<?= $profileSong && $profileSong['artist'] !== '' ? '' : ' hidden' ?>> &bull; </span><span data-profile-song-artist><?= $profileSong ? htmlspecialchars($profileSong['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></a></span>
+                    <span class="profile-song-volume" data-profile-song-volume<?= $profileSong ? '' : ' hidden' ?>>
+                        <button type="button" aria-label="Mute profile song" title="Mute" data-profile-song-mute><span aria-hidden="true" data-profile-song-volume-icon>&#128266;</span></button>
+                        <input type="range" min="0" max="100" step="1" value="70" aria-label="Profile song volume" title="Profile song volume" data-profile-song-volume-slider>
+                    </span>
+                    <?php if ($isOwnProfile): ?>
+                        <button class="profile-song-edit" type="button" aria-label="<?= $profileSong ? 'Edit profile song' : 'Add profile song' ?>" title="<?= $profileSong ? 'Edit profile song' : 'Add profile song' ?>" data-profile-song-picker-open><span aria-hidden="true" data-profile-song-action-icon><?= $profileSong ? '&#9998;' : '+' ?></span></button>
+                    <?php else: ?>
+                        <button type="button" aria-label="Close profile song" title="Close profile song" data-profile-song-dismiss>&times;</button>
+                    <?php endif; ?>
                 </div>
+            </div>
+            <?php if ($isOwnProfile): ?>
+                <section class="profile-song-picker-panel" data-spotify-profile-song-picker data-track-id="<?= htmlspecialchars($profileSong['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>" hidden>
+                    <header>
+                        <strong>Profile song</strong>
+                        <span class="profile-song-picker-actions">
+                            <button type="button" data-profile-song-remove<?= $profileSong ? '' : ' hidden' ?>>Remove</button>
+                            <button type="button" aria-label="Close profile song search" title="Close" data-profile-song-picker-close>&times;</button>
+                        </span>
+                    </header>
+                    <form class="spotify-profile-song-search" role="search" data-profile-song-search-form>
+                        <label for="profile-song-search">Find a song</label>
+                        <span><input id="profile-song-search" type="search" minlength="2" maxlength="100" autocomplete="off" placeholder="Song or artist" data-profile-song-search required><button type="submit">Search</button></span>
+                    </form>
+                    <p class="spotify-profile-song-status" role="status" aria-live="polite" data-profile-song-status></p>
+                    <ul class="spotify-profile-song-results" data-profile-song-results hidden></ul>
+                </section>
             <?php endif; ?>
             <h2 id="profile-posts-heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
             <p class="post-empty" data-post-empty<?= $profilePosts ? ' hidden' : '' ?>>No posts to show yet.</p>

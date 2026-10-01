@@ -38,10 +38,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'disco
         http_response_code(403);
         $error = 'Please refresh the page and try again.';
     } else {
+        mysqli_begin_transaction($conn);
         $statement = mysqli_prepare($conn, 'DELETE FROM spotify_connections WHERE user_id = ?');
         mysqli_stmt_bind_param($statement, 'i', $currentUserId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
+        $statement = mysqli_prepare($conn, 'UPDATE users SET spotify_track_id = NULL, profile_song_name = NULL, profile_song_artist = NULL, profile_song_image_url = NULL, profile_song_url = NULL WHERE id = ?');
+        mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        mysqli_commit($conn);
         header('Location: settings.php?spotify=disconnected');
         exit;
     }
@@ -85,7 +91,16 @@ mysqli_stmt_bind_param($statement, 'i', $currentUserId);
 mysqli_stmt_execute($statement);
 $spotifyConnection = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
 mysqli_stmt_close($statement);
-$spotifyNeedsReconnect = $spotifyConnection && !in_array('user-library-modify', preg_split('/\s+/', trim((string) $spotifyConnection['scopes'])) ?: [], true);
+$spotifyScopes = $spotifyConnection ? (preg_split('/\s+/', trim((string) $spotifyConnection['scopes'])) ?: []) : [];
+$spotifyNeedsReconnect = $spotifyConnection && array_diff(preg_split('/\s+/', SPOTIFY_SCOPES) ?: [], $spotifyScopes);
+$statement = mysqli_prepare($conn, 'SELECT spotify_track_id FROM users WHERE id = ? LIMIT 1');
+mysqli_stmt_bind_param($statement, 'i', $currentUserId);
+mysqli_stmt_execute($statement);
+$profileSongRow = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: [];
+mysqli_stmt_close($statement);
+$profileSongId = preg_match('/^[A-Za-z0-9]{22}$/', (string) ($profileSongRow['spotify_track_id'] ?? ''))
+    ? (string) $profileSongRow['spotify_track_id']
+    : '';
 
 $spotifyNotices = [
     'connected' => 'Spotify connected. Your current track can now appear on your dashboard.',
@@ -122,9 +137,10 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
     <title>Settings &middot; NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/settings.js?v=<?= filemtime(__DIR__ . '/../assets/js/settings.js') ?>" defer></script>
+    <script src="../assets/js/spotify-profile-song.js?v=<?= filemtime(__DIR__ . '/../assets/js/spotify-profile-song.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
 </head>
-<body data-activity-endpoint="../activity-ping.php">
+<body data-activity-endpoint="../activity-ping.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
     <main class="card settings-page">
         <header class="settings-header">
             <a href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>
@@ -150,7 +166,7 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                 <div class="settings-integration-copy">
                     <?php if ($spotifyConnection): ?>
                         <strong><?= htmlspecialchars($spotifyConnection['display_name'] ?: $spotifyConnection['spotify_user_id'], ENT_QUOTES, 'UTF-8') ?></strong>
-                        <span><?= $spotifyNeedsReconnect ? 'Reconnect to enable adding songs to Liked Songs.' : 'Connected' ?></span>
+                        <span><?= $spotifyNeedsReconnect ? 'Reconnect to enable all Spotify features.' : 'Connected' ?></span>
                     <?php elseif (spotifyIsConfigured()): ?>
                         <strong>Share what you are listening to</strong>
                         <span>Your current track appears while Spotify is playing.</span>
@@ -172,6 +188,28 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                     <a class="button spotify-connect-button" href="spotify-connect.php">Connect Spotify</a>
                 <?php endif; ?>
             </div>
+            <?php if ($spotifyConnection): ?>
+                <div class="spotify-profile-song-picker" data-spotify-profile-song-picker data-track-id="<?= htmlspecialchars($profileSongId, ENT_QUOTES, 'UTF-8') ?>">
+                    <div class="spotify-profile-song-heading">
+                        <div>
+                            <strong>Profile song</strong>
+                        </div>
+                        <button type="button" data-profile-song-remove<?= $profileSongId !== '' ? '' : ' hidden' ?>>Remove</button>
+                    </div>
+                    <div class="spotify-profile-song-current" data-profile-song-current<?= $profileSongId !== '' ? '' : ' hidden' ?>>
+                        <iframe<?= $profileSongId !== '' ? ' src="https://open.spotify.com/embed/track/' . rawurlencode($profileSongId) . '?utm_source=generator&amp;theme=0"' : '' ?> title="Selected Spotify profile song" width="100%" height="80" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" data-profile-song-embed></iframe>
+                    </div>
+                    <form class="spotify-profile-song-search" role="search" data-profile-song-search-form>
+                        <label for="spotify-profile-song-search">Find a song</label>
+                        <span>
+                            <input id="spotify-profile-song-search" type="search" minlength="2" maxlength="100" autocomplete="off" placeholder="Song or artist" data-profile-song-search required>
+                            <button type="submit">Search</button>
+                        </span>
+                    </form>
+                    <p class="spotify-profile-song-status" role="status" aria-live="polite" data-profile-song-status></p>
+                    <ul class="spotify-profile-song-results" data-profile-song-results hidden></ul>
+                </div>
+            <?php endif; ?>
         </section>
 
         <section class="settings-integration" aria-labelledby="steam-heading">

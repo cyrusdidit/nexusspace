@@ -372,9 +372,36 @@ a {
 .profile-posts { min-width: 0; padding: 24px; background: #dff2ff; }
 .profile-now-playing { position: relative; z-index: 6 !important; width: calc(100% - 83px); margin: -16px 0 16px; }
 .profile-now-playing-bar { display: flex; align-items: center; min-height: 28px; background: #00ad2f; color: #fff; font-size: 13px; }
+.profile-song-banner .profile-now-playing-bar { border: 1px solid #166da5; background: #238bc5; }
 .profile-now-playing-bar > span { flex: 1; min-width: 0; padding: 5px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-song-banner a { color: inherit; text-decoration: none; }
+.profile-song-banner a:hover { color: inherit; text-decoration: underline; }
 .profile-now-playing-bar button { display: grid; place-items: center; align-self: stretch; flex: 0 0 28px; width: 28px; height: auto; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: #fff; font-size: 15px; line-height: 1; }
 .profile-now-playing-bar button:hover { background: rgb(0 0 0 / 12%); }
+.profile-song-banner[data-has-song="true"] .profile-song-edit { opacity: 0; pointer-events: none; }
+.profile-song-banner[data-has-song="true"]:hover .profile-song-edit,
+.profile-song-banner[data-has-song="true"] .profile-song-edit:focus-visible { opacity: 1; pointer-events: auto; }
+.profile-song-volume { display: flex; align-items: center; flex: 0 0 auto !important; width: 108px; gap: 4px; padding: 0 5px !important; overflow: visible !important; }
+.profile-song-volume[hidden] { display: none; }
+.profile-song-volume button { flex: 0 0 24px; width: 24px; min-height: 26px; font-size: 13px; }
+.profile-song-volume input[type="range"] { width: 76px; height: 18px; margin: 0; padding: 0; accent-color: #fff; cursor: pointer; }
+.profile-song-volume.is-unavailable { opacity: .5; }
+.profile-song-picker-panel { position: relative; z-index: 7; box-sizing: border-box; width: calc(100% - 83px); margin: -12px 0 16px; border: 1px solid #75c69a; background: #f6fcff; color: #163b5c; }
+.profile-song-picker-panel[hidden] { display: none; }
+.profile-song-picker-panel > header { display: flex; align-items: center; justify-content: space-between; height: 32px; padding-left: 10px; border-bottom: 1px solid #cce7f5; }
+.profile-song-picker-actions { display: flex; align-self: stretch; margin: 0; padding: 0; }
+.profile-song-picker-panel > header button { display: grid; place-items: center; align-self: stretch; width: auto; height: 32px; margin: 0; padding: 0 9px; border: 0; border-radius: 0; background: transparent; color: #166da5; font-size: 12px; }
+.profile-song-picker-panel > header [data-profile-song-picker-close] { width: 30px; padding: 0; font-size: 18px; }
+.profile-song-picker-panel [data-profile-song-remove] { color: #a12c42; }
+.profile-song-picker-panel [data-profile-song-remove][hidden] { display: none; }
+.profile-song-picker-panel .spotify-profile-song-search { margin: 10px; }
+.profile-song-picker-panel .spotify-profile-song-search label { margin-bottom: 6px; }
+.profile-song-picker-panel .spotify-profile-song-search > span { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 4px; }
+.profile-song-picker-panel .spotify-profile-song-search input { box-sizing: border-box; height: 34px; padding: 6px 9px; }
+.profile-song-picker-panel .spotify-profile-song-search button { align-self: stretch; box-sizing: border-box; width: auto; height: 34px; margin: 0; padding: 0 12px; }
+.profile-song-picker-panel .spotify-profile-song-status { min-height: 0; margin: 7px 10px 10px; }
+.profile-song-picker-panel .spotify-profile-song-status:empty { display: none; }
+.profile-song-picker-panel .spotify-profile-song-results { margin: 8px 10px 10px; max-height: 230px; overflow-y: auto; }
 .profile-posts > h2 { font-size: 18px; margin: 0 0 20px; }
 .profile-posts .post-card { padding: 16px; }
 @media (min-width: 701px) {
@@ -401,6 +428,7 @@ a {
     .profile-layout { grid-template-columns: 1fr; }
     .profile-sidebar { border-right: 0; }
     .profile-posts { padding: 18px; }
+    .profile-now-playing, .profile-song-picker-panel { width: 100%; }
     .profile-now-playing { margin: -10px 0 14px; }
     .profile-page.is-profile-appearance-open .profile-sheet,
     .profile-page.is-profile-cover-open .profile-sheet { display: none; }
@@ -422,6 +450,27 @@ a {
 .settings-integration form { flex: 0 0 auto; }
 .settings-integration button, .spotify-connect-button { margin: 0; white-space: nowrap; }
 .spotify-connect-button { display: inline-flex; align-items: center; min-height: 38px; text-decoration: none; }
+.spotify-profile-song-picker { margin-top: 16px; padding-top: 14px; border-top: 1px solid #cce7f5; }
+.spotify-profile-song-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.spotify-profile-song-heading button { padding: 7px 10px; }
+.spotify-profile-song-current { margin-top: 10px; }
+.spotify-profile-song-current[hidden] { display: none; }
+.spotify-profile-song-current iframe { display: block; border: 0; border-radius: 4px; }
+.spotify-profile-song-search { margin-top: 12px; }
+.spotify-profile-song-search label { display: block; margin-bottom: 5px; color: #163b5c; font-size: 13px; font-weight: 700; }
+.spotify-profile-song-search > span { display: flex; }
+.spotify-profile-song-search input { min-width: 0; flex: 1; border-radius: 0; }
+.spotify-profile-song-search button { flex: 0 0 auto; border-radius: 0; }
+.spotify-profile-song-status { min-height: 16px; margin: 7px 0 0; color: #28744f; font-size: 12px; }
+.spotify-profile-song-status.is-error { color: #a12c42; }
+.spotify-profile-song-results { margin: 8px 0 0; padding: 0; border-top: 1px solid #cce7f5; list-style: none; }
+.spotify-profile-song-results[hidden] { display: none; }
+.spotify-profile-song-results li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; min-height: 52px; gap: 9px; padding: 4px 0; border-bottom: 1px solid #cce7f5; }
+.spotify-profile-song-results img { width: 44px; height: 44px; object-fit: cover; }
+.spotify-profile-song-results li > span { display: flex; min-width: 0; flex-direction: column; }
+.spotify-profile-song-results strong, .spotify-profile-song-results li > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spotify-profile-song-results li > span > span { color: #4d6b80; font-size: 12px; }
+.spotify-profile-song-results button { padding: 7px 9px; }
 .blocked-users h2 { font-size: 18px; }
 .blocked-users ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid #cce7f5; }
 .blocked-users li { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 58px; border-bottom: 1px solid #cce7f5; padding: 8px 0; }
