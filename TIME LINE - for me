@@ -7,6 +7,7 @@ Create the database and all tables
 Build registration with password hashing and strong-password requirements
 Build login with session management
 Create a basic protected profile page (view only)
+Add a copy icon beside each profile's @username that copies the username
 Build logout functionality
 Add simple light-blue starter styling
 
@@ -17,7 +18,7 @@ Add simple light-blue starter styling
 Replace the temporary homepage with the main NexusSpace dashboard
 Build the dark-blue page background and three-column layout
 Add a search bar for finding users
-Add the left sidebar: current user, status area, Friends label with a Top 8 edit-icon placeholder, settings, and logout
+Add the left sidebar: current user, status area, Friends list, settings, and logout
 Add centered feed cards with placeholder posts: profile name, square 1:1 image/text area, caption/title, and top comment
 Add the notification-panel placeholder with a red badge and dropdown area
 Add the compact right-side chat preview with placeholder messages, a typing-indicator placeholder, and message-input placeholder
@@ -32,6 +33,9 @@ Build the Edit Profile page structure
 Add a bio field
 Add preset options: background color, text color, and font size
 Add editable status fields: custom status, currently listening, and currently playing game
+Add an eye toggle beside each dashboard status: open makes that status visible to friends and closed hides it from everyone
+Show the same status visibility controls on the user's own profile page
+Add a default audience setting for each individual status: Public, Friends, or No one
 Show the current game instead of current music when both are set
 Save and display preset customizations on profiles
 Test and fix any issues
@@ -56,6 +60,7 @@ Support text-only posts by using the post image/text area for text
 Build comment system with threading and show the newest or selected top comment on each feed card
 Add reply functionality to comments
 Add likes to posts
+Let users pin up to 3 of their posts at the top of their profile page
 
 # Week VI
 
@@ -63,8 +68,9 @@ Add likes to posts
 
 Build friend request system: send, accept, and decline
 Replace the friends placeholder with a real ordered Top 8 friends display
-Make the Friends label's edit icon enable rearrange mode directly on the main dashboard
-Add drag-and-drop ordering and save each user's Top 8 order
+Order the dashboard friends list by latest interaction: messages, comments, or likes on each other's posts
+Let each user pin up to 3 friends at the top of the dashboard friends list, ordered by which friend was pinned first, second, and last
+Add drag-and-drop ordering and save each user's profile Top 8 order
 Add Spotify search and embed functionality for profile songs
 Display profile songs on user profiles
 
@@ -76,6 +82,7 @@ Polish the Top 8 rearrange mode
 Display the ordered Top 8 list on profiles
 Refine the manual status display
 Status look update
+Edit ur status on ur profile page
 Optionally research Spotify OAuth and Discord/Steam integrations for a later upgrade
 
 # Week VIII
@@ -84,6 +91,7 @@ Optionally research Spotify OAuth and Discord/Steam integrations for a later upg
 
 Build private messaging: inbox, send, and receive
 Replace the compact chat-panel placeholder with real recent-message previews and a main chat page
+Let each user separately pin up to 3 friends at the top of the Messages list, ordered by which friend was pinned first, second, and last
 Add a looping typing indicator for active conversations
 Build notifications for likes, comments, replies, friend requests, and messages
 Add unread-notification badge logic capped at 9+

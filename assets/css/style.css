@@ -163,7 +163,16 @@ a {
 .avatar-crop-actions [data-avatar-crop-cancel] { padding: 0 16px; }
 .avatar-crop-actions [data-avatar-crop-save] { display: grid; place-items: center; width: 36px; padding: 0; }
 .profile-identity h1 { color: #163b5c; font-size: 22px; margin: 0 0 8px; overflow-wrap: anywhere; }
-.profile-handle { color: #166da5; font-size: 13px; font-weight: 700; margin: 0 0 12px; overflow-wrap: anywhere; }
+.profile-handle-row { display: flex; position: relative; align-items: center; justify-content: center; gap: 4px; width: 100%; margin: 0 0 12px; }
+.profile-handle { min-width: 0; margin: 0; overflow-wrap: anywhere; color: #166da5; font-size: 13px; font-weight: 700; }
+.profile-username-copy { display: grid; place-items: center; flex: 0 0 18px; width: 18px; height: 18px; margin: 0; padding: 0; border: 0; border-radius: 2px; background: transparent; color: #166da5; cursor: pointer; }
+.profile-username-copy:hover, .profile-username-copy:focus-visible { background: #dff2ff; color: #163b5c; }
+.profile-copy-icon { position: relative; display: block; width: 11px; height: 11px; }
+.profile-copy-icon::before, .profile-copy-icon::after { position: absolute; width: 7px; height: 7px; border: 1px solid currentColor; content: ''; }
+.profile-copy-icon::before { top: 0; left: 0; }
+.profile-copy-icon::after { right: 0; bottom: 0; background: #f6fcff; }
+.profile-username-copy.is-copied .profile-copy-icon::before { inset: -2px 0 0; width: auto; height: auto; border: 0; content: '\2713'; font-size: 14px; font-weight: 700; line-height: 14px; }
+.profile-username-copy.is-copied .profile-copy-icon::after { display: none; }
 .profile-avatar-activity { position: absolute; z-index: 4; right: -2px; bottom: 5px; width: 13px; height: 13px; border: 2px solid #f6fcff; background: #d94747; transform: rotate(45deg); }
 [data-conversation-activity]::before { width: 7px; height: 7px; flex: 0 0 7px; background: #d94747; content: ''; transform: rotate(45deg); }
 .profile-avatar-activity[data-state="online"],
@@ -259,7 +268,8 @@ a {
 .profile-sidebar .profile-picture { width: 68px; height: 68px; margin-top: -34px; font-size: 24px; }
 .profile-sidebar .profile-identity { padding: 0 16px 14px; }
 .profile-sidebar .profile-identity h1 { font-size: 16px; }
-.profile-sidebar .profile-handle { font-size: 12px; margin-bottom: 6px; }
+.profile-sidebar .profile-handle-row { margin-bottom: 6px; }
+.profile-sidebar .profile-handle { margin: 0; font-size: 12px; }
 .profile-written-status { width: 100%; margin: 1px 0 5px; overflow: hidden; color: #163b5c; font-size: 12px; line-height: 18px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .profile-written-status[hidden] { display: none; }
 .profile-music-placeholder { height: 18px; width: 100%; margin: 0; color: #166da5; text-align: center; font-size: 12px; line-height: 18px; }

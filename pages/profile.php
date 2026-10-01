@@ -676,6 +676,7 @@ if ($isOwnProfile) {
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
     <script src="../assets/js/profile-friends.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-friends.js') ?>" defer></script>
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
+    <script src="../assets/js/profile-username-copy.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-username-copy.js') ?>" defer></script>
     <script src="../assets/js/profile-social-activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-social-activity.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <script src="../assets/js/posts.js?v=<?= filemtime(__DIR__ . '/../assets/js/posts.js') ?>" defer></script>
@@ -727,7 +728,7 @@ if ($isOwnProfile) {
             <?php endif; ?>
             <?php if ($avatarError): ?><p class="profile-avatar-error" role="alert"><?= htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <h1><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
-            <p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p>
+            <div class="profile-handle-row"><p class="profile-handle">@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?></p><button class="profile-username-copy" type="button" aria-label="Copy @<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>" title="Copy username" data-copy-username="@<?= htmlspecialchars($user['username'], ENT_QUOTES, 'UTF-8') ?>"><span class="profile-copy-icon" aria-hidden="true"></span></button><span class="sr-only" aria-live="polite" data-copy-username-status></span></div>
             <p class="profile-written-status" title="<?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?>" data-profile-written-status<?= trim((string) ($user['status_text'] ?? '')) !== '' ? '' : ' hidden' ?>><?= htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') ?></p>
             <section class="profile-sidebar-activity" aria-label="Current activity" data-spotify-like-endpoint="../spotify-like-track.php" data-spotify-action-token="<?= htmlspecialchars($_SESSION['spotify_action_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <div class="profile-sidebar-activity-row profile-sidebar-music-row" data-profile-music-row<?= $profileMusic ? '' : ' hidden' ?>>
