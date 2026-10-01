@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/post_media.php';
+
 function postInteractionTimestamp(string $value): string
 {
     $date = new DateTimeImmutable($value);
@@ -108,7 +110,7 @@ function renderPostInteractions(array $post, array $interaction, int $viewerId, 
             if ($reply['deleted_at'] === null || $ownerId === $viewerId) $commentCount++;
         }
     }
-    $version = substr(hash('sha256', json_encode([$post['content'] ?? '', $post['edited_at'] ?? null, $interaction])), 0, 16);
+    $version = substr(hash('sha256', json_encode([$post['content'] ?? '', $post['media'] ?? [$post['media_path'] ?? null, $post['media_type'] ?? null], $post['edited_at'] ?? null, $interaction])), 0, 16);
     ?>
     <div class="post-interactions" data-post-interactions data-post-version="<?= $version ?>">
         <?php if ($ownerId === $viewerId): ?><div class="post-owner-actions"><button type="button" data-post-edit>Edit</button><button type="button" data-post-delete>Delete</button></div><?php endif; ?>
@@ -146,7 +148,8 @@ function renderLivePostCard(array $post, array $interaction, int $viewerId, stri
             <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= postInteractionTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ($owned): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
         </header>
         <p class="post-content" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
-        <?php if ($owned): ?><form class="post-edit-form" data-post-edit-form hidden><textarea maxlength="2500" required><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></textarea><div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div></form><?php endif; ?>
+        <?php renderPostMedia($post, $assetPrefix, $owned); ?>
+        <?php if ($owned): ?><form class="post-edit-form" data-post-edit-form hidden><textarea maxlength="2500"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></textarea><div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div></form><?php endif; ?>
         <?php renderPostInteractions($post, $interaction, $viewerId, $assetPrefix); ?>
     </article>
     <?php

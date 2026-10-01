@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/db_connect.php';
 require_once __DIR__ . '/includes/background_customization.php';
 require_once __DIR__ . '/includes/post_interactions.php';
+require_once __DIR__ . '/includes/post_media.php';
 
 session_start();
 
@@ -326,18 +327,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     if (!is_string($token) || !hash_equals($_SESSION['posts_csrf'], $token)) {
         $postError = 'Your session changed. Please try again.';
     } elseif ($_POST['action'] === 'create_post') {
+        $postUpload = is_array($_FILES['post_media'] ?? null) ? $_FILES['post_media'] : ['error' => UPLOAD_ERR_NO_FILE];
+        $postMediaCount = postMediaUploadCount($postUpload);
         if (!in_array($postVisibility, ['friends', 'public'], true)) {
             $postError = 'Choose Friends Only or Public.';
-        } elseif ($postContent === '' || mb_strlen($postContent, 'UTF-8') > 2500) {
-            $postError = 'Write a post using 1 to 2,500 characters.';
+        } elseif ($postMediaCount > POST_MEDIA_MAX_FILES) {
+            $postError = 'Attach up to five media files per post.';
+        } elseif (mb_strlen($postContent, 'UTF-8') > 2500 || ($postContent === '' && $postMediaCount === 0)) {
+            $postError = 'Write something or attach media, using no more than 2,500 characters.';
         } else {
             $authorId = (int) $_SESSION['user_id'];
-            $statement = mysqli_prepare($conn, 'INSERT INTO posts (user_id, content, visibility) VALUES (?, ?, ?)');
-            mysqli_stmt_bind_param($statement, 'iss', $authorId, $postContent, $postVisibility);
-            mysqli_stmt_execute($statement);
-            mysqli_stmt_close($statement);
-            header('Location: index.php');
-            exit;
+            $storedMedia = [];
+            try {
+                $storedMedia = storePostMediaBatch($postUpload, $authorId);
+                mysqli_begin_transaction($conn);
+                $statement = mysqli_prepare($conn, 'INSERT INTO posts (user_id, content, visibility) VALUES (?, ?, ?)');
+                mysqli_stmt_bind_param($statement, 'iss', $authorId, $postContent, $postVisibility);
+                mysqli_stmt_execute($statement);
+                $newPostId = (int) mysqli_insert_id($conn);
+                mysqli_stmt_close($statement);
+                foreach ($storedMedia as $sortOrder => $media) {
+                    $statement = mysqli_prepare($conn, 'INSERT INTO post_media (post_id, media_path, media_type, sort_order) VALUES (?, ?, ?, ?)');
+                    mysqli_stmt_bind_param($statement, 'issi', $newPostId, $media['path'], $media['type'], $sortOrder);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+                }
+                mysqli_commit($conn);
+                header('Location: index.php');
+                exit;
+            } catch (Throwable $exception) {
+                @mysqli_rollback($conn);
+                foreach ($storedMedia as $media) deletePostMedia($media['path'], $authorId);
+                $postError = $exception instanceof InvalidArgumentException || $exception instanceof RuntimeException
+                    ? $exception->getMessage()
+                    : 'The post could not be published. Please try again.';
+            }
         }
     } else {
         $postId = filter_var($_POST['post_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -345,10 +369,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
             $postError = 'Choose a valid post.';
         } else {
             $authorId = (int) $_SESSION['user_id'];
+            $deletedMedia = loadPostMedia($conn, [$postId])[$postId] ?? [];
+            $statement = mysqli_prepare($conn, 'SELECT media_path FROM posts WHERE id = ? AND user_id = ? LIMIT 1');
+            mysqli_stmt_bind_param($statement, 'ii', $postId, $authorId);
+            mysqli_stmt_execute($statement);
+            $deletedPost = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
+            mysqli_stmt_close($statement);
             $statement = mysqli_prepare($conn, 'DELETE FROM posts WHERE id = ? AND user_id = ?');
             mysqli_stmt_bind_param($statement, 'ii', $postId, $authorId);
             mysqli_stmt_execute($statement);
             mysqli_stmt_close($statement);
+            if ($deletedPost) deletePostMedia($deletedPost['media_path'], $authorId);
+            foreach ($deletedMedia as $media) deletePostMedia($media['media_path'], $authorId);
             header('Location: index.php');
             exit;
         }
@@ -373,11 +405,12 @@ if (isset($_SESSION['user_id'])) {
     if (isset($submittedColor) && preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         $dashboardBackgroundColor = $submittedColor;
     }
-    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     mysqli_stmt_bind_param($feedStatement, 'iiiii', $userId, $userId, $userId, $userId, $userId);
     mysqli_stmt_execute($feedStatement);
     $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($feedStatement);
+    attachPostMedia($posts, loadPostMedia($conn, array_column($posts, 'id')));
     $postInteractions = loadPostInteractions($conn, array_column($posts, 'id'), $userId);
     $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
     mysqli_stmt_bind_param($topStatement, 'iii', $userId, $userId, $userId);
@@ -436,8 +469,9 @@ if (isset($_SESSION['user_id'])) {
         }
     }
 } else {
-    $publicResult = mysqli_query($conn, "SELECT p.user_id, p.content, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $publicResult = mysqli_query($conn, "SELECT p.id, p.user_id, p.content, p.media_path, p.media_type, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     $posts = mysqli_fetch_all($publicResult, MYSQLI_ASSOC);
+    attachPostMedia($posts, loadPostMedia($conn, array_column($posts, 'id')));
 }
 ?>
 <!doctype html>
@@ -594,12 +628,12 @@ if (isset($_SESSION['user_id'])) {
             </aside>
 
             <section class="dashboard-feed" aria-label="Post feed">
-                <form class="post-composer" method="post">
+                <form class="post-composer" method="post" enctype="multipart/form-data" data-post-composer>
                     <input type="hidden" name="action" value="create_post">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
                     <div class="post-composer-box<?= $postContent !== '' || $postError !== '' ? ' is-expanded' : '' ?>" data-post-composer-box>
                         <label class="sr-only" for="post-content">Write a post</label>
-                        <textarea id="post-content" name="content" rows="4" maxlength="2500" placeholder="What's on your mind?" data-post-content required><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
+                        <textarea id="post-content" name="content" rows="4" maxlength="2500" placeholder="What's on your mind?" data-post-content><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
                         <button class="post-composer-expand" type="button" aria-label="Create a post" title="Create a post" data-post-composer-expand>+</button>
                         <label class="sr-only" for="post-visibility">Audience</label>
                         <select id="post-visibility" name="visibility" aria-label="Post audience">
@@ -607,7 +641,10 @@ if (isset($_SESSION['user_id'])) {
                             <option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option>
                         </select>
                         <span class="post-character-count" data-post-character-count>0/2500</span>
+                        <label class="post-media-picker" for="post-media" title="Attach media">Media</label>
+                        <input id="post-media" class="sr-only" type="file" name="post_media[]" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-input multiple>
                         <button class="post-submit-button" type="submit">Post</button>
+                        <div class="post-media-preview" data-post-media-preview hidden><div data-post-media-preview-content></div><button type="button" data-post-media-clear aria-label="Remove selected media">&times;</button></div>
                     </div>
                     <?php if ($postError): ?><p class="post-error" role="alert"><?= htmlspecialchars($postError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 </form>
@@ -620,7 +657,8 @@ if (isset($_SESSION['user_id'])) {
                             <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ((int) $post['user_id'] === $userId): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
                         </header>
                         <p class="post-content" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <?php if ((int) $post['user_id'] === $userId): ?><form class="post-edit-form" data-post-edit-form hidden><textarea maxlength="2500" required><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></textarea><div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div></form><?php endif; ?>
+                        <?php renderPostMedia($post, '', (int) $post['user_id'] === $userId); ?>
+                        <?php if ((int) $post['user_id'] === $userId): ?><form class="post-edit-form" data-post-edit-form hidden><textarea maxlength="2500"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></textarea><div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div></form><?php endif; ?>
                         <?php renderPostInteractions($post, $postInteractions[(int) $post['id']] ?? [], $userId); ?>
                     </article>
                 <?php endforeach; ?>
@@ -765,6 +803,7 @@ if (isset($_SESSION['user_id'])) {
                         <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time></div>
                     </header>
                     <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <?php renderPostMedia($post); ?>
                 </article>
             <?php endforeach; ?>
         </main>

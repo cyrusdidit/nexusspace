@@ -78,6 +78,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
+    const updateMedia = (card, data) => {
+        if (!Object.prototype.hasOwnProperty.call(data, 'mediaHtml')) return;
+        const current = card.querySelector('[data-post-media]');
+        if (!data.mediaHtml.trim()) {
+            current?.remove();
+            return;
+        }
+        if (current?.dataset.mediaKey === String(data.mediaKey || '')) return;
+        const template = document.createElement('template');
+        template.innerHTML = data.mediaHtml.trim();
+        const next = template.content.firstElementChild;
+        if (!next) return;
+        if (current) current.replaceWith(next);
+        else card.querySelector('[data-post-content]')?.insertAdjacentElement('afterend', next);
+    };
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
@@ -142,11 +157,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!window.confirm('Delete this post and all of its comments?')) return;
             action = 'delete_post';
         }
+        if (button.matches('[data-post-media-remove]')) {
+            if (!window.confirm('Remove this media from the post?')) return;
+            action = 'remove_media';
+            values.media_id = button.dataset.mediaId;
+        }
         if (!action) return;
         button.disabled = true;
         try {
             const data = await request(card, action, values);
-            if (data.deleted) card.remove(); else updateInteractions(card, data);
+            if (data.deleted) card.remove();
+            else {
+                updateMedia(card, data);
+                updateInteractions(card, data);
+            }
             liveChannel?.postMessage({ postId: card.dataset.postId });
         } catch (error) { button.disabled = false; showError(card, error); }
     });
@@ -217,6 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (post.edited && !card.querySelector('[data-post-edited]')) {
                     card.querySelector('.post-meta')?.insertAdjacentHTML('beforeend', ' &middot; <span data-post-edited>Edited</span>');
                 }
+                updateMedia(card, post);
                 updateInteractions(card, post, true);
             });
             const empty = document.querySelector('[data-post-empty]');

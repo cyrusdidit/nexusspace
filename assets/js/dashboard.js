@@ -130,6 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const postCharacterCount = document.querySelector('[data-post-character-count]');
     const postComposerBox = document.querySelector('[data-post-composer-box]');
     const postComposerExpand = document.querySelector('[data-post-composer-expand]');
+    const postComposer = document.querySelector('[data-post-composer]');
+    const postMediaInput = document.querySelector('[data-post-media-input]');
+    const postMediaPreview = document.querySelector('[data-post-media-preview]');
+    const postMediaPreviewContent = postMediaPreview?.querySelector('[data-post-media-preview-content]');
+    const postMediaClear = postMediaPreview?.querySelector('[data-post-media-clear]');
+    let postMediaObjectUrls = [];
     if (postContent && postCharacterCount) {
         const updatePostCharacterCount = () => {
             postCharacterCount.textContent = `${postContent.value.length}/2500`;
@@ -145,6 +151,87 @@ document.addEventListener('DOMContentLoaded', () => {
         postContent?.focus();
     });
     postContent?.addEventListener('focus', expandPostComposer);
+
+    const clearPostMedia = () => {
+        postMediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+        postMediaObjectUrls = [];
+        if (postMediaInput) postMediaInput.value = '';
+        postMediaPreviewContent?.replaceChildren();
+        if (postMediaPreview) postMediaPreview.hidden = true;
+        postComposerBox?.classList.remove('has-media');
+        postComposerBox?.style.removeProperty('--post-media-preview-height');
+        postComposerBox?.style.removeProperty('--post-composer-media-height');
+    };
+    postMediaInput?.addEventListener('change', () => {
+        const files = [...(postMediaInput.files || [])];
+        postMediaObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+        postMediaObjectUrls = [];
+        postMediaPreviewContent?.replaceChildren();
+        postMediaPreviewContent?.classList.remove('is-multiple');
+        if (postMediaPreview) postMediaPreview.hidden = true;
+        postComposerBox?.classList.remove('has-media');
+        postComposerBox?.style.removeProperty('--post-media-preview-height');
+        postComposerBox?.style.removeProperty('--post-composer-media-height');
+        if (!files.length) return;
+        if (files.length > 5) {
+            window.alert('Attach up to five media files per post.');
+            postMediaInput.value = '';
+            return;
+        }
+        for (const file of files) {
+            const image = file.type.startsWith('image/');
+            const video = file.type === 'video/mp4' || file.type === 'video/webm';
+            const limit = image ? 10 * 1024 * 1024 : 50 * 1024 * 1024;
+            if ((!image && !video) || file.size > limit) {
+                window.alert(!image && !video ? 'Choose JPG, PNG, WebP, GIF, MP4, or WebM files.' : `${image ? 'Images' : 'Videos'} must be ${image ? '10' : '50'}MB or smaller.`);
+                clearPostMedia();
+                return;
+            }
+        }
+        const setPreviewHeight = (previewHeight) => {
+            if (!postComposerBox) return;
+            postComposerBox.style.setProperty('--post-media-preview-height', `${previewHeight}px`);
+            postComposerBox.style.setProperty('--post-composer-media-height', `${previewHeight + 88}px`);
+        };
+        if (files.length > 1) {
+            postMediaPreviewContent?.classList.add('is-multiple');
+            setPreviewHeight(Math.min(420, Math.ceil(files.length / 2) * 132));
+        }
+        files.forEach((file, index) => {
+            const image = file.type.startsWith('image/');
+            const preview = document.createElement(image ? 'img' : 'video');
+            const objectUrl = URL.createObjectURL(file);
+            postMediaObjectUrls.push(objectUrl);
+            preview.src = objectUrl;
+            preview.alt = image ? `Selected post attachment ${index + 1}` : '';
+            if (!image) {
+                preview.controls = true;
+                preview.muted = true;
+                preview.preload = 'metadata';
+            }
+            if (files.length === 1) {
+                const sizePreview = () => {
+                    const mediaWidth = image ? preview.naturalWidth : preview.videoWidth;
+                    const mediaHeight = image ? preview.naturalHeight : preview.videoHeight;
+                    if (!mediaWidth || !mediaHeight || !postComposerBox) return;
+                    const previewWidth = Math.max(1, (postComposerBox.clientWidth * 0.5) - 6);
+                    setPreviewHeight(Math.min(420, Math.max(140, Math.round(previewWidth * mediaHeight / mediaWidth))));
+                };
+                preview.addEventListener(image ? 'load' : 'loadedmetadata', sizePreview, { once: true });
+            }
+            postMediaPreviewContent?.append(preview);
+        });
+        if (postMediaPreview) postMediaPreview.hidden = false;
+        postComposerBox?.classList.add('is-expanded', 'has-media');
+    });
+    postMediaClear?.addEventListener('click', clearPostMedia);
+    postComposer?.addEventListener('submit', (event) => {
+        if (postContent?.value.trim() || postMediaInput?.files?.length) return;
+        event.preventDefault();
+        postContent?.setCustomValidity('Write something or attach media.');
+        postContent?.reportValidity();
+        postContent?.setCustomValidity('');
+    });
 
     const notificationsPanel = document.querySelector('[data-notifications]');
 

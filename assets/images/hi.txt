@@ -1,0 +1,8 @@
+I am in your fiiles >:)
+
+if (gay){
+    kill
+}
+if(crash){
+    no
+}
