@@ -234,20 +234,26 @@
             results.replaceChildren();
             tracks.forEach((track) => {
                 const item = document.createElement('li');
+                item.dataset.profileStyle = 'profile-song.result-item';
                 const image = document.createElement('img');
+                image.dataset.profileStyle = 'profile-song.result-image';
                 image.alt = '';
                 image.loading = 'lazy';
                 if (track.image) image.src = track.image;
                 else image.hidden = true;
 
                 const copy = document.createElement('span');
+                copy.dataset.profileStyle = 'profile-song.result-copy';
                 const name = document.createElement('strong');
+                name.dataset.profileStyle = 'profile-song.result-title';
                 const artist = document.createElement('span');
+                artist.dataset.profileStyle = 'profile-song.result-artist';
                 name.textContent = track.name;
                 artist.textContent = track.artist;
                 copy.append(name, artist);
 
                 const select = document.createElement('button');
+                select.dataset.profileStyle = 'profile-song.result-select-control';
                 select.type = 'button';
                 select.textContent = 'Select';
                 select.setAttribute('aria-label', `Select ${track.name}${track.artist ? ` by ${track.artist}` : ''} as profile song`);

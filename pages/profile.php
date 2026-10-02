@@ -111,6 +111,7 @@ if ($user) {
 
 $_SESSION['friend_request_token'] ??= bin2hex(random_bytes(32));
 $_SESSION['top_eight_token'] ??= bin2hex(random_bytes(32));
+$_SESSION['profile_customization_token'] ??= bin2hex(random_bytes(32));
 $friendState = 'none';
 $friendError = '';
 $topEightError = '';
@@ -686,6 +687,8 @@ if ($user) {
     mysqli_stmt_close($statement);
 }
 $profileCustomization = $user ? readProfileCustomization($conn, $userId) : null;
+$profileCustomizationRevisions = $user && $isOwnProfile ? readProfileCustomizationRevisions($conn, $currentUserId) : [];
+$profileSimpleCss = $profileCustomization ? renderProfileSimpleCss($profileCustomization['simple_settings'], $profileCustomization['sidebar_width']) : '';
 $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileCustomization['custom_css']) : '';
 $profileNotice = '';
 if ($isOwnProfile) {
@@ -717,6 +720,7 @@ if ($isOwnProfile) {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?> · NexusSpace</title>
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
+    <?php if ($profileSimpleCss !== ''): ?><style data-profile-simple-css><?= str_replace('</style', '<\/style', $profileSimpleCss) ?></style><?php endif; ?>
     <?php if ($profileCustomCss !== ''): ?><style data-profile-custom-css><?= str_replace('</style', '<\/style', $profileCustomCss) ?></style><?php endif; ?>
     <script src="../assets/js/profile-bio.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-bio.js') ?>" defer></script>
     <script src="../assets/js/profile-avatar.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-avatar.js') ?>" defer></script>
@@ -731,6 +735,8 @@ if ($isOwnProfile) {
     <?php if ($user && $isOwnProfile): ?>
         <script src="../assets/js/profile-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-appearance.js') ?>" defer></script>
         <script src="../assets/js/profile-cover-appearance.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-cover-appearance.js') ?>" defer></script>
+        <script src="../assets/js/profile-customization-inline.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-customization-inline.js') ?>" defer></script>
+        <script src="../assets/js/profile-sidebar-resize.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-sidebar-resize.js') ?>" defer></script>
     <?php endif; ?>
 </head>
 <body class="profile-page" data-profile-style="profile.page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-spotify-profile-playback-endpoint="../spotify-profile-playback.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
@@ -779,15 +785,15 @@ if ($isOwnProfile) {
             <?php if ($isOwnProfile): ?><form class="profile-inline-status" method="post" action="profile.php?id=<?= $userId ?>" data-profile-style="status.container" data-inline-status-form><input type="hidden" name="action" value="update_status"><input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>"><label class="sr-only" for="profile-status-input">Status</label><input id="profile-status-input" name="status" type="text" maxlength="40" autocomplete="off" placeholder="Write a status" value="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($statusDraft, ENT_QUOTES, 'UTF-8') ?>" data-profile-style="status.editor" data-profile-written-status data-profile-status-input><button class="status-edit-pencil" type="button" aria-label="Edit status" title="Edit status" data-profile-style="status.edit-control" data-status-edit-pencil>&#9998;</button><?php if ($statusError !== ''): ?><p class="post-error" role="alert" data-profile-style="status.error"><?= htmlspecialchars($statusError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?></form><?php else: ?><div class="profile-written-status-wrap" data-profile-style="status.container"><p class="profile-written-status" title="<?= $profileWrittenStatusVisible ? htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') : '' ?>" data-profile-style="status.text" data-profile-written-status<?= $profileWrittenStatusVisible && trim((string) ($user['status_text'] ?? '')) !== '' ? '' : ' hidden' ?>><?= $profileWrittenStatusVisible ? htmlspecialchars(trim((string) ($user['status_text'] ?? '')), ENT_QUOTES, 'UTF-8') : '' ?></p></div><?php endif; ?>
             <section class="profile-sidebar-activity" data-profile-style="activity.container" aria-label="Current activity" data-spotify-like-endpoint="../spotify-like-track.php" data-spotify-action-token="<?= htmlspecialchars($_SESSION['spotify_action_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <div class="profile-sidebar-activity-row profile-sidebar-music-row" data-profile-style="activity.spotify-row" data-profile-music-row<?= $profileMusic ? '' : ' hidden' ?>>
-                    <a class="profile-sidebar-activity-main" href="<?= htmlspecialchars($profileMusic['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" title="<?= $profileMusic ? htmlspecialchars($profileMusic['name'] . ' • ' . $profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?>" data-profile-music-link>
+                    <a class="profile-sidebar-activity-main" data-profile-style="activity.spotify-link" href="<?= htmlspecialchars($profileMusic['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" title="<?= $profileMusic ? htmlspecialchars($profileMusic['name'] . ' • ' . $profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?>" data-profile-music-link>
                         <img class="profile-sidebar-activity-art" data-profile-style="activity.art" src="<?= htmlspecialchars($profileMusic['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-music-image<?= !empty($profileMusic['image']) ? '' : ' hidden' ?>>
-                        <span class="profile-sidebar-activity-copy"><strong data-profile-music-name><?= $profileMusic ? htmlspecialchars($profileMusic['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span aria-hidden="true"> &bull; </span><span data-profile-music-artist><?= $profileMusic ? htmlspecialchars($profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></span>
+                        <span class="profile-sidebar-activity-copy" data-profile-style="activity.copy"><strong data-profile-style="activity.title" data-profile-music-name><?= $profileMusic ? htmlspecialchars($profileMusic['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span aria-hidden="true"> &bull; </span><span data-profile-style="activity.detail" data-profile-music-artist><?= $profileMusic ? htmlspecialchars($profileMusic['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></span>
                     </a>
                     <button class="profile-sidebar-music-add" type="button" aria-label="Add song to Liked Songs" title="Add to Liked Songs" data-profile-style="activity.spotify-add-control" data-profile-music-add data-track-id="<?= htmlspecialchars($profileMusic['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>">+</button>
                 </div>
                 <div class="profile-sidebar-activity-row" data-profile-style="activity.steam-row" data-profile-game-row<?= $profileGame ? '' : ' hidden' ?>>
                     <img class="profile-sidebar-activity-art" data-profile-style="activity.art" src="<?= htmlspecialchars($profileGame['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>" alt="" data-profile-game-image<?= !empty($profileGame['image']) ? '' : ' hidden' ?>>
-                    <span class="profile-sidebar-activity-copy"><strong data-profile-game-name><?= $profileGame ? htmlspecialchars($profileGame['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong> <small>(<span data-profile-game-duration data-elapsed-seconds="<?= $profileGame ? (int) $profileGame['elapsed'] : 0 ?>"><?= $profileGame ? sprintf('%02d:%02d:%02d', intdiv((int) $profileGame['elapsed'], 3600), intdiv((int) $profileGame['elapsed'], 60) % 60, (int) $profileGame['elapsed'] % 60) : '' ?></span>)</small></span>
+                    <span class="profile-sidebar-activity-copy" data-profile-style="activity.copy"><strong data-profile-style="activity.title" data-profile-game-name><?= $profileGame ? htmlspecialchars($profileGame['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong> <small data-profile-style="activity.detail">(<span data-profile-style="activity.steam-duration" data-profile-game-duration data-elapsed-seconds="<?= $profileGame ? (int) $profileGame['elapsed'] : 0 ?>"><?= $profileGame ? sprintf('%02d:%02d:%02d', intdiv((int) $profileGame['elapsed'], 3600), intdiv((int) $profileGame['elapsed'], 60) % 60, (int) $profileGame['elapsed'] % 60) : '' ?></span>)</small></span>
                 </div>
                 <p class="profile-sidebar-activity-feedback" data-profile-style="activity.feedback" role="status" data-profile-activity-feedback hidden></p>
             </section>
@@ -850,18 +856,18 @@ if ($isOwnProfile) {
                     } else { $friendAvatar = ''; }
                     ?>
                     <li data-profile-style="top-eight.item" data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>"><a class="top-friend-link" data-profile-style="top-eight.name" href="profile.php?id=<?= (int) $friend['id'] ?>">
-                        <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
+                        <span class="post-avatar" data-profile-style="top-eight.avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                         <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
-                    </a><button class="top-eight-remove" type="button" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button></li>
+                    </a><button class="top-eight-remove" type="button" data-profile-style="top-eight.remove-control" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button></li>
                 <?php endforeach; ?>
                 <?php $visibleTemporaryFriends = max(0, 8 - count($topFriends)); ?>
                 <?php foreach (array_slice($temporaryProfileUsers, 0, $visibleTemporaryFriends) as $temporaryFriend): ?>
                     <li class="temporary-profile-friend" data-profile-style="top-eight.item" data-top-eight-item data-temp-user="<?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?>">
-                        <span class="top-friend-link">
-                            <span class="post-avatar" aria-hidden="true">T</span>
+                        <span class="top-friend-link" data-profile-style="top-eight.name">
+                            <span class="post-avatar" data-profile-style="top-eight.avatar" aria-hidden="true">T</span>
                             <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                         </span>
-                        <button class="top-eight-remove" type="button" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button>
+                        <button class="top-eight-remove" type="button" data-profile-style="top-eight.remove-control" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button>
                     </li>
                 <?php endforeach; ?>
             </ol>
@@ -869,11 +875,11 @@ if ($isOwnProfile) {
                 <aside class="top-eight-friend-picker" data-profile-style="top-eight.picker" data-top-eight-picker hidden>
                     <div class="top-eight-picker-heading" data-profile-style="top-eight.picker-header">
                         <h3>Friends</h3>
-                        <button type="button" data-top-eight-search-toggle aria-label="Search friends" aria-expanded="false" title="Search friends"><span class="top-eight-search-icon" aria-hidden="true"></span></button>
+                        <button type="button" data-profile-style="top-eight.search-control" data-top-eight-search-toggle aria-label="Search friends" aria-expanded="false" title="Search friends"><span class="top-eight-search-icon" aria-hidden="true"></span></button>
                     </div>
                     <div class="top-eight-picker-search" data-top-eight-search-panel hidden>
                         <label class="sr-only" for="top-eight-friend-search">Search friends</label>
-                        <input id="top-eight-friend-search" type="search" placeholder="Find a friend" autocomplete="off" data-top-eight-search>
+                        <input id="top-eight-friend-search" type="search" placeholder="Find a friend" autocomplete="off" data-profile-style="top-eight.search-field" data-top-eight-search>
                     </div>
                     <ul data-top-eight-pool>
                         <?php foreach (array_slice($temporaryProfileUsers, $visibleTemporaryFriends) as $temporaryFriend): ?>
@@ -882,7 +888,7 @@ if ($isOwnProfile) {
                                     <span class="post-avatar" aria-hidden="true">T</span>
                                     <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                                 </span>
-                                <button type="button" data-top-eight-add aria-label="Add <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
+                                <button type="button" data-profile-style="top-eight.add-control" data-top-eight-add aria-label="Add <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
                             </li>
                         <?php endforeach; ?>
                         <?php foreach ($allFriends as $friend): ?>
@@ -895,12 +901,12 @@ if ($isOwnProfile) {
                                 $friendAvatar = '';
                             }
                             ?>
-                            <li data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>" data-last-interaction="<?= (int) strtotime($friend['last_interaction_at']) ?>">
+                            <li data-profile-style="top-eight.pool-item" data-top-eight-item data-friend-id="<?= (int) $friend['id'] ?>" data-last-interaction="<?= (int) strtotime($friend['last_interaction_at']) ?>">
                                 <a class="top-friend-link" href="profile.php?id=<?= (int) $friend['id'] ?>">
                                     <span class="post-avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($friend['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                                     <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                                 </a>
-                                <button type="button" data-top-eight-add aria-label="Add <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
+                                <button type="button" data-profile-style="top-eight.add-control" data-top-eight-add aria-label="Add <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -943,19 +949,19 @@ if ($isOwnProfile) {
             </div>
             <?php if ($isOwnProfile): ?>
                 <section class="profile-song-picker-panel" data-profile-style="profile-song.picker" data-spotify-profile-song-picker data-track-id="<?= htmlspecialchars($profileSong['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>" hidden>
-                    <header>
-                        <strong>Profile song</strong>
-                        <span class="profile-song-picker-actions">
-                            <button type="button" data-profile-song-remove<?= $profileSong ? '' : ' hidden' ?>>Remove</button>
-                            <button type="button" aria-label="Close profile song search" title="Close" data-profile-song-picker-close>&times;</button>
+                    <header data-profile-style="profile-song.picker-header">
+                        <strong data-profile-style="profile-song.picker-heading">Profile song</strong>
+                        <span class="profile-song-picker-actions" data-profile-style="profile-song.picker-actions">
+                            <button type="button" data-profile-style="profile-song.remove-control" data-profile-song-remove<?= $profileSong ? '' : ' hidden' ?>>Remove</button>
+                            <button type="button" aria-label="Close profile song search" title="Close" data-profile-style="profile-song.picker-close-control" data-profile-song-picker-close>&times;</button>
                         </span>
                     </header>
-                    <form class="spotify-profile-song-search" role="search" data-profile-song-search-form>
-                        <label for="profile-song-search">Find a song</label>
-                        <span><input id="profile-song-search" type="search" minlength="2" maxlength="100" autocomplete="off" placeholder="Song or artist" data-profile-song-search required><button type="submit">Search</button></span>
+                    <form class="spotify-profile-song-search" role="search" data-profile-style="profile-song.search-form" data-profile-song-search-form>
+                        <label for="profile-song-search" data-profile-style="profile-song.search-label">Find a song</label>
+                        <span><input id="profile-song-search" type="search" minlength="2" maxlength="100" autocomplete="off" placeholder="Song or artist" data-profile-style="profile-song.search-field" data-profile-song-search required><button type="submit" data-profile-style="profile-song.search-control">Search</button></span>
                     </form>
-                    <p class="spotify-profile-song-status" role="status" aria-live="polite" data-profile-song-status></p>
-                    <ul class="spotify-profile-song-results" data-profile-song-results hidden></ul>
+                    <p class="spotify-profile-song-status" role="status" aria-live="polite" data-profile-style="profile-song.search-status" data-profile-song-status></p>
+                    <ul class="spotify-profile-song-results" data-profile-style="profile-song.search-results" data-profile-song-results hidden></ul>
                 </section>
             <?php endif; ?>
             <h2 id="profile-posts-heading" data-profile-style="posts.heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
@@ -1002,7 +1008,8 @@ if ($isOwnProfile) {
         ]);
         ?>
         <div class="profile-custom-content"><?= $renderedProfileTemplate ?></div>
-        <small class="profile-page-copyright">&copy;2026 NexusSpace</small>
+        <?php if ($isOwnProfile): ?><button class="profile-sidebar-resize" type="button" role="separator" aria-label="Resize profile sidebar" aria-orientation="vertical" aria-valuemin="220" aria-valuemax="520" aria-valuenow="<?= (int) $profileCustomization['sidebar_width'] ?>" title="Drag or use left and right arrow keys" data-profile-style="layout.sidebar-handle" data-profile-sidebar-resize><span aria-hidden="true">&#8596;</span></button><?php endif; ?>
+        <small class="profile-page-copyright" data-profile-style="profile.copyright">&copy;2026 NexusSpace</small>
         <?php endif; ?>
 
     </main>
@@ -1012,7 +1019,13 @@ if ($isOwnProfile) {
                 <h2>Appearance</h2>
                 <button type="button" aria-label="Close profile appearance" title="Close" data-profile-appearance-close>&times;</button>
             </header>
-            <form class="profile-appearance-content" id="profile-wallpaper-form" method="post" action="profile.php?id=<?= $currentUserId ?>" enctype="multipart/form-data">
+            <nav class="profile-appearance-tabs" aria-label="Appearance section">
+                <button type="button" aria-pressed="true" data-profile-appearance-tab="wallpaper">Wallpaper</button>
+                <button type="button" aria-pressed="false" data-profile-appearance-tab="simple">Simple</button>
+                <button type="button" aria-pressed="false" data-profile-appearance-tab="advanced">CSS/HTML</button>
+                <button type="button" aria-pressed="false" data-profile-appearance-tab="history">History</button>
+            </nav>
+            <form class="profile-appearance-content" id="profile-wallpaper-form" method="post" action="profile.php?id=<?= $currentUserId ?>" enctype="multipart/form-data" data-profile-appearance-section="wallpaper">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <section>
                     <h3>Profile wallpaper</h3>
@@ -1066,6 +1079,77 @@ if ($isOwnProfile) {
                     <button type="button" class="button-secondary" data-profile-wallpaper-reset-open>Reset</button>
                 </div>
             </form>
+            <form class="profile-inline-customization" action="customize-profile.php" method="post" data-profile-customization-inline data-profile-appearance-section="simple" hidden>
+                <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_customization_token'], ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="simple_settings" value="<?= htmlspecialchars(encodeProfileSimpleSettings($profileCustomization['simple_settings']), ENT_QUOTES, 'UTF-8') ?>" data-inline-simple-settings>
+                <input type="hidden" name="sidebar_width" value="<?= (int) $profileCustomization['sidebar_width'] ?>" data-inline-sidebar-width-value>
+                <textarea name="template_html" hidden><?= htmlspecialchars($profileCustomization['template_html'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <textarea name="custom_css" hidden><?= htmlspecialchars($profileCustomization['custom_css'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <div class="profile-customization-session-actions" aria-label="Editing history"><button type="button" aria-label="Undo" title="Undo" data-inline-undo disabled>&larr;</button><button type="button" aria-label="Redo" title="Redo" data-inline-redo disabled>&rarr;</button></div>
+                <div class="profile-inline-target-picker">
+                    <label for="profile-inline-style-target">Edit part</label>
+                    <select id="profile-inline-style-target" data-inline-style-target>
+                        <?php foreach (profileCustomizationTargetGroups() as $group => $targets): ?>
+                            <optgroup label="<?= htmlspecialchars($group, ENT_QUOTES, 'UTF-8') ?>"><?php foreach ($targets as $target): ?><option value="<?= htmlspecialchars($target, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(profileCustomizationTargetLabel($target), ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></optgroup>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="button" class="button-secondary" aria-label="Pick a profile element" aria-pressed="false" title="Pick a profile element" data-inline-picker-toggle>&#8982;</button>
+                    <button type="button" class="button-secondary" data-inline-reset-target>Reset part</button>
+                </div>
+                <fieldset><legend>Typography</legend>
+                    <label>Font<select data-inline-style-property="font_family"><option value="system">Default</option><option>Arial</option><option>Georgia</option><option>Times New Roman</option><option>Trebuchet MS</option><option>Verdana</option><option>Courier New</option></select></label>
+                    <label>Size <span><input type="number" min="8" max="72" placeholder="Default" data-inline-style-property="font_size"><small>px</small></span></label>
+                    <label>Weight<select data-inline-style-property="font_weight"><option value="">Default</option><option value="normal">Normal</option><option value="500">Medium</option><option value="600">Semi-bold</option><option value="700">Bold</option><option value="800">Extra bold</option></select></label>
+                    <label>Style<select data-inline-style-property="font_style"><option value="">Default</option><option value="normal">Normal</option><option value="italic">Italic</option></select></label>
+                    <label>Alignment<select data-inline-style-property="text_align"><option value="">Default</option><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+                </fieldset>
+                <fieldset><legend>Text paint</legend>
+                    <label>Solid <span><input type="color" value="#163b5c" data-inline-style-property="text_color"><button type="button" aria-label="Clear text color" data-inline-clear-property="text_color">&times;</button></span></label>
+                    <label>Gradient start <span><input type="color" value="#238bc5" data-inline-style-property="text_gradient_from"><button type="button" aria-label="Clear gradient start" data-inline-clear-property="text_gradient_from">&times;</button></span></label>
+                    <label>Gradient end <span><input type="color" value="#b51d6b" data-inline-style-property="text_gradient_to"><button type="button" aria-label="Clear gradient end" data-inline-clear-property="text_gradient_to">&times;</button></span></label>
+                    <label>Angle <span><input type="number" min="0" max="360" value="90" data-inline-style-property="text_gradient_angle"><small>deg</small></span></label>
+                </fieldset>
+                <fieldset><legend>Surface and border</legend>
+                    <label>Background <span><input type="color" value="#ffffff" data-inline-style-property="background_color"><button type="button" aria-label="Clear background color" data-inline-clear-property="background_color">&times;</button></span></label>
+                    <label>Border color <span><input type="color" value="#79b9dd" data-inline-style-property="border_color"><button type="button" aria-label="Clear border color" data-inline-clear-property="border_color">&times;</button></span></label>
+                    <label>Border width <span><input type="number" min="0" max="12" placeholder="Default" data-inline-style-property="border_width"><small>px</small></span></label>
+                    <label>Border style<select data-inline-style-property="border_style"><option value="">Default</option><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option><option value="double">Double</option></select></label>
+                    <label>Corner radius <span><input type="number" min="0" max="48" placeholder="Default" data-inline-style-property="border_radius"><small>px</small></span></label>
+                </fieldset>
+                <fieldset><legend>Spacing and effects</legend>
+                    <label>Padding <span><input type="number" min="0" max="64" placeholder="Default" data-inline-style-property="padding"><small>px</small></span></label>
+                    <label>Margin <span><input type="number" min="0" max="64" placeholder="Default" data-inline-style-property="margin"><small>px</small></span></label>
+                    <label>Opacity <span><input type="range" min="10" max="100" value="100" data-inline-style-property="opacity"><output data-inline-property-output="opacity">Default</output></span></label>
+                    <label>Animation<select data-inline-style-property="animation"><option value="none">None</option><option value="pulse">Pulse</option><option value="float">Float</option><option value="wiggle">Wiggle</option></select></label>
+                    <label>Sidebar width <span><input type="range" min="220" max="520" value="<?= (int) $profileCustomization['sidebar_width'] ?>" data-inline-sidebar-width><output data-inline-sidebar-width-output><?= (int) $profileCustomization['sidebar_width'] ?>px</output></span></label>
+                </fieldset>
+                <p class="profile-inline-customization-status" role="status" data-inline-customization-status></p>
+                <div class="profile-appearance-actions"><button type="submit">Save styles</button><button type="button" class="button-secondary" data-inline-reset-all>Reset styles</button></div>
+            </form>
+            <form class="profile-inline-customization profile-inline-code" action="customize-profile.php" method="post" data-profile-customization-advanced data-profile-appearance-section="advanced" hidden>
+                <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_customization_token'], ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="simple_settings" value="<?= htmlspecialchars(encodeProfileSimpleSettings($profileCustomization['simple_settings']), ENT_QUOTES, 'UTF-8') ?>" data-inline-advanced-settings>
+                <input type="hidden" name="sidebar_width" value="<?= (int) $profileCustomization['sidebar_width'] ?>" data-inline-advanced-width>
+                <div class="profile-customization-session-actions" aria-label="Editing history"><button type="button" aria-label="Undo" title="Undo" data-inline-undo disabled>&larr;</button><button type="button" aria-label="Redo" title="Redo" data-inline-redo disabled>&rarr;</button></div>
+                <label for="profile-inline-template">HTML</label>
+                <textarea id="profile-inline-template" name="template_html" maxlength="50000" spellcheck="false"><?= htmlspecialchars($profileCustomization['template_html'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <label for="profile-inline-css">CSS</label>
+                <textarea id="profile-inline-css" name="custom_css" maxlength="30000" spellcheck="false"><?= htmlspecialchars($profileCustomization['custom_css'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <p class="profile-inline-customization-status" role="status" data-inline-advanced-status></p>
+                <div class="profile-appearance-actions is-single"><button type="submit">Save CSS/HTML</button></div>
+            </form>
+            <section class="profile-customization-history" data-profile-appearance-section="history" hidden>
+                <iframe title="Revision preview" data-profile-revision-preview hidden></iframe>
+                <p class="profile-inline-customization-status" role="status" data-profile-revision-status><?= $profileCustomizationRevisions ? 'Choose a revision to preview.' : 'No saved revisions yet.' ?></p>
+                <ol>
+                    <?php foreach ($profileCustomizationRevisions as $index => $revision): ?>
+                        <li>
+                            <span><strong>Revision <?= (int) $revision['revision_number'] ?></strong><?php if ($index === 0): ?> <small>Current</small><?php endif; ?><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', (string) $revision['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y H:i', strtotime((string) $revision['created_at'])), ENT_QUOTES, 'UTF-8') ?></time></span>
+                            <span><button type="button" aria-label="Preview revision <?= (int) $revision['revision_number'] ?>" title="Preview" data-profile-revision-preview-button="<?= (int) $revision['revision_number'] ?>">&#128065;</button><button type="button" aria-label="Restore revision <?= (int) $revision['revision_number'] ?>" title="Restore" data-profile-revision-restore="<?= (int) $revision['revision_number'] ?>">&#8634;</button></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ol>
+            </section>
         </aside>
         <aside class="profile-cover-panel" id="profile-cover-panel" data-profile-cover-panel data-open="<?= $profileCoverPanelOpen ? 'true' : 'false' ?>" data-saved-image="<?= htmlspecialchars($profileCoverBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Profile cover customization" hidden>
             <header class="profile-appearance-header">

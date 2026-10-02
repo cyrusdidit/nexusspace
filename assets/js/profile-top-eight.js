@@ -90,6 +90,7 @@ if (topEightForm) {
             const remove = document.createElement('button');
             remove.type = 'button';
             remove.className = 'top-eight-remove';
+            remove.dataset.profileStyle = 'top-eight.remove-control';
             remove.dataset.topEightRemove = '';
             remove.setAttribute('aria-label', 'Remove from Top 8');
             remove.textContent = '×';
@@ -105,6 +106,7 @@ if (topEightForm) {
         if (!item.querySelector('[data-top-eight-add]')) {
             const add = document.createElement('button');
             add.type = 'button';
+            add.dataset.profileStyle = 'top-eight.add-control';
             add.dataset.topEightAdd = '';
             add.setAttribute('aria-label', 'Add to Top 8');
             add.textContent = '✓';
@@ -147,6 +149,7 @@ if (topEightForm) {
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'top-eight-remove';
+                button.dataset.profileStyle = 'top-eight.remove-control';
                 button.dataset.topEightRemove = '';
                 button.textContent = '×';
                 item.append(button);
@@ -157,6 +160,7 @@ if (topEightForm) {
             if (!item.querySelector('[data-top-eight-add]')) {
                 const button = document.createElement('button');
                 button.type = 'button';
+                button.dataset.profileStyle = 'top-eight.add-control';
                 button.dataset.topEightAdd = '';
                 button.textContent = '✓';
                 item.append(button);

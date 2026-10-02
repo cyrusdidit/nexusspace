@@ -25,6 +25,34 @@ function defaultProfileSimpleSettings(): array
     return [];
 }
 
+function profileCustomizationTargetGroups(): array
+{
+    return [
+        'Page and layout' => ['profile.page', 'profile.sheet', 'profile.copyright', 'layout.root', 'layout.sidebar', 'layout.sidebar-handle', 'layout.content'],
+        'Cover and avatar' => ['cover.container', 'cover.surface', 'cover.image', 'cover.edit-control', 'avatar.container', 'avatar.image', 'avatar.activity', 'avatar.edit-overlay'],
+        'Identity and status' => ['identity.container', 'identity.display-name', 'identity.handle-row', 'identity.handle', 'identity.copy-control', 'status.container', 'status.text', 'status.editor', 'status.edit-control', 'status.error'],
+        'Current activity' => ['activity.container', 'activity.spotify-row', 'activity.spotify-link', 'activity.steam-row', 'activity.art', 'activity.copy', 'activity.title', 'activity.detail', 'activity.spotify-add-control', 'activity.steam-duration', 'activity.feedback'],
+        'Social and bio' => ['social.actions', 'social.message-control', 'social.primary-control', 'social.secondary-control', 'bio.container', 'bio.text', 'bio.editor', 'bio.edit-control', 'bio.counter', 'bio.save-control'],
+        'Top 8' => ['top-eight.container', 'top-eight.header', 'top-eight.heading', 'top-eight.reorder-control', 'top-eight.list', 'top-eight.item', 'top-eight.avatar', 'top-eight.name', 'top-eight.remove-control', 'top-eight.picker', 'top-eight.picker-header', 'top-eight.search-control', 'top-eight.search-field', 'top-eight.pool-item', 'top-eight.add-control', 'top-eight.save-controls'],
+        'Sidebar navigation' => ['sidebar-nav.container', 'sidebar-nav.settings-control', 'sidebar-nav.dashboard-control'],
+        'Wallpaper and profile song' => ['content.wallpaper', 'content.wallpaper-image', 'content.wallpaper-edit-control', 'profile-song.container', 'profile-song.label', 'profile-song.title', 'profile-song.artist', 'profile-song.volume-control', 'profile-song.volume-slider', 'profile-song.edit-control', 'profile-song.close-control', 'profile-song.picker', 'profile-song.picker-header', 'profile-song.picker-heading', 'profile-song.picker-actions', 'profile-song.picker-close-control', 'profile-song.remove-control', 'profile-song.search-form', 'profile-song.search-label', 'profile-song.search-field', 'profile-song.search-control', 'profile-song.search-status', 'profile-song.search-results', 'profile-song.result-item', 'profile-song.result-image', 'profile-song.result-copy', 'profile-song.result-title', 'profile-song.result-artist', 'profile-song.result-select-control'],
+        'Posts' => ['posts.heading', 'posts.empty-state', 'posts.list', 'posts.load-more-control', 'post.card', 'post.header', 'post.author', 'post.avatar', 'post.metadata', 'post.title', 'post.body', 'post.interactions', 'post.owner-actions', 'post.edit-control', 'post.delete-control', 'post.action-bar', 'post.heart-control', 'post.comment-control'],
+        'Post media and editing' => ['post.media-grid', 'post.media-item', 'post.image', 'post.video', 'post.video-speed', 'post.media-remove-control', 'post.media-reorder-controls', 'post.media-move-control', 'post.media-replace-control', 'post.media-add-control', 'post.edit-form', 'post.edit-title-field', 'post.edit-body-field', 'post.edit-actions', 'post.save-control', 'post.cancel-control', 'post.upload-progress'],
+        'Comments and replies' => ['comment.composer', 'comment.composer-field', 'comment.composer-submit', 'comment.status', 'comment.list', 'comment.card', 'comment.header', 'comment.avatar', 'comment.author', 'comment.timestamp', 'comment.pinned', 'comment.body', 'comment.actions', 'comment.reply-control', 'comment.edit-control', 'comment.delete-control', 'comment.pin-control', 'comment.purge-control', 'comment.edit-form', 'comment.edit-field', 'comment.reply-form', 'comment.reply-field', 'comment.save-control', 'comment.cancel-control', 'comment.reply-submit', 'comment.replies-thread'],
+    ];
+}
+
+function profileCustomizationTargetKeys(): array
+{
+    return array_values(array_unique(array_merge(...array_values(profileCustomizationTargetGroups()))));
+}
+
+function profileCustomizationTargetLabel(string $target): string
+{
+    $label = str_replace(['-', '.'], [' ', ' / '], $target);
+    return ucwords($label);
+}
+
 function normalizeProfileSimpleSettings(mixed $settings): array
 {
     if (is_string($settings)) {
@@ -34,7 +62,52 @@ function normalizeProfileSimpleSettings(mixed $settings): array
             return defaultProfileSimpleSettings();
         }
     }
-    return is_array($settings) ? $settings : defaultProfileSimpleSettings();
+    if (!is_array($settings)) return defaultProfileSimpleSettings();
+
+    $allowedTargets = array_fill_keys(profileCustomizationTargetKeys(), true);
+    $allowedFonts = ['system', 'Arial', 'Georgia', 'Times New Roman', 'Trebuchet MS', 'Verdana', 'Courier New'];
+    $allowedWeights = ['normal', '500', '600', '700', '800'];
+    $allowedStyles = ['normal', 'italic'];
+    $allowedAlignments = ['left', 'center', 'right'];
+    $allowedBorderStyles = ['solid', 'dashed', 'dotted', 'double'];
+    $allowedAnimations = ['none', 'pulse', 'float', 'wiggle'];
+    $normalized = [];
+
+    foreach ($settings as $target => $values) {
+        if (!is_string($target) || !isset($allowedTargets[$target]) || !is_array($values)) continue;
+        $targetValues = [];
+        $enumProperties = [
+            'font_family' => $allowedFonts,
+            'font_weight' => $allowedWeights,
+            'font_style' => $allowedStyles,
+            'text_align' => $allowedAlignments,
+            'border_style' => $allowedBorderStyles,
+            'animation' => $allowedAnimations,
+        ];
+        foreach ($enumProperties as $property => $allowedValues) {
+            $value = $values[$property] ?? null;
+            if (is_string($value) && in_array($value, $allowedValues, true) && !in_array($value, ['system', 'none'], true)) $targetValues[$property] = $value;
+        }
+        foreach (['text_color', 'text_gradient_from', 'text_gradient_to', 'background_color', 'border_color'] as $property) {
+            $value = $values[$property] ?? null;
+            if (is_string($value) && preg_match('/^#[0-9a-f]{6}$/i', $value)) $targetValues[$property] = strtolower($value);
+        }
+        $ranges = [
+            'font_size' => [8, 72],
+            'text_gradient_angle' => [0, 360],
+            'border_width' => [0, 12],
+            'border_radius' => [0, 48],
+            'padding' => [0, 64],
+            'margin' => [0, 64],
+            'opacity' => [10, 100],
+        ];
+        foreach ($ranges as $property => [$minimum, $maximum]) {
+            if (!isset($values[$property]) || $values[$property] === '') continue;
+            $targetValues[$property] = min($maximum, max($minimum, (int) $values[$property]));
+        }
+        if ($targetValues) $normalized[$target] = $targetValues;
+    }
+    return $normalized;
 }
 
 function encodeProfileSimpleSettings(array $settings): string
@@ -45,6 +118,54 @@ function encodeProfileSimpleSettings(array $settings): string
 function normalizeProfileSidebarWidth(mixed $width): int
 {
     return min(PROFILE_SIDEBAR_MAX_WIDTH, max(PROFILE_SIDEBAR_MIN_WIDTH, (int) $width));
+}
+
+function renderProfileSimpleCss(mixed $settings, mixed $sidebarWidth = PROFILE_SIDEBAR_DEFAULT_WIDTH): string
+{
+    $settings = normalizeProfileSimpleSettings($settings);
+    $fontFamilies = [
+        'Arial' => 'Arial, sans-serif',
+        'Georgia' => 'Georgia, serif',
+        'Times New Roman' => '"Times New Roman", serif',
+        'Trebuchet MS' => '"Trebuchet MS", sans-serif',
+        'Verdana' => 'Verdana, sans-serif',
+        'Courier New' => '"Courier New", monospace',
+    ];
+    $rules = [];
+    foreach ($settings as $target => $values) {
+        $declarations = [];
+        if (isset($fontFamilies[$values['font_family'] ?? ''])) $declarations[] = 'font-family: ' . $fontFamilies[$values['font_family']];
+        if (isset($values['font_size'])) $declarations[] = 'font-size: ' . $values['font_size'] . 'px';
+        if (isset($values['font_weight'])) $declarations[] = 'font-weight: ' . $values['font_weight'];
+        if (isset($values['font_style'])) $declarations[] = 'font-style: ' . $values['font_style'];
+        if (isset($values['text_align'])) $declarations[] = 'text-align: ' . $values['text_align'];
+        if (isset($values['text_color'])) $declarations[] = 'color: ' . $values['text_color'];
+        if (isset($values['text_gradient_from'], $values['text_gradient_to'])) {
+            $angle = $values['text_gradient_angle'] ?? 90;
+            $declarations[] = 'background-image: linear-gradient(' . $angle . 'deg, ' . $values['text_gradient_from'] . ', ' . $values['text_gradient_to'] . ')';
+            $declarations[] = 'background-clip: text';
+            $declarations[] = '-webkit-background-clip: text';
+            $declarations[] = 'color: transparent';
+        }
+        if (isset($values['background_color'])) $declarations[] = 'background-color: ' . $values['background_color'];
+        if (isset($values['border_color'])) $declarations[] = 'border-color: ' . $values['border_color'];
+        if (isset($values['border_width'])) $declarations[] = 'border-width: ' . $values['border_width'] . 'px';
+        if (isset($values['border_style'])) $declarations[] = 'border-style: ' . $values['border_style'];
+        if (isset($values['border_radius'])) $declarations[] = 'border-radius: ' . $values['border_radius'] . 'px';
+        if (isset($values['padding'])) $declarations[] = 'padding: ' . $values['padding'] . 'px';
+        if (isset($values['margin'])) $declarations[] = 'margin: ' . $values['margin'] . 'px';
+        if (isset($values['opacity'])) $declarations[] = 'opacity: ' . ($values['opacity'] / 100);
+        if (isset($values['animation'])) $declarations[] = 'animation: nexus-profile-' . $values['animation'] . ' 1.8s ease-in-out infinite';
+        if ($declarations) {
+            $selector = $target === 'profile.page'
+                ? '.profile-page[data-profile-style="profile.page"]'
+                : '.profile-page [data-profile-style="' . $target . '"]';
+            $rules[] = $selector . " {\n    " . implode(";\n    ", $declarations) . ";\n}";
+        }
+    }
+    $width = normalizeProfileSidebarWidth($sidebarWidth);
+    $rules[] = '.profile-page [data-profile-style="layout.root"] { --profile-sidebar-width: ' . $width . 'px; }';
+    return implode("\n", $rules);
 }
 
 function defaultProfileCustomization(): array
@@ -182,13 +303,24 @@ function readProfileCustomizationRevisions(mysqli $conn, int $userId, int $limit
     }, $revisions);
 }
 
-function restoreProfileCustomizationRevision(mysqli $conn, int $userId, int $revisionNumber): int
+function readProfileCustomizationRevision(mysqli $conn, int $userId, int $revisionNumber): ?array
 {
-    $statement = mysqli_prepare($conn, 'SELECT simple_settings, sidebar_width, template_html, custom_css FROM profile_customization_revisions WHERE user_id = ? AND revision_number = ? LIMIT 1');
+    $statement = mysqli_prepare($conn, 'SELECT revision_number, schema_version, simple_settings, sidebar_width, template_html, custom_css, created_at FROM profile_customization_revisions WHERE user_id = ? AND revision_number = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 'ii', $userId, $revisionNumber);
     mysqli_stmt_execute($statement);
     $revision = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
     mysqli_stmt_close($statement);
+    if (!$revision) return null;
+    $revision['revision_number'] = (int) $revision['revision_number'];
+    $revision['schema_version'] = (int) $revision['schema_version'];
+    $revision['simple_settings'] = normalizeProfileSimpleSettings($revision['simple_settings']);
+    $revision['sidebar_width'] = normalizeProfileSidebarWidth($revision['sidebar_width']);
+    return $revision;
+}
+
+function restoreProfileCustomizationRevision(mysqli $conn, int $userId, int $revisionNumber): int
+{
+    $revision = readProfileCustomizationRevision($conn, $userId, $revisionNumber);
     if (!$revision) throw new InvalidArgumentException('That profile revision no longer exists.');
     return saveProfileCustomization(
         $conn,
@@ -203,9 +335,14 @@ function restoreProfileCustomizationRevision(mysqli $conn, int $userId, int $rev
 function sanitizeProfileTemplate(string $templateHtml): string
 {
     $allowedPlaceholders = ['{{profile_header}}', '{{bio}}', '{{top_eight}}', '{{posts}}'];
+    $seenPlaceholders = [];
     $templateHtml = preg_replace_callback(
         '/{{\s*[^{}]+?\s*}}/',
-        static fn (array $match): string => in_array($match[0], $allowedPlaceholders, true) ? $match[0] : '',
+        static function (array $match) use ($allowedPlaceholders, &$seenPlaceholders): string {
+            if (!in_array($match[0], $allowedPlaceholders, true) || isset($seenPlaceholders[$match[0]])) return '';
+            $seenPlaceholders[$match[0]] = true;
+            return $match[0];
+        },
         $templateHtml
     ) ?? '';
 
@@ -228,7 +365,8 @@ function sanitizeProfileTemplate(string $templateHtml): string
         foreach ($attributes as $attributeName) {
             $lowerName = strtolower($attributeName);
             $value = $element->getAttribute($attributeName);
-            if (str_starts_with($lowerName, 'on') || in_array($lowerName, ['data-profile-style', 'formaction', 'srcdoc', 'style'], true) || str_contains($value, '{{')) {
+            if ($lowerName === 'id' && $value === 'profile-template-root') continue;
+            if (str_starts_with($lowerName, 'on') || str_starts_with($lowerName, 'data-') || in_array($lowerName, ['id', 'formaction', 'srcdoc', 'style'], true) || str_contains($value, '{{')) {
                 $element->removeAttribute($attributeName);
                 continue;
             }
@@ -294,13 +432,66 @@ function appendLockedProfileControlsPlaceholder(string $safeTemplate): string
     return $templateWithControls;
 }
 
+function extractSafeProfileKeyframes(string $css, array &$nameMap): ?array
+{
+    $remaining = '';
+    $keyframes = [];
+    $cursor = 0;
+    $prefix = 'nexus-custom-' . substr(hash('sha256', $css), 0, 10) . '-';
+
+    while (preg_match('/@keyframes\s+([a-z_][a-z0-9_-]*)\s*\{/i', $css, $match, PREG_OFFSET_CAPTURE, $cursor)) {
+        $start = $match[0][1];
+        $openingBrace = $start + strlen($match[0][0]) - 1;
+        $remaining .= substr($css, $cursor, $start - $cursor);
+        $depth = 1;
+        $end = $openingBrace + 1;
+        $length = strlen($css);
+        while ($end < $length && $depth > 0) {
+            if ($css[$end] === '{') $depth++;
+            elseif ($css[$end] === '}') $depth--;
+            $end++;
+        }
+        if ($depth !== 0) return null;
+
+        $body = substr($css, $openingBrace + 1, $end - $openingBrace - 2);
+        preg_match_all('/([^{}]+)\{([^{}]*)\}/s', $body, $steps, PREG_SET_ORDER);
+        $unparsed = preg_replace('/[^{}]+\{[^{}]*\}/s', '', $body) ?? '';
+        if (!$steps || trim($unparsed) !== '') return null;
+
+        $safeSteps = [];
+        foreach ($steps as $step) {
+            $selectors = array_map('trim', explode(',', $step[1]));
+            foreach ($selectors as $selector) {
+                if (!preg_match('/^(?:from|to|(?:100|\d{1,2})(?:\.\d+)?%)$/i', $selector)) return null;
+            }
+            $declarations = trim(preg_replace('/\s*!important\b/i', '', $step[2]) ?? '');
+            if ($declarations === '' || preg_match('~(?:@|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i', $declarations)) return null;
+            $safeSteps[] = implode(', ', $selectors) . " {\n        " . $declarations . "\n    }";
+        }
+
+        $originalName = $match[1][0];
+        $safeName = $prefix . strtolower($originalName);
+        $nameMap[$originalName] = $safeName;
+        $keyframes[] = '@keyframes ' . $safeName . " {\n    " . implode("\n    ", $safeSteps) . "\n}";
+        $cursor = $end;
+    }
+    $remaining .= substr($css, $cursor);
+    if (str_contains($remaining, '@')) return null;
+    return [$remaining, $keyframes];
+}
+
 function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile-custom-content'): string
 {
     $css = preg_replace('~/\*.*?\*/~s', '', $customCss) ?? '';
     if (trim($css) === '') return '';
 
-    $blockedSyntax = '~(?:@|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i';
+    $blockedSyntax = '~(?:url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i';
     if (preg_match($blockedSyntax, $css) || substr_count($css, '{') !== substr_count($css, '}')) return '';
+
+    $nameMap = [];
+    $extracted = extractSafeProfileKeyframes($css, $nameMap);
+    if ($extracted === null) return '';
+    [$css, $safeKeyframes] = $extracted;
 
     preg_match_all('~([^{}]+)\{([^{}]*)\}~s', $css, $matches, PREG_SET_ORDER);
     $unparsed = preg_replace('~[^{}]+\{[^{}]*\}~s', '', $css) ?? '';
@@ -310,6 +501,9 @@ function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile
     foreach ($matches as $match) {
         $declarations = trim(preg_replace('~\s*!important\b~i', '', $match[2]) ?? '');
         if ($declarations === '') continue;
+        foreach ($nameMap as $originalName => $safeName) {
+            $declarations = preg_replace('/\b' . preg_quote($originalName, '/') . '\b/', $safeName, $declarations) ?? $declarations;
+        }
 
         $safeSelectors = [];
         foreach (explode(',', $match[1]) as $selector) {
@@ -321,7 +515,7 @@ function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile
         if ($safeSelectors) $safeRules[] = implode(', ', $safeSelectors) . " {\n    " . $declarations . "\n}";
     }
 
-    return implode("\n", $safeRules);
+    return implode("\n", array_merge($safeKeyframes, $safeRules));
 }
 
 function validateProfileTemplate(string $templateHtml): array
@@ -355,6 +549,9 @@ function validateProfileTemplate(string $templateHtml): array
     if (preg_match('~\s(?:on[a-z]+|style|srcdoc|formaction)\s*=~i', $templateHtml)) {
         $warnings[] = 'Inline styles and event attributes are removed from custom HTML.';
     }
+    if (preg_match('~\s(?:id|data-[a-z0-9_-]+)\s*=~i', $templateHtml)) {
+        $warnings[] = 'Custom IDs and data attributes are removed to protect profile controls.';
+    }
 
     foreach (['div', 'aside', 'section', 'article', 'header', 'footer', 'nav', 'main', 'span'] as $tag) {
         preg_match_all('~<' . $tag . '\b(?![^>]*?/\s*>)[^>]*>~i', $templateHtml, $openingTags);
@@ -372,7 +569,7 @@ function validateProfileCss(string $customCss): array
     $css = preg_replace('~/\*.*?\*/~s', '', $customCss) ?? '';
 
     if (substr_count($css, '{') !== substr_count($css, '}')) $warnings[] = 'CSS braces are unbalanced.';
-    if (preg_match('/@/', $css)) $warnings[] = '@ rules are not supported yet and will be ignored.';
+    if (preg_match('/@(?!keyframes\b)/i', $css)) $warnings[] = 'Only @keyframes animation rules are supported.';
     if (preg_match('~url\s*\(~i', $css)) $warnings[] = 'External images, fonts, and other url() resources are blocked.';
     if (preg_match('~position\s*:\s*fixed\b~i', $css)) $warnings[] = 'Fixed positioning is blocked to keep customization inside the profile.';
     if (preg_match('~!important\b~i', $css)) $warnings[] = '!important is removed from custom CSS.';

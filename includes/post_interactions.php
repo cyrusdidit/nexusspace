@@ -73,22 +73,22 @@ function renderPostComment(array $comment, int $viewerId, int $postOwnerId, stri
         </header>
         <p data-profile-style="comment.body" data-comment-content><?= $deleted ? '<em>Comment deleted</em>' : htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?><?php if (!$deleted && $comment['edited_at']): ?> <small>(edited)</small><?php endif; ?></p>
         <?php if ($deleted): ?>
-            <div class="post-comment-actions" data-profile-style="comment.actions"><button type="button" data-comment-purge>Remove</button></div>
+            <div class="post-comment-actions" data-profile-style="comment.actions"><button type="button" data-profile-style="comment.purge-control" data-comment-purge>Remove</button></div>
         <?php else: ?>
             <div class="post-comment-actions" data-profile-style="comment.actions">
-                <?php if (!$reply): ?><button type="button" data-comment-reply>Reply</button><?php endif; ?>
-                <?php if ((int) $comment['user_id'] === $viewerId): ?><button type="button" data-comment-edit>Edit</button><button type="button" data-comment-delete>Delete</button><?php endif; ?>
-                <?php if (!$reply && $postOwnerId === $viewerId): ?><button type="button" data-comment-pin><?= $comment['pinned_at'] ? 'Unpin' : 'Pin' ?></button><?php endif; ?>
+                <?php if (!$reply): ?><button type="button" data-profile-style="comment.reply-control" data-comment-reply>Reply</button><?php endif; ?>
+                <?php if ((int) $comment['user_id'] === $viewerId): ?><button type="button" data-profile-style="comment.edit-control" data-comment-edit>Edit</button><button type="button" data-profile-style="comment.delete-control" data-comment-delete>Delete</button><?php endif; ?>
+                <?php if (!$reply && $postOwnerId === $viewerId): ?><button type="button" data-profile-style="comment.pin-control" data-comment-pin><?= $comment['pinned_at'] ? 'Unpin' : 'Pin' ?></button><?php endif; ?>
             </div>
             <form class="post-comment-edit" data-profile-style="comment.edit-form" data-comment-edit-form hidden>
-                <textarea maxlength="1000" required><?= htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?></textarea>
-                <button type="submit">Save</button><button type="button" data-comment-edit-cancel>Cancel</button>
+                <textarea maxlength="1000" required data-profile-style="comment.edit-field"><?= htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <button type="submit" data-profile-style="comment.save-control">Save</button><button type="button" data-profile-style="comment.cancel-control" data-comment-edit-cancel>Cancel</button>
             </form>
             <?php if (!$reply): ?>
                 <form class="post-reply-form" data-profile-style="comment.reply-form" data-comment-reply-form hidden>
                     <input type="hidden" name="parent_id" value="<?= (int) $comment['id'] ?>">
-                    <textarea name="content" maxlength="1000" placeholder="Write a reply..." required></textarea>
-                    <button type="submit">Reply</button>
+                    <textarea name="content" maxlength="1000" placeholder="Write a reply..." required data-profile-style="comment.reply-field"></textarea>
+                    <button type="submit" data-profile-style="comment.reply-submit">Reply</button>
                 </form>
             <?php endif; ?>
         <?php endif; ?>
@@ -116,11 +116,11 @@ function renderPostInteractions(array $post, array $interaction, int $viewerId, 
         <?php if ($ownerId === $viewerId): ?><div class="post-owner-actions" data-profile-style="post.owner-actions"><button type="button" data-profile-style="post.edit-control" data-post-edit>Edit</button><button type="button" data-profile-style="post.delete-control" data-post-delete>Delete</button></div><?php endif; ?>
         <div class="post-action-bar" data-profile-style="post.action-bar">
             <button type="button" class="post-heart<?= $liked ? ' is-liked' : '' ?>" data-profile-style="post.heart-control" data-post-like aria-pressed="<?= $liked ? 'true' : 'false' ?>"><span aria-hidden="true"><?= $liked ? '&#9829;' : '&#9825;' ?></span> <span data-like-count><?= (int) ($interaction['like_count'] ?? 0) ?></span></button>
-            <button type="button" data-comment-focus>Comment <span><?= $commentCount ?></span></button>
+            <button type="button" data-profile-style="post.comment-control" data-comment-focus>Comment <span><?= $commentCount ?></span></button>
         </div>
         <form class="post-comment-form" data-profile-style="comment.composer" data-post-comment-form>
-            <textarea name="content" maxlength="1000" placeholder="Write a comment..." required></textarea>
-            <button type="submit">Comment</button>
+            <textarea name="content" maxlength="1000" placeholder="Write a comment..." required data-profile-style="comment.composer-field"></textarea>
+            <button type="submit" data-profile-style="comment.composer-submit">Comment</button>
         </form>
         <p class="post-interaction-status" data-profile-style="comment.status" data-post-interaction-status role="status" hidden></p>
         <div class="post-comments" data-profile-style="comment.list" data-post-comments>

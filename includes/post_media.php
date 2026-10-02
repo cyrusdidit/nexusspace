@@ -224,9 +224,9 @@ function renderPostMedia(array $post, string $assetPrefix = '', bool $owned = fa
                 <?php if ($owned): ?>
                     <button type="button" data-profile-style="post.media-remove-control" data-post-media-remove data-media-id="<?= (int) ($item['id'] ?? 0) ?>" aria-label="Remove media <?= $index + 1 ?>">&times;</button>
                     <div class="post-media-edit-controls" data-profile-style="post.media-reorder-controls">
-                        <button type="button" data-post-media-move="-1" data-media-id="<?= (int) ($item['id'] ?? 0) ?>" aria-label="Move media <?= $index + 1 ?> left"<?= $index === 0 ? ' disabled' : '' ?>>&#8592;</button>
-                        <label title="Replace media <?= $index + 1 ?>"><span>Replace</span><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-replace data-media-id="<?= (int) ($item['id'] ?? 0) ?>"></label>
-                        <button type="button" data-post-media-move="1" data-media-id="<?= (int) ($item['id'] ?? 0) ?>" aria-label="Move media <?= $index + 1 ?> right"<?= $index === count($items) - 1 ? ' disabled' : '' ?>>&#8594;</button>
+                        <button type="button" data-profile-style="post.media-move-control" data-post-media-move="-1" data-media-id="<?= (int) ($item['id'] ?? 0) ?>" aria-label="Move media <?= $index + 1 ?> left"<?= $index === 0 ? ' disabled' : '' ?>>&#8592;</button>
+                        <label title="Replace media <?= $index + 1 ?>" data-profile-style="post.media-replace-control"><span>Replace</span><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-replace data-media-id="<?= (int) ($item['id'] ?? 0) ?>"></label>
+                        <button type="button" data-profile-style="post.media-move-control" data-post-media-move="1" data-media-id="<?= (int) ($item['id'] ?? 0) ?>" aria-label="Move media <?= $index + 1 ?> right"<?= $index === count($items) - 1 ? ' disabled' : '' ?>>&#8594;</button>
                     </div>
                 <?php endif; ?>
             </figure>
@@ -239,14 +239,14 @@ function renderPostEditForm(array $post): void
 {
     ?>
     <form class="post-edit-form" data-profile-style="post.edit-form" data-post-edit-form hidden>
-        <input class="post-edit-title" type="text" maxlength="100" placeholder="Post title" value="<?= htmlspecialchars((string) ($post['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-post-edit-title>
-        <textarea maxlength="2500"><?= htmlspecialchars((string) ($post['content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
+        <input class="post-edit-title" type="text" maxlength="100" placeholder="Post title" value="<?= htmlspecialchars((string) ($post['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-profile-style="post.edit-title-field" data-post-edit-title>
+        <textarea maxlength="2500" data-profile-style="post.edit-body-field"><?= htmlspecialchars((string) ($post['content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
         <div class="post-edit-media-tools" data-profile-style="post.upload-progress">
-            <label><span>Add media</span><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" multiple data-post-media-add></label>
+            <label data-profile-style="post.media-add-control"><span>Add media</span><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" multiple data-post-media-add></label>
             <progress max="100" value="0" data-post-edit-upload-progress hidden></progress>
             <span data-post-edit-upload-status role="status"></span>
         </div>
-        <div><button type="submit">Save</button><button type="button" data-post-edit-cancel>Cancel</button></div>
+        <div data-profile-style="post.edit-actions"><button type="submit" data-profile-style="post.save-control">Save</button><button type="button" data-profile-style="post.cancel-control" data-post-edit-cancel>Cancel</button></div>
     </form>
     <?php
 }

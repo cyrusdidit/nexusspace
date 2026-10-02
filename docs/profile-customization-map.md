@@ -76,7 +76,7 @@ that profile. The mobile breakpoint ignores the saved width and stacks content.
 | Wallpaper | `content.wallpaper`, `content.wallpaper-image`, `content.wallpaper-edit-control` |
 | Profile song shell | `profile-song.container`, `profile-song.label`, `profile-song.title`, `profile-song.artist` |
 | Profile song controls | `profile-song.volume-control`, `profile-song.volume-slider`, `profile-song.edit-control`, `profile-song.close-control` |
-| Profile song picker | `profile-song.picker`, `profile-song.picker-header`, `profile-song.search-field`, `profile-song.search-control`, `profile-song.result`, `profile-song.remove-control` |
+| Profile song picker | `profile-song.picker`, `profile-song.picker-header`, `profile-song.picker-heading`, `profile-song.picker-actions`, `profile-song.picker-close-control`, `profile-song.search-form`, `profile-song.search-label`, `profile-song.search-field`, `profile-song.search-control`, `profile-song.search-status`, `profile-song.search-results`, `profile-song.result-item`, `profile-song.result-image`, `profile-song.result-copy`, `profile-song.result-title`, `profile-song.result-artist`, `profile-song.result-select-control`, `profile-song.remove-control` |
 | Posts section | `posts.container`, `posts.heading`, `posts.empty-state`, `posts.list`, `posts.load-more-control` |
 
 ## Post Targets
@@ -86,14 +86,14 @@ that profile. The mobile breakpoint ignores the saved width and stacks content.
 | Card | `post.card`, `post.header`, `post.author`, `post.avatar`, `post.metadata` |
 | Content | `post.title`, `post.body` |
 | Media | `post.media-grid`, `post.media-item`, `post.image`, `post.video`, `post.video-speed` |
-| Owner media tools | `post.media-remove-control`, `post.media-reorder-controls`, `post.media-replace-control` |
-| Owner post tools | `post.owner-actions`, `post.edit-control`, `post.delete-control`, `post.edit-form`, `post.upload-progress` |
-| Reactions | `post.action-bar`, `post.heart-control`, `post.comment-count-control` |
-| Comment composer | `comment.composer`, `comment.field`, `comment.submit-control`, `comment.status` |
+| Owner media tools | `post.media-remove-control`, `post.media-reorder-controls`, `post.media-move-control`, `post.media-replace-control`, `post.media-add-control` |
+| Owner post tools | `post.owner-actions`, `post.edit-control`, `post.delete-control`, `post.edit-form`, `post.edit-title-field`, `post.edit-body-field`, `post.edit-actions`, `post.save-control`, `post.cancel-control`, `post.upload-progress` |
+| Reactions | `post.action-bar`, `post.heart-control`, `post.comment-control` |
+| Comment composer | `comment.composer`, `comment.composer-field`, `comment.composer-submit`, `comment.status` |
 | Comment | `comment.card`, `comment.header`, `comment.avatar`, `comment.author`, `comment.timestamp`, `comment.body` |
 | Comment states | `comment.pinned`, `comment.deleted`, `comment.reply`, `comment.replies-thread` |
-| Comment tools | `comment.actions`, `comment.reply-control`, `comment.edit-control`, `comment.delete-control`, `comment.pin-control` |
-| Comment editors | `comment.edit-form`, `comment.reply-form`, `comment.field`, `comment.submit-control` |
+| Comment tools | `comment.actions`, `comment.reply-control`, `comment.edit-control`, `comment.delete-control`, `comment.pin-control`, `comment.purge-control` |
+| Comment editors | `comment.edit-form`, `comment.edit-field`, `comment.reply-form`, `comment.reply-field`, `comment.save-control`, `comment.cancel-control`, `comment.reply-submit` |
 
 Repeated targets apply one style to every matching post, media item, comment, or
 Top 8 friend. A later per-instance override can be added without changing these
@@ -129,31 +129,19 @@ customized:
 
 ## Existing System Gaps
 
-The current advanced editor is a useful starting point, but it does not yet
-meet this map:
-
-- It exposes only `profile_header`, `bio`, `top_eight`, and `posts` placeholders.
-- Its preview omits status, activity, social actions, profile songs, complete
-  posts, comments, media states, and owner controls.
-- It has no simple visual editor or per-target settings model.
-- It has no saved sidebar width or resize handle.
-- The CSS sanitizer blocks every at-rule, so safe custom animations are not yet
-  possible.
-- There is no draft autosave, undo/redo history, last-known-good version, or
-  dedicated recovery view.
-- Existing selectors are implementation classes rather than a stable public
-  customization contract.
+- The compact preview still omits some live activity, comment, media, and owner
+  states that are available on the real profile page.
+- Draft autosave and published revision snapshots exist, but the interface does
+  not yet expose undo, redo, revision history, or recovery controls.
+- Raw HTML structural changes update after saving; CSS and simple-mode changes
+  preview directly on the profile.
 
 ## Next Implementation Boundary
 
-Step two should create a versioned customization schema containing:
+The next step is preview completeness and cross-viewport QA:
 
-- `schema_version`
-- simple-mode values keyed by the target names in this document
-- desktop sidebar width
-- raw template HTML
-- raw scoped CSS
-- draft and published revisions
-
-Stable `data-profile-style` attributes should then be added to rendered profile
-elements. JavaScript behavior must continue using its existing `data-*` hooks.
+- include live status, activity, profile-song, media, comment, and owner-control
+  examples in the compact revision preview
+- verify every simple-editor target has a visible preview state
+- verify desktop, narrow desktop, and mobile layouts
+- test recovery from malformed HTML and CSS using revision restore

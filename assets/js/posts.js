@@ -131,6 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const heading = document.createElement('h3');
         heading.className = 'post-title';
+        heading.dataset.profileStyle = 'post.title';
         heading.dataset.postTitle = '';
         heading.textContent = value;
         card.querySelector('.post-header')?.insertAdjacentElement('afterend', heading);
