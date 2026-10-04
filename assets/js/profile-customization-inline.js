@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const widthControl = simpleForm.querySelector('[data-inline-sidebar-width]');
     const widthOutput = simpleForm.querySelector('[data-inline-sidebar-width-output]');
     const targetField = simpleForm.querySelector('[data-inline-style-target]');
-    const pickerToggle = simpleForm.querySelector('[data-inline-picker-toggle]');
+    const appearancePanel = document.querySelector('[data-profile-appearance-panel]');
     const propertyFields = [...simpleForm.querySelectorAll('[data-inline-style-property]')];
     const simpleStatus = simpleForm.querySelector('[data-inline-customization-status]');
     const advancedStatus = advancedForm.querySelector('[data-inline-advanced-status]');
@@ -20,8 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const cssField = advancedForm.elements.custom_css;
     const undoButtons = [...document.querySelectorAll('[data-inline-undo]')];
     const redoButtons = [...document.querySelectorAll('[data-inline-redo]')];
-    const revisionPreview = document.querySelector('[data-profile-revision-preview]');
-    const revisionStatus = document.querySelector('[data-profile-revision-status]');
     let settings = {};
     let draftTimer;
     let draftRequest;
@@ -105,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const highlightSelectedTarget = () => {
         clearTargetHighlights();
-        if (simpleForm.hidden) return;
+        if (!picking || simpleForm.hidden) return;
         document.querySelectorAll(`[data-profile-style="${targetField.value}"]`).forEach((element) => {
             if (!element.closest('[data-profile-appearance-panel]') && !element.matches('[data-profile-sidebar-resize]')) element.classList.add('is-profile-style-selected');
         });
@@ -113,9 +111,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const setPicking = (active) => {
         picking = active;
         document.body.classList.toggle('is-picking-profile-style', active);
-        pickerToggle.setAttribute('aria-pressed', String(active));
-        if (!active && hoveredTarget) hoveredTarget.classList.remove('is-profile-style-hovered');
-        hoveredTarget = null;
+        if (!active) clearTargetHighlights();
+    };
+    const syncPicking = () => {
+        setPicking(Boolean(appearancePanel && !appearancePanel.hidden && !simpleForm.hidden));
+        if (picking) highlightSelectedTarget();
     };
     const setProperty = (property, value) => {
         const target = targetField.value;
@@ -188,15 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderFields();
         highlightSelectedTarget();
     });
-    pickerToggle.addEventListener('click', () => setPicking(!picking));
-    tabs.forEach((tab) => tab.addEventListener('click', () => {
-        if (tab.dataset.profileAppearanceTab !== 'simple') {
-            setPicking(false);
-            clearTargetHighlights();
-        } else {
-            highlightSelectedTarget();
-        }
-    }));
+    tabs.forEach((tab) => tab.addEventListener('click', syncPicking));
+    if (appearancePanel) new MutationObserver(syncPicking).observe(appearancePanel, { attributes: true, attributeFilter: ['hidden'] });
     document.addEventListener('mouseover', (event) => {
         if (!picking) return;
         const candidate = event.target.closest?.('[data-profile-style]');
@@ -220,11 +213,6 @@ document.addEventListener('DOMContentLoaded', () => {
         highlightSelectedTarget();
         simpleForm.querySelector('.profile-inline-target-picker')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, true);
-    document.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape' || !picking) return;
-        setPicking(false);
-        pickerToggle.focus();
-    });
     widthControl.addEventListener('input', () => {
         remember('sidebar-width');
         widthField.value = widthControl.value;
@@ -283,31 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
         undoStack.push(snapshot());
         applySnapshot(next);
     }));
-    document.querySelectorAll('[data-profile-revision-preview-button]').forEach((button) => button.addEventListener('click', () => {
-        const revision = button.dataset.profileRevisionPreviewButton;
-        revisionPreview.src = `profile-customization-preview.php?revision=${encodeURIComponent(revision)}`;
-        revisionPreview.hidden = false;
-        revisionStatus.textContent = `Previewing revision ${revision}`;
-    }));
-    document.querySelectorAll('[data-profile-revision-restore]').forEach((button) => button.addEventListener('click', async () => {
-        const revision = button.dataset.profileRevisionRestore;
-        if (!window.confirm(`Restore revision ${revision}? Your current version will remain in history.`)) return;
-        const body = new FormData();
-        body.set('token', simpleForm.elements.token.value);
-        body.set('action', 'restore_revision');
-        body.set('revision_number', revision);
-        revisionStatus.textContent = `Restoring revision ${revision}...`;
-        try {
-            const response = await fetch(simpleForm.action, { method: 'POST', body, credentials: 'same-origin', headers: { Accept: 'application/json' } });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok || !data.saved) throw new Error(data.error || 'That revision could not be restored.');
-            window.location.reload();
-        } catch (error) { revisionStatus.textContent = error.message; }
-    }));
-
     syncSettings();
     renderFields();
-    if (!simpleForm.hidden) highlightSelectedTarget();
+    syncPicking();
     baseline = snapshot();
     updateHistoryButtons();
 });

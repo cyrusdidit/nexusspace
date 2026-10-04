@@ -687,7 +687,6 @@ if ($user) {
     mysqli_stmt_close($statement);
 }
 $profileCustomization = $user ? readProfileCustomization($conn, $userId) : null;
-$profileCustomizationRevisions = $user && $isOwnProfile ? readProfileCustomizationRevisions($conn, $currentUserId) : [];
 $profileSimpleCss = $profileCustomization ? renderProfileSimpleCss($profileCustomization['simple_settings'], $profileCustomization['sidebar_width']) : '';
 $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileCustomization['custom_css']) : '';
 $profileNotice = '';
@@ -1023,7 +1022,6 @@ if ($isOwnProfile) {
                 <button type="button" aria-pressed="true" data-profile-appearance-tab="wallpaper">Wallpaper</button>
                 <button type="button" aria-pressed="false" data-profile-appearance-tab="simple">Simple</button>
                 <button type="button" aria-pressed="false" data-profile-appearance-tab="advanced">CSS/HTML</button>
-                <button type="button" aria-pressed="false" data-profile-appearance-tab="history">History</button>
             </nav>
             <form class="profile-appearance-content" id="profile-wallpaper-form" method="post" action="profile.php?id=<?= $currentUserId ?>" enctype="multipart/form-data" data-profile-appearance-section="wallpaper">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -1062,17 +1060,6 @@ if ($isOwnProfile) {
                         </label>
                     </div>
                 </section>
-                <section class="profile-copy-settings">
-                    <label for="profile-wallpaper-copy-source">Copy settings from</label>
-                    <div>
-                        <select id="profile-wallpaper-copy-source" name="source_region">
-                            <?php foreach ($wallpaperCopySources as $region => $label): ?>
-                                <option value="<?= htmlspecialchars($region, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <button type="submit" name="action" value="copy_profile_wallpaper" formnovalidate>Copy</button>
-                    </div>
-                </section>
                 <?php if ($profileAppearanceError !== ''): ?><p class="profile-appearance-status is-error" role="alert"><?= htmlspecialchars($profileAppearanceError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 <div class="profile-appearance-actions">
                     <button type="submit" name="action" value="update_profile_wallpaper">Save</button>
@@ -1085,6 +1072,17 @@ if ($isOwnProfile) {
                 <input type="hidden" name="sidebar_width" value="<?= (int) $profileCustomization['sidebar_width'] ?>" data-inline-sidebar-width-value>
                 <textarea name="template_html" hidden><?= htmlspecialchars($profileCustomization['template_html'], ENT_QUOTES, 'UTF-8') ?></textarea>
                 <textarea name="custom_css" hidden><?= htmlspecialchars($profileCustomization['custom_css'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <section class="profile-copy-settings is-simple-copy">
+                    <label for="profile-wallpaper-copy-source">Copy settings from</label>
+                    <div>
+                        <select id="profile-wallpaper-copy-source" name="source_region" form="profile-wallpaper-form">
+                            <?php foreach ($wallpaperCopySources as $region => $label): ?>
+                                <option value="<?= htmlspecialchars($region, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <button type="submit" name="action" value="copy_profile_wallpaper" form="profile-wallpaper-form" formnovalidate>Copy</button>
+                    </div>
+                </section>
                 <div class="profile-customization-session-actions" aria-label="Editing history"><button type="button" aria-label="Undo" title="Undo" data-inline-undo disabled>&larr;</button><button type="button" aria-label="Redo" title="Redo" data-inline-redo disabled>&rarr;</button></div>
                 <div class="profile-inline-target-picker">
                     <label for="profile-inline-style-target">Edit part</label>
@@ -1093,7 +1091,6 @@ if ($isOwnProfile) {
                             <optgroup label="<?= htmlspecialchars($group, ENT_QUOTES, 'UTF-8') ?>"><?php foreach ($targets as $target): ?><option value="<?= htmlspecialchars($target, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(profileCustomizationTargetLabel($target), ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></optgroup>
                         <?php endforeach; ?>
                     </select>
-                    <button type="button" class="button-secondary" aria-label="Pick a profile element" aria-pressed="false" title="Pick a profile element" data-inline-picker-toggle>&#8982;</button>
                     <button type="button" class="button-secondary" data-inline-reset-target>Reset part</button>
                 </div>
                 <fieldset><legend>Typography</legend>
@@ -1138,18 +1135,6 @@ if ($isOwnProfile) {
                 <p class="profile-inline-customization-status" role="status" data-inline-advanced-status></p>
                 <div class="profile-appearance-actions is-single"><button type="submit">Save CSS/HTML</button></div>
             </form>
-            <section class="profile-customization-history" data-profile-appearance-section="history" hidden>
-                <iframe title="Revision preview" data-profile-revision-preview hidden></iframe>
-                <p class="profile-inline-customization-status" role="status" data-profile-revision-status><?= $profileCustomizationRevisions ? 'Choose a revision to preview.' : 'No saved revisions yet.' ?></p>
-                <ol>
-                    <?php foreach ($profileCustomizationRevisions as $index => $revision): ?>
-                        <li>
-                            <span><strong>Revision <?= (int) $revision['revision_number'] ?></strong><?php if ($index === 0): ?> <small>Current</small><?php endif; ?><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', (string) $revision['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y H:i', strtotime((string) $revision['created_at'])), ENT_QUOTES, 'UTF-8') ?></time></span>
-                            <span><button type="button" aria-label="Preview revision <?= (int) $revision['revision_number'] ?>" title="Preview" data-profile-revision-preview-button="<?= (int) $revision['revision_number'] ?>">&#128065;</button><button type="button" aria-label="Restore revision <?= (int) $revision['revision_number'] ?>" title="Restore" data-profile-revision-restore="<?= (int) $revision['revision_number'] ?>">&#8634;</button></span>
-                        </li>
-                    <?php endforeach; ?>
-                </ol>
-            </section>
         </aside>
         <aside class="profile-cover-panel" id="profile-cover-panel" data-profile-cover-panel data-open="<?= $profileCoverPanelOpen ? 'true' : 'false' ?>" data-saved-image="<?= htmlspecialchars($profileCoverBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Profile cover customization" hidden>
             <header class="profile-appearance-header">
