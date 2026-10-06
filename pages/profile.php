@@ -161,6 +161,57 @@ $backgroundRegionLabels = [
 $wallpaperCopySources = array_diff_key($backgroundRegionLabels, ['profile_posts' => true]);
 $coverCopySources = array_diff_key($backgroundRegionLabels, ['profile_cover' => true]);
 
+function clearSavedProfileWallpaperCss(mysqli $conn, int $userId): ?string
+{
+    $customization = readProfileCustomization($conn, $userId);
+    $cleanedCss = removeProfileWallpaperCssOverrides($customization['custom_css']);
+    if ($cleanedCss === trim($customization['custom_css'])) return null;
+    $originalCss = $customization['custom_css'];
+    saveProfileCustomization(
+        $conn,
+        $userId,
+        $customization['template_html'],
+        $cleanedCss,
+        $customization['simple_settings'],
+        $customization['sidebar_width']
+    );
+    return $originalCss;
+}
+
+function rememberProfileWallpaperCssUndo(int $userId, ?string $customCss): bool
+{
+    if ($customCss === null) return false;
+    $_SESSION['profile_wallpaper_css_undo'] = [
+        'user_id' => $userId,
+        'custom_css' => $customCss,
+        'created_at' => time(),
+    ];
+    return true;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'undo_profile_wallpaper_css') {
+    $token = $_POST['token'] ?? '';
+    $undo = $_SESSION['profile_wallpaper_css_undo'] ?? null;
+    if (!is_string($token) || !hash_equals($_SESSION['profile_edit_token'], $token)) {
+        http_response_code(403);
+    } elseif (!is_array($undo) || (int) ($undo['user_id'] ?? 0) !== $currentUserId || time() - (int) ($undo['created_at'] ?? 0) > 600) {
+        unset($_SESSION['profile_wallpaper_css_undo']);
+    } else {
+        $customization = readProfileCustomization($conn, $currentUserId);
+        saveProfileCustomization($conn, $currentUserId, $customization['template_html'], (string) $undo['custom_css'], $customization['simple_settings'], $customization['sidebar_width']);
+        $backgrounds = readUserBackgroundSettings($conn, $currentUserId);
+        $wallpaper = $backgrounds['profile_posts'];
+        $previousImagePath = $wallpaper['image_path'];
+        saveUserBackgroundSetting($conn, $currentUserId, 'profile_posts', 'color', $wallpaper['color_value'], null, null, $wallpaper['image_fit'], $wallpaper['image_blur'], $wallpaper['image_position_x'], $wallpaper['image_position_y'], $wallpaper['image_zoom']);
+        deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+        unset($_SESSION['profile_wallpaper_css_undo']);
+        header('Location: profile.php?id=' . $currentUserId . '&css_wallpaper_restored=1');
+        exit;
+    }
+    header('Location: profile.php?id=' . $currentUserId);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_profile_wallpaper') {
     $token = $_POST['token'] ?? '';
     $sourceRegion = is_string($_POST['source_region'] ?? null) ? $_POST['source_region'] : '';
@@ -182,6 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_
             $copiedImagePath = duplicateUserBackgroundImage($sourceBackground['image_path'], $currentUserId);
             $copiedType = $sourceBackground['background_type'] === 'image' && $copiedImagePath !== null ? 'image' : 'color';
             saveUserBackgroundSetting($conn, $currentUserId, 'profile_posts', $copiedType, $sourceBackground['color_value'], $copiedImagePath, null, $sourceBackground['image_fit'], $sourceBackground['image_blur'], $sourceBackground['image_position_x'], $sourceBackground['image_position_y'], $sourceBackground['image_zoom']);
+            rememberProfileWallpaperCssUndo($currentUserId, clearSavedProfileWallpaperCss($conn, $currentUserId));
             if ($previousImagePath !== $copiedImagePath) deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
             header('Location: profile.php?id=' . $currentUserId . '&appearance_copied=' . rawurlencode($sourceRegion));
             exit;
@@ -282,6 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                 (float) $submittedPositionY,
                 (float) $submittedZoom
             );
+            rememberProfileWallpaperCssUndo($currentUserId, clearSavedProfileWallpaperCss($conn, $currentUserId));
             if ($previousImagePath && $savedImagePath !== $previousImagePath) {
                 deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
             }
@@ -326,6 +379,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
             saveUserBackgroundSetting($conn, $currentUserId, 'profile_posts', 'color', USER_BACKGROUND_DEFAULTS['profile_posts'], null, null, 'cover', 0, 50, 50, 1);
             $notice = 'appearance_reset=1';
         }
+        rememberProfileWallpaperCssUndo($currentUserId, clearSavedProfileWallpaperCss($conn, $currentUserId));
         deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
         header('Location: profile.php?id=' . $currentUserId . '&' . $notice);
         exit;
@@ -690,10 +744,20 @@ $profileCustomization = $user ? readProfileCustomization($conn, $userId) : null;
 $profileSimpleCss = $profileCustomization ? renderProfileSimpleCss($profileCustomization['simple_settings'], $profileCustomization['sidebar_width']) : '';
 $profileCustomCss = $profileCustomization ? sanitizeAndScopeProfileCss($profileCustomization['custom_css']) : '';
 $profileNotice = '';
+$showWallpaperCssUndo = false;
 if ($isOwnProfile) {
     $appearanceCopied = is_string($_GET['appearance_copied'] ?? null) ? $_GET['appearance_copied'] : '';
     $coverCopied = is_string($_GET['cover_copied'] ?? null) ? $_GET['cover_copied'] : '';
-    if (isset($_GET['appearance_saved'])) {
+    $wallpaperCssUndo = $_SESSION['profile_wallpaper_css_undo'] ?? null;
+    $showWallpaperCssUndo = is_array($wallpaperCssUndo)
+        && (int) ($wallpaperCssUndo['user_id'] ?? 0) === $currentUserId
+        && time() - (int) ($wallpaperCssUndo['created_at'] ?? 0) <= 600;
+    if ($showWallpaperCssUndo && (isset($_GET['appearance_saved']) || $appearanceCopied !== '' || isset($_GET['appearance_image_removed']) || isset($_GET['appearance_reset']))) {
+        $profileAppearancePanelOpen = true;
+    }
+    if (isset($_GET['css_wallpaper_restored'])) {
+        $profileNotice = 'CSS wallpaper restored.';
+    } elseif (isset($_GET['appearance_saved'])) {
         $profileNotice = 'Profile wallpaper saved.';
     } elseif (isset($_GET['appearance_image_removed'])) {
         $profileNotice = 'Wallpaper image removed. Your color was kept.';
@@ -1021,7 +1085,7 @@ if ($isOwnProfile) {
             <nav class="profile-appearance-tabs" aria-label="Appearance section">
                 <button type="button" aria-pressed="true" data-profile-appearance-tab="wallpaper">Wallpaper</button>
                 <button type="button" aria-pressed="false" data-profile-appearance-tab="simple">Simple</button>
-                <button type="button" aria-pressed="false" data-profile-appearance-tab="advanced">CSS/HTML</button>
+                <button type="button" aria-pressed="false" data-profile-appearance-tab="advanced">CSS</button>
             </nav>
             <form class="profile-appearance-content" id="profile-wallpaper-form" method="post" action="profile.php?id=<?= $currentUserId ?>" enctype="multipart/form-data" data-profile-appearance-section="wallpaper">
                 <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -1065,6 +1129,7 @@ if ($isOwnProfile) {
                     <button type="submit" name="action" value="update_profile_wallpaper">Save</button>
                     <button type="button" class="button-secondary" data-profile-wallpaper-reset-open>Reset</button>
                 </div>
+                <button type="submit" class="button-secondary profile-wallpaper-css-undo" name="action" value="undo_profile_wallpaper_css" formnovalidate data-profile-wallpaper-undo data-saved-undo="<?= $showWallpaperCssUndo ? 'true' : 'false' ?>"<?= $showWallpaperCssUndo ? '' : ' disabled' ?>>Undo</button>
             </form>
             <form class="profile-inline-customization" action="customize-profile.php" method="post" data-profile-customization-inline data-profile-appearance-section="simple" hidden>
                 <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_customization_token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -1102,9 +1167,16 @@ if ($isOwnProfile) {
                 </fieldset>
                 <fieldset><legend>Text paint</legend>
                     <label>Solid <span><input type="color" value="#163b5c" data-inline-style-property="text_color"><button type="button" aria-label="Clear text color" data-inline-clear-property="text_color">&times;</button></span></label>
-                    <label>Gradient start <span><input type="color" value="#238bc5" data-inline-style-property="text_gradient_from"><button type="button" aria-label="Clear gradient start" data-inline-clear-property="text_gradient_from">&times;</button></span></label>
-                    <label>Gradient end <span><input type="color" value="#b51d6b" data-inline-style-property="text_gradient_to"><button type="button" aria-label="Clear gradient end" data-inline-clear-property="text_gradient_to">&times;</button></span></label>
-                    <label>Angle <span><input type="number" min="0" max="360" value="90" data-inline-style-property="text_gradient_angle"><small>deg</small></span></label>
+                    <div class="profile-inline-gradient-editor" data-inline-gradient-editor>
+                        <div class="profile-inline-gradient-preview" data-inline-gradient-preview aria-label="Text gradient preview"></div>
+                        <div class="profile-inline-gradient-colors">
+                            <label><span>From</span><input type="color" value="#238bc5" data-inline-style-property="text_gradient_from"></label>
+                            <button type="button" aria-label="Swap gradient colors" title="Swap colors" data-inline-gradient-swap>&#8646;</button>
+                            <label><span>To</span><input type="color" value="#b51d6b" data-inline-style-property="text_gradient_to"></label>
+                        </div>
+                        <label class="profile-inline-gradient-direction"><span>Direction</span><select data-inline-style-property="text_gradient_angle"><option value="90">Left to right</option><option value="270">Right to left</option><option value="180">Top to bottom</option><option value="0">Bottom to top</option><option value="135">Diagonal down</option><option value="45">Diagonal up</option></select></label>
+                        <button class="button-secondary profile-inline-gradient-remove" type="button" data-inline-gradient-clear>Remove gradient</button>
+                    </div>
                 </fieldset>
                 <fieldset><legend>Surface and border</legend>
                     <label>Background <span><input type="color" value="#ffffff" data-inline-style-property="background_color"><button type="button" aria-label="Clear background color" data-inline-clear-property="background_color">&times;</button></span></label>
@@ -1118,7 +1190,6 @@ if ($isOwnProfile) {
                     <label>Margin <span><input type="number" min="0" max="64" placeholder="Default" data-inline-style-property="margin"><small>px</small></span></label>
                     <label>Opacity <span><input type="range" min="10" max="100" value="100" data-inline-style-property="opacity"><output data-inline-property-output="opacity">Default</output></span></label>
                     <label>Animation<select data-inline-style-property="animation"><option value="none">None</option><option value="pulse">Pulse</option><option value="float">Float</option><option value="wiggle">Wiggle</option></select></label>
-                    <label>Sidebar width <span><input type="range" min="220" max="520" value="<?= (int) $profileCustomization['sidebar_width'] ?>" data-inline-sidebar-width><output data-inline-sidebar-width-output><?= (int) $profileCustomization['sidebar_width'] ?>px</output></span></label>
                 </fieldset>
                 <p class="profile-inline-customization-status" role="status" data-inline-customization-status></p>
                 <div class="profile-appearance-actions"><button type="submit">Save styles</button><button type="button" class="button-secondary" data-inline-reset-all>Reset styles</button></div>
@@ -1127,14 +1198,22 @@ if ($isOwnProfile) {
                 <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_customization_token'], ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="simple_settings" value="<?= htmlspecialchars(encodeProfileSimpleSettings($profileCustomization['simple_settings']), ENT_QUOTES, 'UTF-8') ?>" data-inline-advanced-settings>
                 <input type="hidden" name="sidebar_width" value="<?= (int) $profileCustomization['sidebar_width'] ?>" data-inline-advanced-width>
+                <input type="hidden" name="remove_wallpaper_image" value="0" data-inline-remove-wallpaper>
                 <div class="profile-customization-session-actions" aria-label="Editing history"><button type="button" aria-label="Undo" title="Undo" data-inline-undo disabled>&larr;</button><button type="button" aria-label="Redo" title="Redo" data-inline-redo disabled>&rarr;</button></div>
-                <label for="profile-inline-template">HTML</label>
-                <textarea id="profile-inline-template" name="template_html" maxlength="50000" spellcheck="false"><?= htmlspecialchars($profileCustomization['template_html'], ENT_QUOTES, 'UTF-8') ?></textarea>
-                <label for="profile-inline-css">CSS</label>
-                <textarea id="profile-inline-css" name="custom_css" maxlength="30000" spellcheck="false"><?= htmlspecialchars($profileCustomization['custom_css'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <textarea id="profile-inline-template" name="template_html" hidden><?= htmlspecialchars($profileCustomization['template_html'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <section class="profile-inline-css-inspector" data-inline-css-inspector>
+                    <span><strong data-inline-css-target-label>Hover over a profile part</strong><code data-inline-css-target-selector></code></span>
+                    <button type="button" data-inline-css-insert disabled>Insert rule</button>
+                </section>
+                <label for="profile-inline-css">Custom CSS</label>
+                <div class="profile-inline-css-editor">
+                    <pre aria-hidden="true" data-inline-css-highlight></pre>
+                    <textarea id="profile-inline-css" name="custom_css" maxlength="30000" spellcheck="false" wrap="soft"><?= htmlspecialchars($profileCustomization['custom_css'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                </div>
                 <p class="profile-inline-customization-status" role="status" data-inline-advanced-status></p>
-                <div class="profile-appearance-actions is-single"><button type="submit">Save CSS/HTML</button></div>
+                <div class="profile-appearance-actions is-single"><button type="submit">Save CSS</button></div>
             </form>
+            <div class="profile-css-hover-label" data-profile-css-hover-label hidden></div>
         </aside>
         <aside class="profile-cover-panel" id="profile-cover-panel" data-profile-cover-panel data-open="<?= $profileCoverPanelOpen ? 'true' : 'false' ?>" data-saved-image="<?= htmlspecialchars($profileCoverBackgroundImageUrl, ENT_QUOTES, 'UTF-8') ?>" aria-label="Profile cover customization" hidden>
             <header class="profile-appearance-header">

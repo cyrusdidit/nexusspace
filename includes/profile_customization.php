@@ -112,7 +112,7 @@ function normalizeProfileSimpleSettings(mixed $settings): array
 
 function encodeProfileSimpleSettings(array $settings): string
 {
-    return json_encode($settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return json_encode((object) $settings, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 }
 
 function normalizeProfileSidebarWidth(mixed $width): int
@@ -509,6 +509,11 @@ function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile
         foreach (explode(',', $match[1]) as $selector) {
             $selector = trim($selector);
             if ($selector === '') continue;
+            $selector = preg_replace('/^\.profile-page\s+/', '', $selector) ?? $selector;
+            if (in_array($selector, ['[data-profile-style="profile.page"]', '[data-profile-style="profile.sheet"]', $scope], true)) {
+                $safeSelectors[] = $scope;
+                continue;
+            }
             if (preg_match('#(?:^|[\s>+\x7e])(?:html|body|:root)(?=$|[\s.\x23:\[>+\x7e])|\.profile-sidebar-actions\b|\.profile-icon-button\b|\.avatar-crop-dialog\b#i', $selector)) continue;
             $safeSelectors[] = $scope . ' ' . $selector;
         }
@@ -516,6 +521,59 @@ function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile
     }
 
     return implode("\n", array_merge($safeKeyframes, $safeRules));
+}
+
+function removeProfileWallpaperCssOverrides(string $customCss): string
+{
+    $wallpaperTargets = ['layout.content', 'content.wallpaper', 'content.wallpaper-image'];
+    $wallpaperProperties = [
+        'background', 'display', 'visibility', 'opacity', 'filter', 'box-shadow',
+        'content', 'isolation', 'overflow', 'animation', 'position', 'z-index',
+        'inset', 'top', 'right', 'bottom', 'left', 'width', 'height',
+        'min-width', 'min-height', 'max-width', 'max-height', 'pointer-events',
+    ];
+
+    $isWallpaperSelector = static function (string $selector) use ($wallpaperTargets): bool {
+        $selector = trim($selector);
+        if (str_starts_with($selector, '.profile-custom-content') && !preg_match('/\s/', $selector)) return true;
+        foreach ($wallpaperTargets as $target) {
+            if (str_contains($selector, '[data-profile-style="' . $target . '"]')) return true;
+        }
+        return false;
+    };
+    $cleanDeclarations = static function (string $declarations) use ($wallpaperProperties): string {
+        $kept = [];
+        foreach (explode(';', $declarations) as $declaration) {
+            $declaration = trim($declaration);
+            if ($declaration === '' || !str_contains($declaration, ':')) continue;
+            [$property] = explode(':', $declaration, 2);
+            $property = strtolower(trim($property));
+            $blocked = in_array($property, $wallpaperProperties, true)
+                || str_starts_with($property, 'background-')
+                || str_starts_with($property, 'animation-');
+            if (!$blocked) $kept[] = $declaration;
+        }
+        return implode(";\n    ", $kept);
+    };
+
+    $cleaned = preg_replace_callback('/([^{}]+)\{([^{}]*)\}/s', static function (array $match) use ($isWallpaperSelector, $cleanDeclarations): string {
+        $selectors = array_values(array_filter(array_map('trim', explode(',', $match[1]))));
+        $wallpaperSelectors = array_values(array_filter($selectors, $isWallpaperSelector));
+        if (!$wallpaperSelectors) return $match[0];
+
+        $otherSelectors = array_values(array_diff($selectors, $wallpaperSelectors));
+        $rules = [];
+        if ($otherSelectors) $rules[] = implode(', ', $otherSelectors) . ' {' . $match[2] . '}';
+
+        $wallpaperSelectors = array_values(array_filter($wallpaperSelectors, static fn(string $selector): bool => !preg_match('/::(?:before|after)\b/i', $selector)));
+        $remainingDeclarations = $cleanDeclarations($match[2]);
+        if ($wallpaperSelectors && $remainingDeclarations !== '') {
+            $rules[] = implode(', ', $wallpaperSelectors) . " {\n    " . $remainingDeclarations . ";\n}";
+        }
+        return implode("\n", $rules);
+    }, $customCss);
+
+    return trim($cleaned ?? $customCss);
 }
 
 function validateProfileTemplate(string $templateHtml): array

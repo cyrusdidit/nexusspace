@@ -24,14 +24,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const blurInput = document.querySelector('[data-profile-wallpaper-blur]');
     const blurValue = document.querySelector('[data-profile-wallpaper-blur-value]');
     const resetOpen = document.querySelector('[data-profile-wallpaper-reset-open]');
+    const wallpaperUndo = document.querySelector('[data-profile-wallpaper-undo]');
     const resetDialog = document.querySelector('[data-profile-wallpaper-reset-dialog]');
     const resetCancelButtons = [...document.querySelectorAll('[data-profile-wallpaper-reset-cancel]')];
     const toast = document.querySelector('[data-profile-customization-toast]');
     const toastClose = document.querySelector('[data-profile-customization-toast-close]');
+    const appearanceTabs = [...document.querySelectorAll('[data-profile-appearance-tab]')];
     let thumbnail = document.querySelector('[data-profile-wallpaper-thumbnail]');
     let previewImageUrl = '';
+    let initialWallpaperState = null;
+    let hasUnsavedWallpaperPreview = false;
     if (!toggle || !panel || !close) return;
 
+    const beginWallpaperPreview = (mode) => {
+        hasUnsavedWallpaperPreview = true;
+        document.body.classList.add('is-previewing-profile-wallpaper');
+        if (wallpaper) wallpaper.dataset.profileWallpaperPreviewMode = mode;
+        if (wallpaperUndo) wallpaperUndo.disabled = false;
+    };
+    const endWallpaperPreview = () => {
+        document.body.classList.remove('is-previewing-profile-wallpaper');
+        if (wallpaper) delete wallpaper.dataset.profileWallpaperPreviewMode;
+    };
+    const captureWallpaperState = () => ({
+        mode: modes.find((mode) => mode.checked)?.value || 'color',
+        color: color?.value || '#dff2ff',
+        fit: imageFits.find((control) => control.checked)?.value || 'cover',
+        blur: blurInput?.value || '0',
+        positionX: positionXInput?.value || '50',
+        positionY: positionYInput?.value || '50',
+        zoom: zoomValueInput?.value || '1',
+    });
     const setOpen = (open) => {
         if (open) {
             const coverPanel = document.querySelector('[data-profile-cover-panel]');
@@ -44,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         panel.hidden = !open;
         toggle.setAttribute('aria-expanded', String(open));
         if (open) close.focus();
+        else endWallpaperPreview();
     };
 
     toggle.addEventListener('click', () => setOpen(panel.hidden));
@@ -58,11 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     color?.addEventListener('input', () => {
+        beginWallpaperPreview('color');
         if (wallpaper) wallpaper.style.backgroundColor = color.value;
         if (colorValue) colorValue.value = color.value;
     });
 
     const setMode = (mode) => {
+        beginWallpaperPreview(mode);
         if (colorOption) colorOption.hidden = mode !== 'color';
         if (imageOption) imageOption.hidden = mode !== 'image';
         if (!wallpaper) return;
@@ -74,16 +100,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     modes.forEach((mode) => mode.addEventListener('change', () => {
-        if (mode.checked) setMode(mode.value);
+        if (!mode.checked) return;
+        setMode(mode.value);
     }));
 
     const selectedFit = () => imageFits.find((control) => control.checked)?.value || 'cover';
     const applyImageLayout = () => {
         if (!wallpaperSurface || !wallpaperPreview) return;
+        beginWallpaperPreview('image');
         const imageUrl = previewImageUrl || panel.dataset.savedImage;
         wallpaperSurface.hidden = !imageUrl;
         if (!imageUrl) return;
         const fit = selectedFit();
+        if (wallpaper) wallpaper.dataset.profileWallpaperPreviewFit = fit;
         if (fit === 'tile') {
             wallpaperPreview.hidden = true;
             wallpaperSurface.style.backgroundImage = `url("${imageUrl}")`;
@@ -105,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const showImagePreview = (imageUrl) => {
         if (!imageUrl) return;
+        beginWallpaperPreview('image');
         applyImageLayout();
         if (thumbnail) {
             if (thumbnail.tagName === 'IMG') {
@@ -295,12 +325,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     imageFits.forEach((control) => control.addEventListener('change', () => {
         if (!control.checked) return;
+        beginWallpaperPreview('image');
         applyImageLayout();
     }));
 
     blurInput?.addEventListener('input', () => {
+        beginWallpaperPreview('image');
         if (wallpaperSurface) wallpaperSurface.style.filter = `blur(${blurInput.value}px)`;
         if (blurValue) blurValue.value = `${blurInput.value}px`;
+    });
+
+    wallpaperUndo?.addEventListener('click', (event) => {
+        if (!hasUnsavedWallpaperPreview || !initialWallpaperState) return;
+        event.preventDefault();
+        modes.forEach((mode) => { mode.checked = mode.value === initialWallpaperState.mode; });
+        if (color) color.value = initialWallpaperState.color;
+        if (colorValue) colorValue.value = initialWallpaperState.color;
+        if (wallpaper) wallpaper.style.backgroundColor = initialWallpaperState.color;
+        imageFits.forEach((control) => { control.checked = control.value === initialWallpaperState.fit; });
+        if (blurInput) blurInput.value = initialWallpaperState.blur;
+        if (blurValue) blurValue.value = `${initialWallpaperState.blur}px`;
+        if (positionXInput) positionXInput.value = initialWallpaperState.positionX;
+        if (positionYInput) positionYInput.value = initialWallpaperState.positionY;
+        if (zoomValueInput) zoomValueInput.value = initialWallpaperState.zoom;
+        if (imageInput) imageInput.value = '';
+        if (previewImageUrl) URL.revokeObjectURL(previewImageUrl);
+        previewImageUrl = '';
+        if (wallpaperSurface) wallpaperSurface.style.filter = `blur(${initialWallpaperState.blur}px)`;
+        setMode(initialWallpaperState.mode);
+        if (initialWallpaperState.mode === 'image' && panel.dataset.savedImage) showImagePreview(panel.dataset.savedImage);
+        if (!panel.dataset.savedImage && thumbnail?.tagName === 'IMG') {
+            const emptyThumbnail = document.createElement('div');
+            emptyThumbnail.className = 'profile-wallpaper-thumbnail is-empty';
+            emptyThumbnail.dataset.profileWallpaperThumbnail = '';
+            emptyThumbnail.textContent = 'No image selected';
+            thumbnail.replaceWith(emptyThumbnail);
+            thumbnail = emptyThumbnail;
+        }
+        hasUnsavedWallpaperPreview = false;
+        endWallpaperPreview();
+        wallpaperUndo.disabled = wallpaperUndo.dataset.savedUndo !== 'true';
     });
 
     const closeResetDialog = () => resetDialog?.close();
@@ -310,6 +374,10 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         closeResetDialog();
     });
+
+    appearanceTabs.forEach((tab) => tab.addEventListener('click', () => {
+        if (tab.dataset.profileAppearanceTab !== 'wallpaper') endWallpaperPreview();
+    }));
 
     if (toast) {
         const closeToast = () => {
@@ -323,8 +391,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const cleanUrl = new URL(window.location.href);
-    ['customize', 'cover_customize', 'appearance_saved', 'appearance_image_removed', 'appearance_reset', 'appearance_copied', 'cover_saved', 'cover_image_removed', 'cover_reset', 'cover_copied'].forEach((parameter) => cleanUrl.searchParams.delete(parameter));
+    ['customize', 'cover_customize', 'appearance_saved', 'appearance_image_removed', 'appearance_reset', 'appearance_copied', 'cover_saved', 'cover_image_removed', 'cover_reset', 'cover_copied', 'css_wallpaper_overridden', 'css_wallpaper_restored'].forEach((parameter) => cleanUrl.searchParams.delete(parameter));
     if (cleanUrl.href !== window.location.href) window.history.replaceState({}, '', cleanUrl);
 
+    initialWallpaperState = captureWallpaperState();
     if (panel.dataset.open === 'true') setOpen(true);
 });

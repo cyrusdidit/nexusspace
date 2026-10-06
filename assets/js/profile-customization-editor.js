@@ -21,7 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let draftRequest;
     let settings = {};
 
-    try { settings = JSON.parse(settingsField?.value || '{}'); } catch { settings = {}; }
+    try {
+        settings = JSON.parse(settingsField?.value || '{}');
+        if (!settings || Array.isArray(settings) || typeof settings !== 'object') settings = {};
+    } catch { settings = {}; }
 
     reset?.addEventListener('click', (event) => {
         if (!window.confirm('Restore the default profile template and remove saved styles?')) event.preventDefault();

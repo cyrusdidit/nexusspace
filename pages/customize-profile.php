@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/profile_customization.php';
+require_once __DIR__ . '/../includes/background_customization.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $_SESSION['profile_customization_token'] ??= bin2hex(random_bytes(32));
@@ -78,13 +79,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ], JSON_UNESCAPED_SLASHES);
             exit;
         } else {
+            unset($_SESSION['profile_wallpaper_css_undo']);
             saveProfileCustomization($conn, $currentUserId, $templateHtml, $customCss, $simpleSettings, $sidebarWidth);
+            $wallpaperRemoved = false;
+            if (($_POST['remove_wallpaper_image'] ?? '') === '1') {
+                $backgrounds = readUserBackgroundSettings($conn, $currentUserId);
+                $wallpaper = $backgrounds['profile_posts'];
+                $previousImagePath = $wallpaper['image_path'];
+                saveUserBackgroundSetting(
+                    $conn,
+                    $currentUserId,
+                    'profile_posts',
+                    'color',
+                    $wallpaper['color_value'],
+                    null,
+                    null,
+                    $wallpaper['image_fit'],
+                    $wallpaper['image_blur'],
+                    $wallpaper['image_position_x'],
+                    $wallpaper['image_position_y'],
+                    $wallpaper['image_zoom']
+                );
+                deleteUserBackgroundImageIfUnused($conn, $previousImagePath, $currentUserId);
+                $wallpaperRemoved = $wallpaper['background_type'] !== 'color' || $previousImagePath !== null;
+            }
             if (str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
                 header('Content-Type: application/json; charset=utf-8');
                 echo json_encode([
                     'saved' => true,
                     'simple_css' => renderProfileSimpleCss($simpleSettings, $sidebarWidth),
                     'custom_css' => sanitizeAndScopeProfileCss($customCss),
+                    'wallpaper_removed' => $wallpaperRemoved,
                     'warnings' => ['html' => validateProfileTemplate($templateHtml), 'css' => validateProfileCss($customCss)],
                 ], JSON_UNESCAPED_SLASHES);
                 exit;
