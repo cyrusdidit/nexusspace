@@ -791,6 +791,7 @@ if ($isOwnProfile) {
     <script src="../assets/js/profile-top-eight.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-top-eight.js') ?>" defer></script>
     <script src="../assets/js/profile-username-copy.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-username-copy.js') ?>" defer></script>
     <script src="../assets/js/profile-social-activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-social-activity.js') ?>" defer></script>
+    <script src="../assets/js/profile-wallpaper-scroll.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-wallpaper-scroll.js') ?>" defer></script>
     <script src="../assets/js/spotify-profile-song.js?v=<?= filemtime(__DIR__ . '/../assets/js/spotify-profile-song.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <script src="../assets/js/posts.js?v=<?= filemtime(__DIR__ . '/../assets/js/posts.js') ?>" defer></script>

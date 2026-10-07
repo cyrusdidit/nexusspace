@@ -257,10 +257,16 @@ a {
 .profile-appearance-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 20px; }
 .profile-appearance-actions.is-single { grid-template-columns: 1fr; }
 .profile-appearance-actions button { min-width: 0; min-height: 38px; margin: 0; border-radius: 0; }
-.profile-posts { position: relative; overflow: hidden; }
+.profile-posts { position: relative; overflow: hidden; background-attachment: fixed !important; }
 .profile-posts > :not(.profile-wallpaper-surface) { position: relative; z-index: 1; }
-.profile-wallpaper-edit-corner { position: absolute !important; z-index: 3 !important; right: 4px; bottom: 4px; display: grid; place-items: center; width: 26px; height: 26px; margin: 0; padding: 0; border: 1px solid rgb(255 255 255 / 75%); border-radius: 0; background: rgb(35 139 197 / 92%); font-size: 15px; }
-.profile-wallpaper-surface { position: absolute !important; z-index: 0 !important; inset: 0 !important; width: auto !important; height: auto !important; overflow: hidden !important; background-position: center; }
+.profile-wallpaper-edit-corner { position: fixed !important; z-index: 23 !important; right: 24px; bottom: 4px; display: grid; place-items: center; width: 26px; height: 26px; margin: 0; padding: 0; border: 1px solid rgb(255 255 255 / 75%); border-radius: 0; background: rgb(35 139 197 / 92%); font-size: 15px; }
+.profile-page.is-profile-appearance-open .profile-wallpaper-edit-corner,
+.profile-page.is-profile-cover-open .profile-wallpaper-edit-corner { right: 324px; }
+.profile-wallpaper-surface { position: fixed !important; z-index: 0 !important; top: 0 !important; right: 0 !important; bottom: 0 !important; left: var(--profile-sidebar-width, 280px) !important; width: auto !important; height: auto !important; overflow: hidden !important; background-position: center; }
+.profile-page.is-profile-appearance-open .profile-wallpaper-surface,
+.profile-page.is-profile-cover-open .profile-wallpaper-surface { right: 300px !important; }
+.profile-posts::before,
+.profile-posts::after { translate: 0 var(--profile-wallpaper-scroll-offset, 0px); }
 .profile-wallpaper-surface[hidden] { display: none; }
 .profile-wallpaper-surface img { display: block !important; width: 100% !important; height: 100% !important; }
 .profile-wallpaper-surface img[hidden] { display: none !important; }
@@ -484,6 +490,8 @@ a {
 .profile-song-picker-panel .spotify-profile-song-status:empty { display: none; }
 .profile-song-picker-panel .spotify-profile-song-results { margin: 8px 10px 10px; max-height: 230px; overflow-y: auto; }
 .profile-posts > h2 { font-size: 18px; margin: 0 0 20px; }
+.profile-posts > h2,
+.profile-posts > .post-list { width: calc(100% - 83px); }
 .profile-posts .post-card { padding: 16px; }
 @media (min-width: 701px) {
     .profile-page { height: 100vh; height: 100dvh; overflow: hidden; }
@@ -502,7 +510,7 @@ a {
     .profile-account-details { padding: 0 16px 10px; margin-top: auto; }
     .profile-account-details .profile-details { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 10px; margin-top: 10px; }
     .profile-account-details .profile-details dt, .profile-account-details .profile-details dd { margin: 0; font-size: 11px; }
-    .profile-posts { min-height: 0; overflow-y: auto; }
+    .profile-posts { min-height: 0; overflow-x: hidden !important; overflow-y: auto !important; }
     .profile-footer { flex-shrink: 0; padding: 10px 16px; }
 }
 @media (max-width: 700px) {
@@ -510,7 +518,9 @@ a {
     .profile-sidebar { border-right: 0; }
     .profile-page.is-profile-appearance-open .profile-sidebar-resize { display: none; }
     .profile-posts { padding: 18px; }
+    .profile-wallpaper-surface { left: 0 !important; }
     .profile-now-playing, .profile-song-picker-panel { width: 100%; }
+    .profile-posts > h2, .profile-posts > .post-list { width: 100%; }
     .profile-now-playing { margin: -10px 0 14px; }
     .profile-page.is-profile-appearance-open .profile-sheet,
     .profile-page.is-profile-cover-open .profile-sheet { display: none; }
@@ -1210,7 +1220,7 @@ body.dashboard-page {
     padding: 3px 10px;
 }
 
-.dashboard-copyright { position: absolute; z-index: 2; top: 0; right: 0; padding: 2px; color: #fff; line-height: 12px; white-space: nowrap; }
+.dashboard-copyright { position: absolute; z-index: 2; top: 0; right: 14px; padding: 2px; color: #fff; line-height: 12px; white-space: nowrap; }
 .profile-page-copyright { position: fixed; z-index: 20; top: 0; right: 0; color: #fff; font-size: 10px; line-height: 12px; white-space: nowrap; }
 .messages-page-copyright { position: fixed; z-index: 20; bottom: 0; left: 0; color: #fff; font-size: 10px; line-height: 12px; white-space: nowrap; }
 
@@ -1509,6 +1519,14 @@ main.dashboard {
 .dashboard-right-rail { position: relative; z-index: 20; grid-column: 3; grid-row: 1; width: auto; gap: 0; border: 0; background: transparent; }
 .dashboard-appearance-panel { position: absolute; z-index: 30; inset: 0; overflow-y: auto; border-left: 1px solid #9dcce8; background: #f6fcff; color: #163b5c; }
 .dashboard-appearance-panel[hidden] { display: none; }
+@media (min-width: 781px) {
+    main.dashboard { grid-template-columns: 280px minmax(0, 1fr); }
+    .dashboard-main-background, .dashboard-feed { grid-column: 2; }
+    .dashboard-feed { padding-right: 324px; }
+    .dashboard-right-rail { position: fixed; top: 0; right: 0; bottom: 0; width: 300px; pointer-events: none; }
+    .dashboard-right-rail .mini-chat,
+    .dashboard-right-rail .dashboard-appearance-panel { pointer-events: auto; }
+}
 .dashboard-appearance-header { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 10px 14px; border-bottom: 1px solid #9dcce8; }
 .dashboard-appearance-header h2 { margin: 0; font-size: 17px; }
 .dashboard-appearance-header button { display: grid; place-items: center; width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 0; font-size: 20px; }

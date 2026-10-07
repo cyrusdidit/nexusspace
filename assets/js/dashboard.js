@@ -329,7 +329,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const progress = postComposer.querySelector('[data-post-upload-progress]');
         const status = postComposer.querySelector('[data-post-upload-status]');
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', postComposer.action || window.location.href);
+        const submitUrl = postComposer.getAttribute('action') || window.location.href;
+        xhr.open('POST', submitUrl);
         xhr.setRequestHeader('Accept', 'application/json');
         if (submit) submit.disabled = true;
         if (uploadState) uploadState.hidden = false;
@@ -343,7 +344,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         xhr.addEventListener('load', () => {
             let data;
-            try { data = JSON.parse(xhr.responseText); } catch { data = { ok: false, error: 'The server returned an invalid upload response.' }; }
+            try {
+                data = JSON.parse(xhr.responseText);
+            } catch {
+                data = {
+                    ok: false,
+                    error: xhr.status === 404
+                        ? 'The post submission address could not be found. Refresh the page and try again.'
+                        : 'The server returned an invalid response. Refresh the page and try again.',
+                };
+            }
             if (xhr.status < 200 || xhr.status >= 300 || !data.ok) {
                 if (status) status.textContent = data.error || 'The post could not be published.';
                 if (submit) submit.disabled = false;
