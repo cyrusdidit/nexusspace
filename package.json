@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@funktechno/sqlsimpleparser": "^0.1.0"
+  }
+}
