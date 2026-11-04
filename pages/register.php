@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 
 require_once __DIR__ . '/../includes/db_connect.php';
 
@@ -11,6 +11,7 @@ $username = '';
 $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireSecurityCsrf();
     $username = trim($_POST['username'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -62,6 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_stmt_bind_param($insertStatement, 'sss', $username, $email, $passwordHash);
 
         if (mysqli_stmt_execute($insertStatement)) {
+            session_regenerate_id(true);
+            unset($_SESSION['security_csrf']);
             $_SESSION['user_id'] = mysqli_insert_id($conn);
             $_SESSION['username'] = $username;
             mysqli_stmt_close($insertStatement);
@@ -99,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="post" novalidate>
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <label for="username">Username</label>
             <input id="username" name="username" type="text" value="<?= htmlspecialchars($username, ENT_QUOTES, 'UTF-8') ?>" minlength="3" maxlength="35" autocomplete="username" required>
 

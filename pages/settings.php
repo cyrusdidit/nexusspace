@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -124,7 +124,6 @@ $steamNotices = [
     'cancelled' => 'Steam sign-in was cancelled.',
     'invalid' => 'That Steam sign-in attempt expired. Please try again.',
     'failed' => 'Steam could not verify that account. Please try again.',
-    'in-use' => 'That Steam account is already connected to another NexusSpace account.',
     'not-configured' => 'Steam needs to be configured before accounts can be connected.',
 ];
 $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
@@ -177,7 +176,7 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                 </div>
                 <?php if ($spotifyConnection): ?>
                     <div class="settings-integration-actions">
-                        <?php if ($spotifyNeedsReconnect): ?><a class="button spotify-connect-button" href="spotify-connect.php">Reconnect Spotify</a><?php endif; ?>
+                        <?php if ($spotifyNeedsReconnect): ?><form method="post" action="spotify-connect.php"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>"><button class="spotify-connect-button" type="submit">Reconnect Spotify</button></form><?php endif; ?>
                         <form method="post">
                             <input type="hidden" name="action" value="disconnect_spotify">
                             <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
@@ -185,7 +184,7 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                         </form>
                     </div>
                 <?php elseif (spotifyIsConfigured()): ?>
-                    <a class="button spotify-connect-button" href="spotify-connect.php">Connect Spotify</a>
+                    <form method="post" action="spotify-connect.php"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>"><button class="spotify-connect-button" type="submit">Connect Spotify</button></form>
                 <?php endif; ?>
             </div>
             <?php if ($spotifyConnection): ?>
@@ -232,7 +231,7 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                         <strong>Verify your Steam account</strong>
                         <span>Steam signs you in and returns only your verified SteamID.</span>
                     </div>
-                    <a class="button spotify-connect-button" href="steam-connect.php">Sign in with Steam</a>
+                    <form method="post" action="steam-connect.php"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>"><button class="spotify-connect-button" type="submit">Sign in with Steam</button></form>
                 </div>
             <?php else: ?>
                 <div class="settings-integration-copy">
@@ -279,10 +278,10 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
 
         <section class="settings-account" aria-labelledby="settings-account-heading">
             <h2 id="settings-account-heading">Account</h2>
-            <a class="settings-logout" href="../logout.php">
+            <form method="post" action="../logout.php"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>"><button class="settings-logout" type="submit">
                 <img src="../assets/images/logout-door.png" alt="" aria-hidden="true">
                 <span>Log out</span>
-            </a>
+            </button></form>
         </section>
     </main>
 </body>

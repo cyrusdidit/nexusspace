@@ -35,16 +35,6 @@ try {
     if (!$player) throw new RuntimeException('Steam profile unavailable.');
     $userId = (int) $authRequest['user_id'];
 
-    $statement = mysqli_prepare($conn, 'SELECT user_id FROM steam_connections WHERE steam_id = ? AND user_id <> ? LIMIT 1');
-    mysqli_stmt_bind_param($statement, 'si', $steamId, $userId);
-    mysqli_stmt_execute($statement);
-    $steamOwner = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
-    mysqli_stmt_close($statement);
-    if ($steamOwner) {
-        header('Location: ' . steamSettingsUrl('in-use'));
-        exit;
-    }
-
     $personaName = trim((string) ($player['personaname'] ?? '')) ?: $steamId;
     $profileUrl = trim((string) ($player['profileurl'] ?? '')) ?: 'https://steamcommunity.com/profiles/' . $steamId . '/';
     $avatarUrl = trim((string) ($player['avatarfull'] ?? '')) ?: null;

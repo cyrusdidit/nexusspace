@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . '/../includes/session.php';
+
+requireSecurityCsrf();
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');

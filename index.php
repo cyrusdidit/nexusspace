@@ -7,7 +7,7 @@ require_once __DIR__ . '/includes/background_customization.php';
 require_once __DIR__ . '/includes/post_interactions.php';
 require_once __DIR__ . '/includes/post_media.php';
 
-session_start();
+require_once __DIR__ . '/includes/session.php';
 
 function postTimestamp(string $value): string
 {

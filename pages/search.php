@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 $isJson = ($_GET['format'] ?? '') === 'json';
 if ($isJson) {
     header('Content-Type: application/json; charset=utf-8');

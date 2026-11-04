@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 
 if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
@@ -803,7 +803,7 @@ if ($isOwnProfile) {
         <script src="../assets/js/profile-sidebar-resize.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-sidebar-resize.js') ?>" defer></script>
     <?php endif; ?>
 </head>
-<body class="profile-page" data-profile-style="profile.page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-spotify-profile-playback-endpoint="../spotify-profile-playback.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
+<body class="profile-page" data-profile-style="profile.page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <?php if ($profileNotice !== ''): ?>
         <div class="profile-customization-toast" data-profile-customization-toast role="status">
             <span><?= htmlspecialchars($profileNotice, ENT_QUOTES, 'UTF-8') ?></span>
@@ -884,9 +884,8 @@ if ($isOwnProfile) {
             <?php endif; ?>
         </section>
         <?php $profileHeaderFragment = ob_get_clean(); ob_start(); ?>
-        <?php if ($isOwnProfile || trim($user['bio'] ?? '') !== ''): ?>
         <section class="profile-bio-section" data-profile-style="bio.container" aria-label="Bio">
-            <?php if (trim($user['bio'] ?? '') !== ''): ?><p class="profile-bio" data-profile-style="bio.text"><?= htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+            <p class="profile-bio" data-profile-style="bio.text"><?= trim($user['bio'] ?? '') !== '' ? htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') : ($isOwnProfile ? 'Create your own bio!' : '') ?></p>
             <?php if ($isOwnProfile): ?>
                 <details class="profile-bio-editor" data-profile-style="bio.editor"<?= $bioError ? ' open' : '' ?>>
                     <summary aria-label="Edit bio" title="Edit bio" data-profile-style="bio.edit-control">!</summary>
@@ -901,7 +900,6 @@ if ($isOwnProfile) {
                 </details>
             <?php endif; ?>
         </section>
-        <?php endif; ?>
         <?php $profileBioFragment = ob_get_clean(); ob_start(); ?>
         <form class="profile-top-eight" data-profile-style="top-eight.container" method="post" action="profile.php?id=<?= $userId ?>" aria-labelledby="profile-top-eight-heading" data-top-eight-form data-profile-id="<?= $userId ?>">
             <input type="hidden" name="action" value="update_top_eight">
@@ -999,11 +997,11 @@ if ($isOwnProfile) {
             </span>
             <div class="profile-now-playing profile-song-banner" data-profile-style="profile-song.container" data-profile-song-banner data-has-song="<?= $profileSong ? 'true' : 'false' ?>" data-track-id="<?= htmlspecialchars($profileSong['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>"<?= !$profileSong && !$isOwnProfile ? ' hidden' : '' ?>>
                 <div class="profile-now-playing-bar">
-                    <span data-profile-style="profile-song.label">Profile song: <a href="<?= htmlspecialchars($profileSong['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" data-profile-song-link<?= !empty($profileSong['url']) ? '' : ' hidden' ?>><strong data-profile-style="profile-song.title" data-profile-song-name><?= $profileSong ? htmlspecialchars($profileSong['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span data-profile-song-separator<?= $profileSong && $profileSong['artist'] !== '' ? '' : ' hidden' ?>> &bull; </span><span data-profile-style="profile-song.artist" data-profile-song-artist><?= $profileSong ? htmlspecialchars($profileSong['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></a></span>
-                    <span class="profile-song-volume" data-profile-style="profile-song.volume-control" data-profile-song-volume<?= $profileSong ? '' : ' hidden' ?>>
-                        <button type="button" aria-label="Mute profile song" title="Mute" data-profile-style="profile-song.volume-control" data-profile-song-mute><span aria-hidden="true" data-profile-song-volume-icon>&#128266;</span></button>
-                        <input type="range" min="0" max="100" step="1" value="70" aria-label="Profile song volume" title="Profile song volume" data-profile-style="profile-song.volume-slider" data-profile-song-volume-slider>
-                    </span>
+                    <div class="profile-song-browser-player" data-profile-song-browser-player<?= $profileSong ? '' : ' hidden' ?>>
+                        <?php if ($profileSong): ?><iframe src="https://open.spotify.com/embed/track/<?= rawurlencode($profileSong['id']) ?>?theme=0" title="Profile song" width="100%" height="80" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe><?php endif; ?>
+                    </div>
+                    <span class="profile-song-empty-label" data-profile-style="profile-song.label">Profile song: <a href="<?= htmlspecialchars($profileSong['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" data-profile-song-link<?= !empty($profileSong['url']) ? '' : ' hidden' ?>><strong data-profile-style="profile-song.title" data-profile-song-name><?= $profileSong ? htmlspecialchars($profileSong['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span data-profile-song-separator<?= $profileSong && $profileSong['artist'] !== '' ? '' : ' hidden' ?>> &bull; </span><span data-profile-style="profile-song.artist" data-profile-song-artist><?= $profileSong ? htmlspecialchars($profileSong['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></a></span>
+
                     <?php if ($isOwnProfile): ?>
                         <button class="profile-song-edit" type="button" aria-label="<?= $profileSong ? 'Edit profile song' : 'Add profile song' ?>" title="<?= $profileSong ? 'Edit profile song' : 'Add profile song' ?>" data-profile-style="profile-song.edit-control" data-profile-song-picker-open><span aria-hidden="true" data-profile-song-action-icon><?= $profileSong ? '&#9998;' : '+' ?></span></button>
                     <?php else: ?>

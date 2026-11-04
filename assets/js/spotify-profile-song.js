@@ -10,164 +10,79 @@
     const bannerSeparator = banner?.querySelector('[data-profile-song-separator]');
     const bannerOpen = banner?.querySelector('[data-profile-song-picker-open]');
     const bannerIcon = banner?.querySelector('[data-profile-song-action-icon]');
-    const playbackEndpoint = document.body.dataset.spotifyProfilePlaybackEndpoint;
-    const profileUserId = document.body.dataset.profileUserId;
-    const volumeControl = banner?.querySelector('[data-profile-song-volume]');
-    const volumeSlider = banner?.querySelector('[data-profile-song-volume-slider]');
-    const muteButton = banner?.querySelector('[data-profile-song-mute]');
-    const volumeIcon = banner?.querySelector('[data-profile-song-volume-icon]');
-    const volumeStorageKey = profileUserId ? `nexusspace:profile-song-volume:${profileUserId}` : '';
-    let spotifyPlayer = null;
-    let playbackDeviceId = '';
-    let profileSongStarted = false;
+    const playerHost = banner?.querySelector('[data-profile-song-browser-player]');
+    let embedApi = null;
+    let embedController = null;
     let currentTrackId = banner?.dataset.trackId || '';
-    let previousVolume = 70;
-    let muted = false;
+    let playbackDismissed = false;
+    let playing = false;
 
-    const readVolumePreference = () => {
-        if (!volumeStorageKey) return;
-        try {
-            const preference = JSON.parse(localStorage.getItem(volumeStorageKey) || '{}');
-            const savedVolume = Number(preference.volume);
-            if (Number.isFinite(savedVolume)) volumeSlider.value = String(Math.min(100, Math.max(0, savedVolume)));
-            previousVolume = Math.min(100, Math.max(1, Number(preference.previousVolume) || Number(volumeSlider.value) || 70));
-            muted = Boolean(preference.muted) || Number(volumeSlider.value) === 0;
-        } catch (_) {
-            // Ignore invalid preferences and use the default volume.
+    const tryPlay = () => {
+        if (!embedController || !currentTrackId || playbackDismissed || playing) return;
+        try { embedController.play(); } catch (_) {
+            banner.title = 'Press play in the profile song header to listen.';
         }
     };
-
-    const saveVolumePreference = () => {
-        if (!volumeStorageKey || !volumeSlider) return;
-        try {
-            localStorage.setItem(volumeStorageKey, JSON.stringify({
-                volume: Number(volumeSlider.value),
-                previousVolume,
-                muted,
-            }));
-        } catch (_) {
-            // Playback still works when browser storage is unavailable.
-        }
-    };
-
-    const updateVolumeControl = () => {
-        if (!volumeSlider || !muteButton || !volumeIcon) return;
-        const effectiveVolume = muted ? 0 : Number(volumeSlider.value);
-        volumeIcon.textContent = effectiveVolume === 0 ? '\uD83D\uDD07' : '\uD83D\uDD0A';
-        muteButton.setAttribute('aria-label', effectiveVolume === 0 ? 'Unmute profile song' : 'Mute profile song');
-        muteButton.title = effectiveVolume === 0 ? 'Unmute' : 'Mute';
-        spotifyPlayer?.setVolume(effectiveVolume / 100);
-    };
-
-    const fetchPlaybackToken = async () => {
-        const response = await fetch(playbackEndpoint, {
-            credentials: 'same-origin',
-            cache: 'no-store',
-            headers: { Accept: 'application/json' },
+    const createBrowserPlayer = () => {
+        if (!embedApi || !playerHost || !currentTrackId) return;
+        embedController?.destroy();
+        embedController = null;
+        playerHost.replaceChildren();
+        const target = document.createElement('div');
+        playerHost.append(target);
+        const creatingTrackId = currentTrackId;
+        embedApi.createController(target, {
+            uri: `spotify:track:${creatingTrackId}`,
+            width: '100%',
+            height: 80,
+        }, (controller) => {
+            if (currentTrackId !== creatingTrackId || playbackDismissed) {
+                controller.destroy();
+                return;
+            }
+            embedController = controller;
+            controller.addListener('ready', tryPlay);
+            controller.addListener('playback_update', ({ data }) => {
+                playing = !data.isPaused;
+                banner.dataset.playbackState = playing ? 'playing' : 'paused';
+            });
         });
-        const data = await response.json();
-        if (!response.ok || !data.access_token) throw new Error(data.error || 'Spotify playback is unavailable.');
-        return data.access_token;
     };
-
-    const requestPlayback = async () => {
-        if (!playbackEndpoint || !playbackDeviceId || !currentTrackId || profileSongStarted) return;
-        const response = await fetch(playbackEndpoint, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify({ token, track_id: currentTrackId, device_id: playbackDeviceId }),
-        });
-        const data = await response.json();
-        if (!response.ok || !data.playing) throw new Error(data.error || 'Spotify could not start the profile song.');
-        profileSongStarted = true;
-    };
-
-    const showPlaybackError = (message) => {
-        if (!banner || !message) return;
-        banner.title = message;
-        volumeControl?.classList.add('is-unavailable');
-    };
-
     const playProfileSong = (trackId) => {
         currentTrackId = trackId || '';
+        playing = false;
+        playbackDismissed = false;
         if (banner) banner.dataset.trackId = currentTrackId;
-        profileSongStarted = false;
+        if (!playerHost) return;
+        playerHost.hidden = !currentTrackId;
         if (!currentTrackId) {
-            spotifyPlayer?.pause();
-            return;
+            embedController?.destroy();
+            embedController = null;
+            playerHost.replaceChildren();
+        } else {
+            createBrowserPlayer();
         }
-        requestPlayback().catch((error) => showPlaybackError(error.message));
     };
-
-    if (banner && playbackEndpoint) {
-        readVolumePreference();
-        updateVolumeControl();
-        window.onSpotifyWebPlaybackSDKReady = () => {
-            spotifyPlayer = new Spotify.Player({
-                name: 'NexusSpace Profile Song',
-                getOAuthToken: (callback) => {
-                    fetchPlaybackToken().then(callback).catch((error) => showPlaybackError(error.message));
-                },
-                volume: muted ? 0 : Number(volumeSlider?.value || 70) / 100,
-            });
-            spotifyPlayer.addListener('ready', ({ device_id: deviceId }) => {
-                playbackDeviceId = deviceId;
-                updateVolumeControl();
-                requestPlayback().catch((error) => showPlaybackError(error.message));
-            });
-            spotifyPlayer.addListener('authentication_error', ({ message }) => showPlaybackError(message));
-            spotifyPlayer.addListener('account_error', () => showPlaybackError('Spotify Premium is required to play profile songs here.'));
-            spotifyPlayer.addListener('playback_error', ({ message }) => showPlaybackError(message));
-            spotifyPlayer.connect();
+    if (playerHost) {
+        window.onSpotifyIframeApiReady = (api) => {
+            embedApi = api;
+            createBrowserPlayer();
         };
-        const spotifySdkScript = document.createElement('script');
-        spotifySdkScript.src = 'https://sdk.scdn.co/spotify-player.js';
-        spotifySdkScript.async = true;
-        document.body.append(spotifySdkScript);
-
-        const retryPlayback = () => {
-            if (profileSongStarted || !spotifyPlayer) return;
-            spotifyPlayer.activateElement();
-            requestPlayback().catch((error) => showPlaybackError(error.message));
-        };
-        window.addEventListener('pointerdown', retryPlayback, { passive: true });
-        window.addEventListener('keydown', retryPlayback);
+        const script = document.createElement('script');
+        script.src = 'https://open.spotify.com/embed/iframe-api/v1';
+        script.async = true;
+        document.body.append(script);
+        window.addEventListener('click', tryPlay);
+        window.addEventListener('keydown', tryPlay);
+        window.addEventListener('pagehide', () => embedController?.destroy());
     }
-
-    volumeSlider?.addEventListener('input', () => {
-        const volume = Number(volumeSlider.value);
-        muted = volume === 0;
-        if (volume > 0) previousVolume = volume;
-        updateVolumeControl();
-        saveVolumePreference();
-    });
-
-    volumeSlider?.addEventListener('wheel', (event) => {
-        event.preventDefault();
-        const currentVolume = muted ? 0 : Number(volumeSlider.value);
-        const direction = event.deltaY < 0 ? 1 : -1;
-        const volume = Math.min(100, Math.max(0, currentVolume + (direction * 5)));
-        volumeSlider.value = String(volume);
-        muted = volume === 0;
-        if (volume > 0) previousVolume = volume;
-        updateVolumeControl();
-        saveVolumePreference();
-    }, { passive: false });
-
-    muteButton?.addEventListener('click', () => {
-        muted = !muted;
-        if (!muted && Number(volumeSlider.value) === 0) volumeSlider.value = String(previousVolume);
-        updateVolumeControl();
-        saveVolumePreference();
-    });
 
     const updateBanner = (track) => {
         if (!banner) return;
         const hasSong = Boolean(track?.id);
         banner.dataset.hasSong = String(hasSong);
         banner.hidden = false;
-        if (volumeControl) volumeControl.hidden = !hasSong;
+
         if (bannerName) bannerName.textContent = track?.name || '';
         if (bannerArtist) bannerArtist.textContent = track?.artist || '';
         if (bannerSeparator) bannerSeparator.hidden = !track?.artist;
@@ -183,6 +98,7 @@
             bannerOpen.title = label;
         }
         playProfileSong(track?.id || '');
+
     };
 
     const saveSelection = async (action, trackId = '') => {
@@ -346,7 +262,8 @@
     });
 
     banner?.querySelector('[data-profile-song-dismiss]')?.addEventListener('click', () => {
-        spotifyPlayer?.pause();
+        embedController?.pause();
+        playbackDismissed = true;
         banner.hidden = true;
     });
     document.addEventListener('keydown', (event) => {

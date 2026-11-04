@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 
 if (isset($_SESSION['user_id'])) {
     header('Location: ../index.php');
@@ -15,6 +15,7 @@ $error = '';
 $identity = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireSecurityCsrf();
     $identity = trim($_POST['identity'] ?? '');
     $password = $_POST['password'] ?? '';
 
@@ -33,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($user && password_verify($password, $user['password_hash'])) {
             session_regenerate_id(true);
+            unset($_SESSION['security_csrf']);
             $_SESSION['user_id'] = (int) $user['id'];
             $_SESSION['username'] = $user['username'];
 
@@ -62,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="post">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <label for="identity">Username or email address</label>
             <input id="identity" name="identity" type="text" value="<?= htmlspecialchars($identity, ENT_QUOTES, 'UTF-8') ?>" autocomplete="username" required>
 

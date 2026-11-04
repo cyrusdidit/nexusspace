@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/db_connect.php';
 
-session_start();
+require_once __DIR__ . '/includes/session.php';
+
+requireSecurityCsrf();
 
 if (isset($_SESSION['user_id'])) {
     $userId = (int) $_SESSION['user_id'];
