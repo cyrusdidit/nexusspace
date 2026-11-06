@@ -476,8 +476,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     } else {
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name']);
         $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
-        if (!isset($extensions[$mime]) || @getimagesize($upload['tmp_name']) === false) {
+        $dimensions = @getimagesize($upload['tmp_name']);
+        if (!isset($extensions[$mime]) || $dimensions === false) {
             $avatarError = 'Upload a JPG, PNG, WebP, or GIF image.';
+        } elseif ($dimensions[0] > 8000 || $dimensions[1] > 8000 || $dimensions[0] * $dimensions[1] > 40000000) {
+            $avatarError = 'Use an image under 40 megapixels and 8000 pixels per side.';
         } else {
             $uploadDirectory = __DIR__ . '/../uploads/avatars';
             if ((!is_dir($uploadDirectory) && !mkdir($uploadDirectory, 0755, true)) || !is_writable($uploadDirectory)) {

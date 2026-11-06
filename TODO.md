@@ -11,7 +11,8 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Recheck friendship and block state in the message insert itself; hide unread polling data from non-friends.
 - [x] Recheck block state under account locks before friend-request actions.
 - [x] Add CSRF protection to login and registration; change logout and integration connection starts to protected POST forms.
-- [ ] Audit the remaining state-changing routes for CSRF coverage.
+- [x] Audit the remaining state-changing routes for CSRF coverage; protect dashboard status updates with the shared session token.
+- [x] Hide custom statuses marked “No one” from Messages friend previews.
 - [x] Require a session CSRF token for activity heartbeat updates.
 - [x] Require a session CSRF token for profile customization preview drafts.
 - [ ] Review Spotify and Steam callback security: bind linking to the initiating user/browser, enforce expiration and single use, handle rejection, and verify Steam identity assertions.
@@ -26,7 +27,8 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [ ] Audit custom HTML/CSS sanitization for stored XSS, unsafe URLs, SVG/MathML, attributes, CSS escapes, and styles escaping the profile. Decide whether to replace the custom sanitizer with a maintained library; the original plan names HTML Purifier.
 - [x] Block custom SVG/MathML markup, namespaced attributes, unsafe URL schemes, and CSS escape obfuscation.
 - [ ] Audit output escaping and SQL queries throughout the app; retain prepared statements for user-controlled values.
-- [ ] Audit upload MIME/content checks, size and count limits, ownership, filenames, and deletion paths. Prevent executable uploads and script execution in upload directories.
+- [x] Audit upload MIME/content checks, size and count limits, ownership, filenames, and deletion paths; cap avatar image dimensions and block script execution in upload directories.
+- [x] Serve post media through post visibility and block checks while preserving byte-range video requests.
 - [ ] Introduce CSP in report-only mode, resolve violations, then enforce it. Account for Spotify playback, media, custom profiles, and inline styles/scripts.
 - [x] Set content-type sniffing, framing, and referrer protections in Apache.
 - [ ] Confirm the headers work in Laragon and add a CSP in report-only mode.

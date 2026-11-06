@@ -15,5 +15,7 @@ Options -Indexes
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule (^|/)\. - [F,END]
+    RewriteRule ^uploads/(?:.*/)?[^/]+\.(?:php[0-9]?|phtml|phar|phps|html?|shtml|cgi|pl)$ - [F,END,NC]
+    RewriteRule ^uploads/posts/(post-[0-9]+-[a-f0-9]{24}\.(?:jpg|png|webp|gif|mp4|webm))$ post-media.php?file=$1 [END,QSA,NC]
     RewriteRule ^(?:database|docs|includes|node_modules|tests|tmp)(?:/|$) - [F,END,NC]
 </IfModule>

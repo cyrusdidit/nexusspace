@@ -498,6 +498,7 @@ if (isset($_SESSION['user_id'])) {
     mysqli_stmt_close($statement);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_status') {
+        requireSecurityCsrf();
         $basicStatus = is_string($_POST['status'] ?? null) ? trim($_POST['status']) : '';
 
         if (!mb_check_encoding($basicStatus, 'UTF-8') || mb_strlen($basicStatus, 'UTF-8') > 40) {
@@ -608,6 +609,7 @@ if (isset($_SESSION['user_id'])) {
 
                 <form class="status-form" method="post">
                     <input type="hidden" name="action" value="update_status">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
                     <section class="status-panel" aria-label="Status information">
                         <div class="status-item status-text-item">
                             <label class="sr-only" for="basic-status">Basic status</label>
