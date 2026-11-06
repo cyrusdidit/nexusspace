@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/db_connect.php';
 require_once __DIR__ . '/includes/background_customization.php';
 require_once __DIR__ . '/includes/post_interactions.php';
 require_once __DIR__ . '/includes/post_media.php';
+require_once __DIR__ . '/includes/rate_limit.php';
 
 require_once __DIR__ . '/includes/session.php';
 
@@ -68,6 +69,7 @@ $basicStatus = '';
 $statusError = '';
 $statusAudiences = ['custom' => 'friends', 'spotify' => 'friends', 'steam' => 'friends'];
 $postError = '';
+$postErrorStatus = 422;
 $postContent = '';
 $postTitle = '';
 $postVisibility = 'friends';
@@ -348,7 +350,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
     } elseif ($_POST['action'] === 'create_post') {
         $postUpload = is_array($_FILES['post_media'] ?? null) ? $_FILES['post_media'] : ['error' => UPLOAD_ERR_NO_FILE];
         $postMediaCount = postMediaUploadCount($postUpload);
-        if (mb_strlen($postTitle, 'UTF-8') > 100) {
+        if ($postMediaCount > 0 && !consumeSecurityRateLimit($conn, 'post_upload_user', (string) $_SESSION['user_id'], 20, 3600)) {
+            $postErrorStatus = 429;
+            $postError = 'You have uploaded a lot of media recently. Wait a while, then try again.';
+        } elseif (mb_strlen($postTitle, 'UTF-8') > 100) {
             $postError = 'Keep the post title under 100 characters.';
         } elseif (!in_array($postVisibility, ['friends', 'public'], true)) {
             $postError = 'Choose Friends Only or Public.';
@@ -412,7 +417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
         }
     }
     if ($postJson && $postError !== '') {
-        http_response_code(422);
+        http_response_code($postErrorStatus);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $postError]);
         exit;
@@ -532,7 +537,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
     <?php if (isset($_SESSION['user_id'])): ?><script src="assets/js/posts.js?v=<?= filemtime(__DIR__ . '/assets/js/posts.js') ?>" defer></script><?php endif; ?>
 </head>
-<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-status-visibility-endpoint="status-visibility.php" data-status-visibility-csrf="' . htmlspecialchars($_SESSION['status_visibility_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard" data-notifications-endpoint="notifications.php" data-notifications-csrf="' . htmlspecialchars($_SESSION['notifications_csrf'], ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
+<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-security-csrf="' . htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') . '" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-status-visibility-endpoint="status-visibility.php" data-status-visibility-csrf="' . htmlspecialchars($_SESSION['status_visibility_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard" data-notifications-endpoint="notifications.php" data-notifications-csrf="' . htmlspecialchars($_SESSION['notifications_csrf'], ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');

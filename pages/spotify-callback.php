@@ -2,24 +2,35 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/spotify.php';
 
 $state = is_string($_GET['state'] ?? null) ? $_GET['state'] : '';
 $code = is_string($_GET['code'] ?? null) ? $_GET['code'] : '';
 $oauth = null;
+$sessionUserId = consumeProviderAuthState('spotify', $state);
 
-if ($state !== '') {
+if ($state !== '' && $sessionUserId !== null) {
     $statement = mysqli_prepare($conn, 'SELECT user_id, code_verifier, expires_at FROM spotify_oauth_requests WHERE state = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 's', $state);
     mysqli_stmt_execute($statement);
     $oauth = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
     mysqli_stmt_close($statement);
 
+    if ($oauth && (int) $oauth['user_id'] !== $sessionUserId) {
+        $oauth = null;
+    }
+
     $statement = mysqli_prepare($conn, 'DELETE FROM spotify_oauth_requests WHERE state = ?');
     mysqli_stmt_bind_param($statement, 's', $state);
     mysqli_stmt_execute($statement);
     mysqli_stmt_close($statement);
+}
+
+if ($sessionUserId === null) {
+    header('Location: ' . spotifySettingsUrl('invalid'));
+    exit;
 }
 
 if (isset($_GET['error'])) {

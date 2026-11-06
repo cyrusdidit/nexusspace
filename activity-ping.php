@@ -16,6 +16,8 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
+requireSecurityCsrf();
+
 $state = $_POST['state'] ?? '';
 $allowedStates = ['online', 'idle', 'offline'];
 

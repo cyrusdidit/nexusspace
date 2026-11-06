@@ -139,7 +139,7 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
     <script src="../assets/js/spotify-profile-song.js?v=<?= filemtime(__DIR__ . '/../assets/js/spotify-profile-song.js') ?>" defer></script>
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
 </head>
-<body data-activity-endpoint="../activity-ping.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
+<body data-activity-endpoint="../activity-ping.php" data-security-csrf="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>">
     <main class="card settings-page">
         <header class="settings-header">
             <a href="../index.php" aria-label="Back to dashboard" title="Back to dashboard">&larr;</a>

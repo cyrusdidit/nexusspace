@@ -28,6 +28,7 @@ $statement = mysqli_prepare($conn, 'INSERT INTO spotify_oauth_requests (state, u
 mysqli_stmt_bind_param($statement, 'siss', $state, $userId, $verifier, $expiresAt);
 mysqli_stmt_execute($statement);
 mysqli_stmt_close($statement);
+rememberProviderAuthState('spotify', $state, $userId, time() + 600);
 
 $config = spotifyConfig();
 $query = http_build_query([

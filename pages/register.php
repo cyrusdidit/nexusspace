@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/session.php';
 
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 $errors = [];
 $username = '';
@@ -12,10 +13,20 @@ $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireSecurityCsrf();
-    $username = trim($_POST['username'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirmPassword = $_POST['confirm_password'] ?? '';
+    $registrationAllowed = consumeSecurityRateLimit($conn, 'register_ip', securityRateLimitClientIp(), 10, 3600);
+    $username = is_string($_POST['username'] ?? null) ? trim($_POST['username']) : '';
+    $email = is_string($_POST['email'] ?? null) ? trim($_POST['email']) : '';
+    $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
+    $confirmPassword = is_string($_POST['confirm_password'] ?? null) ? $_POST['confirm_password'] : '';
+
+    if (!$registrationAllowed) {
+        http_response_code(429);
+        $errors[] = 'Too many registration attempts. Wait a while, then try again.';
+    }
+
+    if (strlen($password) > 1024) {
+        $errors[] = 'Password must be 1,024 characters or fewer.';
+    }
 
     if (!preg_match('/^[A-Za-z0-9_]{3,35}$/', $username)) {
         $errors[] = 'Username must be 3 to 35 characters and use only letters, numbers, or underscores.';

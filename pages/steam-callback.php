@@ -2,22 +2,33 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/steam.php';
 
 $state = is_string($_GET['state'] ?? null) ? $_GET['state'] : '';
 $authRequest = null;
-if ($state !== '') {
+$sessionUserId = consumeProviderAuthState('steam', $state);
+if ($state !== '' && $sessionUserId !== null) {
     $statement = mysqli_prepare($conn, 'SELECT user_id, expires_at FROM steam_auth_requests WHERE state = ? LIMIT 1');
     mysqli_stmt_bind_param($statement, 's', $state);
     mysqli_stmt_execute($statement);
     $authRequest = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
     mysqli_stmt_close($statement);
 
+    if ($authRequest && (int) $authRequest['user_id'] !== $sessionUserId) {
+        $authRequest = null;
+    }
+
     $statement = mysqli_prepare($conn, 'DELETE FROM steam_auth_requests WHERE state = ?');
     mysqli_stmt_bind_param($statement, 's', $state);
     mysqli_stmt_execute($statement);
     mysqli_stmt_close($statement);
+}
+
+if ($sessionUserId === null) {
+    header('Location: ' . steamSettingsUrl('invalid'));
+    exit;
 }
 
 if (($_GET['openid_mode'] ?? '') === 'cancel') {

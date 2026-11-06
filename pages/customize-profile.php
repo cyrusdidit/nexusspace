@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <script src="../assets/js/profile-customization-editor.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-customization-editor.js') ?>" defer></script>
 </head>
-<body class="profile-customization-page" data-activity-endpoint="../activity-ping.php">
+<body class="profile-customization-page" data-activity-endpoint="../activity-ping.php" data-security-csrf="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
     <main class="profile-customization-editor">
         <form method="post" action="customize-profile.php" data-customization-form>
             <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">

@@ -13,9 +13,15 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/includes/db_connect.php';
+require_once __DIR__ . '/includes/rate_limit.php';
 require_once __DIR__ . '/includes/spotify.php';
 
 $userId = (int) $_SESSION['user_id'];
+if (!consumeSecurityRateLimit($conn, 'spotify_song_user', (string) $userId, 60, 60)) {
+    http_response_code(429);
+    echo json_encode(['error' => 'Too many Spotify requests. Wait a little while, then try again.']);
+    exit;
+}
 $statement = mysqli_prepare($conn, 'SELECT * FROM spotify_connections WHERE user_id = ? LIMIT 1');
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);

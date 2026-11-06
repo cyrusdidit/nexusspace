@@ -352,7 +352,7 @@ function sanitizeProfileTemplate(string $templateHtml): string
     libxml_clear_errors();
     libxml_use_internal_errors($previousErrors);
 
-    $blockedElements = ['base', 'button', 'embed', 'form', 'iframe', 'input', 'link', 'meta', 'object', 'option', 'script', 'select', 'style', 'textarea'];
+    $blockedElements = ['base', 'button', 'embed', 'form', 'iframe', 'input', 'link', 'math', 'meta', 'object', 'option', 'script', 'select', 'style', 'svg', 'textarea'];
     $elements = [];
     foreach ($document->getElementsByTagName('*') as $element) $elements[] = $element;
     foreach ($elements as $element) {
@@ -366,11 +366,11 @@ function sanitizeProfileTemplate(string $templateHtml): string
             $lowerName = strtolower($attributeName);
             $value = $element->getAttribute($attributeName);
             if ($lowerName === 'id' && $value === 'profile-template-root') continue;
-            if (str_starts_with($lowerName, 'on') || str_starts_with($lowerName, 'data-') || in_array($lowerName, ['id', 'formaction', 'srcdoc', 'style'], true) || str_contains($value, '{{')) {
+            if (str_starts_with($lowerName, 'on') || str_starts_with($lowerName, 'data-') || in_array($lowerName, ['id', 'formaction', 'srcdoc', 'style'], true) || str_contains($lowerName, ':') || str_contains($value, '{{')) {
                 $element->removeAttribute($attributeName);
                 continue;
             }
-            if (in_array($lowerName, ['href', 'src'], true) && preg_match('~^\s*(?:javascript|vbscript):~i', $value)) {
+            if (in_array($lowerName, ['href', 'src'], true) && !isSafeProfileTemplateUrl($value, $lowerName === 'href')) {
                 $element->removeAttribute($attributeName);
             }
         }
@@ -385,6 +385,21 @@ function sanitizeProfileTemplate(string $templateHtml): string
     $safeHtml = '';
     foreach ($root->childNodes as $child) $safeHtml .= $document->saveHTML($child);
     return $safeHtml;
+}
+
+function isSafeProfileTemplateUrl(string $value, bool $isLink): bool
+{
+    $value = trim($value);
+    if ($value === '') return true;
+
+    // Browsers ignore ASCII whitespace and control characters while parsing
+    // special URL schemes, so remove them before checking the scheme.
+    $normalized = preg_replace('/[\x00-\x20\x7f]+/', '', $value) ?? '';
+    $scheme = parse_url($normalized, PHP_URL_SCHEME);
+    if ($scheme === null) return true;
+
+    $allowedSchemes = $isLink ? ['http', 'https', 'mailto', 'tel'] : ['http', 'https'];
+    return in_array(strtolower((string) $scheme), $allowedSchemes, true);
 }
 
 function decorateProfileTemplate(string $safeTemplate): string
@@ -485,7 +500,7 @@ function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile
     $css = preg_replace('~/\*.*?\*/~s', '', $customCss) ?? '';
     if (trim($css) === '') return '';
 
-    $blockedSyntax = '~(?:url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i';
+    $blockedSyntax = '~(?:\\\\|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i';
     if (preg_match($blockedSyntax, $css) || substr_count($css, '{') !== substr_count($css, '}')) return '';
 
     $nameMap = [];
@@ -601,8 +616,8 @@ function validateProfileTemplate(string $templateHtml): array
         if (!isset($placeholders[$placeholder])) $warnings[] = 'Missing {{' . $placeholder . '}}; that profile module will not appear.';
     }
 
-    if (preg_match('~<(?:base|button|embed|form|iframe|input|link|meta|object|option|script|select|style|textarea)\b~i', $templateHtml)) {
-        $warnings[] = 'Interactive, script, style, or embedded elements are removed from custom HTML.';
+    if (preg_match('~<(?:base|button|embed|form|iframe|input|link|math|meta|object|option|script|select|style|svg|textarea)\b~i', $templateHtml)) {
+        $warnings[] = 'Interactive, script, style, SVG, MathML, or embedded elements are removed from custom HTML.';
     }
     if (preg_match('~\s(?:on[a-z]+|style|srcdoc|formaction)\s*=~i', $templateHtml)) {
         $warnings[] = 'Inline styles and event attributes are removed from custom HTML.';

@@ -70,6 +70,28 @@ function steamVerifyOpenId(array $query, string $state): string
         throw new RuntimeException('Steam returned an invalid login response.');
     }
 
+    $signedFields = array_map('strtolower', array_map('trim', explode(',', (string) ($query['openid_signed'] ?? ''))));
+    foreach (['op_endpoint', 'claimed_id', 'identity', 'return_to', 'response_nonce'] as $requiredField) {
+        if (!in_array($requiredField, $signedFields, true)) {
+            throw new RuntimeException('Steam did not sign the required identity fields.');
+        }
+    }
+
+    $claimedId = (string) ($query['openid_claimed_id'] ?? '');
+    $identity = (string) ($query['openid_identity'] ?? '');
+    if ($claimedId === '' || !hash_equals($claimedId, $identity)) {
+        throw new RuntimeException('Steam returned mismatched account identifiers.');
+    }
+
+    $nonce = (string) ($query['openid_response_nonce'] ?? '');
+    if (!preg_match('/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z).+$/D', $nonce, $nonceMatch)) {
+        throw new RuntimeException('Steam returned an invalid login nonce.');
+    }
+    $nonceTimestamp = strtotime($nonceMatch[1]);
+    if ($nonceTimestamp === false || $nonceTimestamp > time() + 60 || time() - $nonceTimestamp > 600) {
+        throw new RuntimeException('Steam returned an expired login nonce.');
+    }
+
     $parameterMap = [
         'openid_ns' => 'openid.ns',
         'openid_op_endpoint' => 'openid.op_endpoint',
@@ -101,7 +123,6 @@ function steamVerifyOpenId(array $query, string $state): string
         throw new RuntimeException('Steam could not verify this login.');
     }
 
-    $claimedId = (string) $query['openid_claimed_id'];
     if (!preg_match('~^https?://steamcommunity\.com/openid/id/(\d{17})$~i', $claimedId, $matches)) {
         throw new RuntimeException('Steam returned an invalid account identifier.');
     }

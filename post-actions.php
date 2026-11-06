@@ -7,6 +7,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
 require_once __DIR__ . '/includes/db_connect.php';
+require_once __DIR__ . '/includes/rate_limit.php';
 require_once __DIR__ . '/includes/post_interactions.php';
 require_once __DIR__ . '/includes/post_media.php';
 require_once __DIR__ . '/includes/notifications.php';
@@ -71,6 +72,7 @@ try {
         postActionResponse(['ok' => true, 'deleted' => true]);
     } elseif ($action === 'add_media') {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can add media.'], 403);
+        if (!consumeSecurityRateLimit($conn, 'post_upload_user', (string) $viewerId, 20, 3600)) postActionResponse(['ok' => false, 'error' => 'You have uploaded a lot of media recently. Wait a while, then try again.'], 429);
         $upload = is_array($_FILES['media'] ?? null) ? $_FILES['media'] : ['error' => UPLOAD_ERR_NO_FILE];
         $uploadCount = postMediaUploadCount($upload);
         if ($uploadCount < 1) postActionResponse(['ok' => false, 'error' => 'Choose at least one media file.'], 422);
@@ -88,6 +90,7 @@ try {
         mysqli_commit($conn);
     } elseif ($action === 'replace_media') {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can replace media.'], 403);
+        if (!consumeSecurityRateLimit($conn, 'post_upload_user', (string) $viewerId, 20, 3600)) postActionResponse(['ok' => false, 'error' => 'You have uploaded a lot of media recently. Wait a while, then try again.'], 429);
         $mediaId = filter_var($_POST['media_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $mediaIndex = false;
         foreach ($post['media'] as $index => $media) if ((int) $media['id'] === $mediaId) { $mediaIndex = $index; break; }
@@ -172,6 +175,7 @@ try {
         mysqli_commit($conn);
     } elseif ($action === 'add_comment') {
         if ($content === '' || mb_strlen($content, 'UTF-8') > 1000) postActionResponse(['ok' => false, 'error' => 'Use 1 to 1,000 characters.'], 422);
+        if (!consumeSecurityRateLimit($conn, 'comment_author', (string) $viewerId, 30, 600)) postActionResponse(['ok' => false, 'error' => 'You have commented a lot recently. Wait a little while, then try again.'], 429);
         $parentId = filter_var($_POST['parent_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         if ($parentId) {
             $statement = mysqli_prepare($conn, 'SELECT id, user_id FROM post_comments WHERE id = ? AND post_id = ? AND parent_id IS NULL AND deleted_at IS NULL LIMIT 1');

@@ -33,6 +33,9 @@ if (activityEndpoint) {
         lastPingAt = Date.now();
         const formData = new FormData();
         formData.append('state', state);
+        if (activityRoot.dataset.securityCsrf) {
+            formData.append('csrf_token', activityRoot.dataset.securityCsrf);
+        }
         if (active) formData.append('active', '1');
         fetch(activityEndpoint, {
             body: formData,

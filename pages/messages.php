@@ -20,6 +20,7 @@ require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/notifications.php';
 require_once __DIR__ . '/../includes/background_customization.php';
 require_once __DIR__ . '/../includes/activity.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 $currentUserId = (int) $_SESSION['user_id'];
 $_SESSION['message_token'] ??= bin2hex(random_bytes(32));
 $token = $_SESSION['message_token'];
@@ -316,19 +317,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($content === '' || $length === false || $length > 2000) {
             http_response_code(422);
             $error = 'Enter a message of 1–2000 characters.';
+        } elseif (!consumeSecurityRateLimit($conn, 'message_sender', (string) $currentUserId, 40, 600)) {
+            http_response_code(429);
+            $error = 'You have sent a lot of messages recently. Wait a little while, then try again.';
         } else {
-            $statement = mysqli_prepare($conn, 'INSERT INTO messages (sender_id, receiver_id, content) VALUES (?, ?, ?)');
-            mysqli_stmt_bind_param($statement, 'iis', $currentUserId, $selectedId, $content);
+            $statement = mysqli_prepare($conn, 'INSERT INTO messages (sender_id, receiver_id, content) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = ?) OR (f.user_id = ? AND f.friend_id = ?)) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = ?) OR (b.blocker_id = ? AND b.blocked_id = ?))');
+            mysqli_stmt_bind_param($statement, 'iisiiiiiiii', $currentUserId, $selectedId, $content, $currentUserId, $selectedId, $selectedId, $currentUserId, $currentUserId, $selectedId, $selectedId, $currentUserId);
             mysqli_stmt_execute($statement);
+            $messageSent = mysqli_stmt_affected_rows($statement) === 1;
             $newMessageId = (int) mysqli_insert_id($conn);
             mysqli_stmt_close($statement);
-            createNotification($conn, $selectedId, $currentUserId, 'message', $newMessageId, null, 'message:' . $newMessageId);
-            if ($isJson) {
-                echo json_encode(['ok' => true]);
+            if (!$messageSent) {
+                http_response_code(403);
+                $error = 'You can only message a current friend.';
+            } else {
+                createNotification($conn, $selectedId, $currentUserId, 'message', $newMessageId, null, 'message:' . $newMessageId);
+                if ($isJson) {
+                    echo json_encode(['ok' => true]);
+                    exit;
+                }
+                header('Location: messages.php?user=' . $selectedId);
                 exit;
             }
-            header('Location: messages.php?user=' . $selectedId);
-            exit;
         }
     }
 }
@@ -446,7 +456,7 @@ if ($selectedFriend) {
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
     <script src="../assets/js/messages.js?v=<?= filemtime(__DIR__ . '/../assets/js/messages.js') ?>" defer></script>
 </head>
-<body class="messages-body" data-activity-endpoint="../activity-ping.php">
+<body class="messages-body" data-activity-endpoint="../activity-ping.php" data-security-csrf="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
     <main class="messages-page<?= $selectedFriend ? ' has-selected-conversation' : '' ?>" data-messages-page>
         <section class="messages-sidebar" aria-label="Messages navigation">
             <header class="messages-sidebar-header">

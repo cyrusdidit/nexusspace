@@ -17,6 +17,7 @@ require_once __DIR__ . '/../includes/blocks.php';
 require_once __DIR__ . '/../includes/post_interactions.php';
 require_once __DIR__ . '/../includes/post_media.php';
 require_once __DIR__ . '/../includes/notifications.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $userId = isset($_GET['id'])
@@ -615,12 +616,15 @@ $readFriendState = static function () use ($conn, $currentUserId, $userId): stri
 
 if ($user && !$isOwnProfile) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend', 'block'], true)) {
+        $action = $_POST['action'];
         $token = $_POST['token'] ?? '';
         if (!is_string($token) || !hash_equals($_SESSION['friend_request_token'], $token)) {
             http_response_code(403);
             $friendError = 'Please refresh the page and try again.';
-        } elseif (in_array($_POST['action'] ?? '', ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend', 'block'], true)) {
-            $action = $_POST['action'];
+        } elseif ($action === 'befriend' && !consumeSecurityRateLimit($conn, 'friend_request_user', (string) $currentUserId, 20, 3600)) {
+            http_response_code(429);
+            $friendError = 'You have sent a lot of friend requests recently. Wait a while, then try again.';
+        } elseif (in_array($action, ['befriend', 'accept', 'decline', 'cancel_request', 'unfriend', 'block'], true)) {
             mysqli_begin_transaction($conn);
             try {
                 // Lock both accounts in the same order to serialize requests between them.
@@ -629,6 +633,18 @@ if ($user && !$isOwnProfile) {
                 mysqli_stmt_execute($lock);
                 mysqli_stmt_store_result($lock);
                 mysqli_stmt_close($lock);
+
+                $blockCheck = mysqli_prepare($conn, 'SELECT 1 FROM user_blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?) LIMIT 1 FOR UPDATE');
+                mysqli_stmt_bind_param($blockCheck, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
+                mysqli_stmt_execute($blockCheck);
+                $blockedDuringAction = mysqli_num_rows(mysqli_stmt_get_result($blockCheck)) > 0;
+                mysqli_stmt_close($blockCheck);
+                if ($blockedDuringAction) {
+                    mysqli_rollback($conn);
+                    http_response_code(404);
+                    exit('Profile not found.');
+                }
+
                 $state = $readFriendState();
                 if ($action === 'befriend' && $state === 'none') {
                     $statement = mysqli_prepare($conn, "INSERT INTO friend_requests (sender_id, receiver_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE status = 'pending', created_at = CURRENT_TIMESTAMP");
@@ -685,6 +701,21 @@ if ($user && !$isOwnProfile) {
                 if ($action === 'block') {
                     $statement = mysqli_prepare($conn, 'INSERT INTO user_blocks (blocker_id, blocked_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE created_at = created_at');
                     mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $userId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+
+                    $statement = mysqli_prepare($conn, 'DELETE FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)');
+                    mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+
+                    $statement = mysqli_prepare($conn, 'DELETE FROM friend_requests WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)');
+                    mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
+                    mysqli_stmt_execute($statement);
+                    mysqli_stmt_close($statement);
+
+                    $statement = mysqli_prepare($conn, 'DELETE FROM notifications WHERE (recipient_id = ? AND actor_id = ?) OR (recipient_id = ? AND actor_id = ?)');
+                    mysqli_stmt_bind_param($statement, 'iiii', $currentUserId, $userId, $userId, $currentUserId);
                     mysqli_stmt_execute($statement);
                     mysqli_stmt_close($statement);
                 }
@@ -803,7 +834,7 @@ if ($isOwnProfile) {
         <script src="../assets/js/profile-sidebar-resize.js?v=<?= filemtime(__DIR__ . '/../assets/js/profile-sidebar-resize.js') ?>" defer></script>
     <?php endif; ?>
 </head>
-<body class="profile-page" data-profile-style="profile.page" data-activity-endpoint="../activity-ping.php" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
+<body class="profile-page" data-profile-style="profile.page" data-activity-endpoint="../activity-ping.php" data-security-csrf="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>" data-activity-status-endpoint="../activity-status.php" data-spotify-activity-endpoint="../spotify-activity.php" data-steam-activity-endpoint="../steam-activity.php" data-profile-social-activity-endpoint="../profile-social-activity.php" data-spotify-profile-song-endpoint="../spotify-profile-song.php" data-settings-token="<?= htmlspecialchars($_SESSION['settings_token'], ENT_QUOTES, 'UTF-8') ?>" data-post-actions-endpoint="../post-actions.php" data-post-updates-endpoint="../post-updates.php" data-post-csrf="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>" data-post-context="profile" data-current-user-id="<?= $currentUserId ?>" data-profile-user-id="<?= $userId ?>"<?= isset($_GET['bio_saved']) ? ' data-bio-saved="true"' : '' ?>>
     <?php if ($profileNotice !== ''): ?>
         <div class="profile-customization-toast" data-profile-customization-toast role="status">
             <span><?= htmlspecialchars($profileNotice, ENT_QUOTES, 'UTF-8') ?></span>

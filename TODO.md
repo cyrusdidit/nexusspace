@@ -7,18 +7,32 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 - [ ] Audit authorization on every action and JSON endpoint: users must only edit their own profiles, posts, messages, backgrounds, and connections.
 - [ ] Test public/friends/private audiences and blocking across feeds, comments, search, messages, notifications, previews, and activity endpoints.
+- [x] Blocking now severs friendship and pending requests, removes pair notifications, and requires a new request after unblock.
+- [x] Recheck friendship and block state in the message insert itself; hide unread polling data from non-friends.
+- [x] Recheck block state under account locks before friend-request actions.
 - [x] Add CSRF protection to login and registration; change logout and integration connection starts to protected POST forms.
 - [ ] Audit the remaining state-changing routes for CSRF coverage.
+- [x] Require a session CSRF token for activity heartbeat updates.
+- [x] Require a session CSRF token for profile customization preview drafts.
 - [ ] Review Spotify and Steam callback security: bind linking to the initiating user/browser, enforce expiration and single use, handle rejection, and verify Steam identity assertions.
+- [x] Bind Spotify and Steam callback state to the initiating browser session and account.
+- [x] Require Steam's signed identity fields to match and reject stale OpenID nonces.
 - [x] Centralize session settings: HttpOnly, SameSite=Lax, Secure on HTTPS, cookie-only sessions, strict session mode, and ID regeneration after login/registration.
 - [ ] Verify authenticated session expiry, logout invalidation, and production HTTPS/proxy configuration end to end.
 - [ ] Add server-side rate limits for login, registration, messages, friend requests, comments, uploads, and integration requests.
+- [x] Add database-backed limits for login by IP/account and registration by IP.
+- [x] Add rate limits for messages, friend requests, comments, post media uploads, and Spotify song requests.
+- [ ] Apply `database/20261105_create_security_rate_limits.sql` to existing installs and verify behavior.
 - [ ] Audit custom HTML/CSS sanitization for stored XSS, unsafe URLs, SVG/MathML, attributes, CSS escapes, and styles escaping the profile. Decide whether to replace the custom sanitizer with a maintained library; the original plan names HTML Purifier.
+- [x] Block custom SVG/MathML markup, namespaced attributes, unsafe URL schemes, and CSS escape obfuscation.
 - [ ] Audit output escaping and SQL queries throughout the app; retain prepared statements for user-controlled values.
 - [ ] Audit upload MIME/content checks, size and count limits, ownership, filenames, and deletion paths. Prevent executable uploads and script execution in upload directories.
 - [ ] Introduce CSP in report-only mode, resolve violations, then enforce it. Account for Spotify playback, media, custom profiles, and inline styles/scripts.
-- [ ] Add appropriate security headers, including content-type sniffing protection and a deliberate framing/referrer policy.
-- [ ] Block web access to `.env`, `.git`, database SQL, tests, local tools, and other internal files; disable directory listing.
+- [x] Set content-type sniffing, framing, and referrer protections in Apache.
+- [ ] Confirm the headers work in Laragon and add a CSP in report-only mode.
+- [x] Add Apache rules to disable directory listing and block hidden files and internal directories.
+- [x] Deny web access to script and HTML files inside uploads.
+- [ ] Confirm the Apache rules work in Laragon and also secure the production web server.
 - [ ] Move database credentials out of source and use a dedicated database user with limited privileges for deployment.
 - [ ] Use HTTPS and production callback URLs when hosted. Preserve certificate verification for outbound requests.
 - [ ] Show safe errors to users and log useful diagnostics without tokens, API keys, authorization codes, or passwords. Disable public PHP stack traces in production.
@@ -26,6 +40,7 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 ## 2. Account connections
 
+- [x] Remove the unused legacy Spotify playback endpoint that returned the account token.
 - [ ] Verify Spotify connect, reconnect, disconnect, token refresh, current activity, song search, and playback through the browser.
 - [ ] Verify Steam connect, reconnect, disconnect, game activity, and one Steam account shared by multiple NexusSpace accounts.
 - [ ] Test status visibility independently for custom status, Spotify, and Steam, as owner/friend/stranger/blocked user.

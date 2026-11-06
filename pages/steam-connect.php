@@ -26,6 +26,7 @@ $statement = mysqli_prepare($conn, 'INSERT INTO steam_auth_requests (state, user
 mysqli_stmt_bind_param($statement, 'sis', $state, $userId, $expiresAt);
 mysqli_stmt_execute($statement);
 mysqli_stmt_close($statement);
+rememberProviderAuthState('steam', $state, $userId, time() + 600);
 
 header('Location: ' . steamOpenIdUrl($state));
 exit;

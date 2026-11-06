@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         previewRequest?.abort();
         previewRequest = new AbortController();
         const body = new FormData();
+        body.set('csrf_token', document.body.dataset.securityCsrf || '');
         body.set('template_html', templateField.value);
         body.set('custom_css', cssField.value);
         body.set('simple_settings', settingsField.value);

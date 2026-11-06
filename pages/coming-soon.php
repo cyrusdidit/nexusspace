@@ -25,7 +25,7 @@ $featureName = $features[$featureKey] ?? 'This feature';
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
 </head>
-<body data-activity-endpoint="../activity-ping.php">
+<body data-activity-endpoint="../activity-ping.php" data-security-csrf="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
     <main class="card">
         <h1><?= htmlspecialchars($featureName, ENT_QUOTES, 'UTF-8') ?></h1>
         <p>This area is planned for a later NexusSpace week.</p>

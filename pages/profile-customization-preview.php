@@ -14,6 +14,7 @@ require_once __DIR__ . '/../includes/post_media.php';
 require_once __DIR__ . '/../includes/post_interactions.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireSecurityCsrf();
     $draftTemplate = $_POST['template_html'] ?? null;
     $draftCss = $_POST['custom_css'] ?? null;
     $draftSimpleSettings = normalizeProfileSimpleSettings($_POST['simple_settings'] ?? null);

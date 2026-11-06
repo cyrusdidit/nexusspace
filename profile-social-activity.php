@@ -23,36 +23,6 @@ if (!$profileUserId) {
     exit;
 }
 
-if (steamIsConfigured()) {
-    $statement = mysqli_prepare($conn, 'SELECT steam_id, current_game_id, current_game_started_at, TIMESTAMPDIFF(SECOND, activity_updated_at, NOW()) AS activity_age_seconds FROM steam_connections WHERE user_id = ? LIMIT 1');
-    mysqli_stmt_bind_param($statement, 'i', $profileUserId);
-    mysqli_stmt_execute($statement);
-    $steamConnection = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
-    mysqli_stmt_close($statement);
-
-    if ($steamConnection && (int) ($steamConnection['activity_age_seconds'] ?? 999) >= 10) {
-        try {
-            $player = steamPlayerSummary((string) $steamConnection['steam_id']);
-            if ($player) {
-                $gameId = trim((string) ($player['gameid'] ?? '')) ?: null;
-                $gameName = trim((string) ($player['gameextrainfo'] ?? '')) ?: null;
-                $startedAt = null;
-                if ($gameId !== null && $gameName !== null) {
-                    $startedAt = $gameId === ($steamConnection['current_game_id'] ?? null) && !empty($steamConnection['current_game_started_at'])
-                        ? (string) $steamConnection['current_game_started_at']
-                        : date('Y-m-d H:i:s');
-                }
-                $statement = mysqli_prepare($conn, 'UPDATE steam_connections SET current_game_id = ?, current_game_name = ?, current_game_started_at = ?, activity_updated_at = NOW() WHERE user_id = ?');
-                mysqli_stmt_bind_param($statement, 'sssi', $gameId, $gameName, $startedAt, $profileUserId);
-                mysqli_stmt_execute($statement);
-                mysqli_stmt_close($statement);
-            }
-        } catch (Throwable $exception) {
-            // Keep the last known activity if Steam is temporarily unavailable.
-        }
-    }
-}
-
 $statement = mysqli_prepare($conn, 'SELECT u.username, u.status_text, u.custom_status_audience, u.spotify_status_audience, u.steam_status_audience, s.current_game_id, s.current_game_name, s.current_game_started_at, TIMESTAMPDIFF(SECOND, s.activity_updated_at, NOW()) AS game_activity_age_seconds, p.current_item_id, p.current_item_name, p.current_artist_name, p.current_image_url, p.current_external_url, p.is_playing, TIMESTAMPDIFF(SECOND, p.playback_updated_at, NOW()) AS music_activity_age_seconds FROM users u LEFT JOIN steam_connections s ON s.user_id = u.id LEFT JOIN spotify_connections p ON p.user_id = u.id WHERE u.id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) LIMIT 1');
 mysqli_stmt_bind_param($statement, 'iii', $profileUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
@@ -76,9 +46,47 @@ if ($currentUserId !== $profileUserId) {
 $statusIsVisible = static function (string $audience) use ($currentUserId, $profileUserId, $viewerIsFriend): bool {
     return $currentUserId === $profileUserId || $audience === 'public' || ($audience === 'friends' && $viewerIsFriend);
 };
+$steamStatusVisible = $statusIsVisible((string) ($activity['steam_status_audience'] ?? 'friends'));
 $customStatusVisible = $statusIsVisible((string) ($activity['custom_status_audience'] ?? 'friends'));
 $spotifyStatusVisible = $statusIsVisible((string) ($activity['spotify_status_audience'] ?? 'friends'));
-$steamStatusVisible = $statusIsVisible((string) ($activity['steam_status_audience'] ?? 'friends'));
+
+if ($steamStatusVisible && steamIsConfigured()) {
+    $statement = mysqli_prepare($conn, 'SELECT steam_id, current_game_id, current_game_started_at, TIMESTAMPDIFF(SECOND, activity_updated_at, NOW()) AS activity_age_seconds FROM steam_connections WHERE user_id = ? LIMIT 1');
+    mysqli_stmt_bind_param($statement, 'i', $profileUserId);
+    mysqli_stmt_execute($statement);
+    $steamConnection = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: null;
+    mysqli_stmt_close($statement);
+
+    if ($steamConnection && (int) ($steamConnection['activity_age_seconds'] ?? 999) >= 10) {
+        try {
+            $player = steamPlayerSummary((string) $steamConnection['steam_id']);
+            if ($player) {
+                $gameId = trim((string) ($player['gameid'] ?? '')) ?: null;
+                $gameName = trim((string) ($player['gameextrainfo'] ?? '')) ?: null;
+                $startedAt = null;
+                if ($gameId !== null && $gameName !== null) {
+                    $startedAt = $gameId === ($steamConnection['current_game_id'] ?? null) && !empty($steamConnection['current_game_started_at'])
+                        ? (string) $steamConnection['current_game_started_at']
+                        : date('Y-m-d H:i:s');
+                }
+                $statement = mysqli_prepare($conn, 'UPDATE steam_connections SET current_game_id = ?, current_game_name = ?, current_game_started_at = ?, activity_updated_at = NOW() WHERE user_id = ?');
+                mysqli_stmt_bind_param($statement, 'sssi', $gameId, $gameName, $startedAt, $profileUserId);
+                mysqli_stmt_execute($statement);
+                mysqli_stmt_close($statement);
+                $activity['current_game_id'] = $gameId;
+                $activity['current_game_name'] = $gameName;
+                $activity['current_game_started_at'] = $startedAt;
+                $activity['game_activity_age_seconds'] = 0;
+            }
+        } catch (Throwable $exception) {
+            // Keep the last known activity and throttle repeated provider failures.
+            $statement = mysqli_prepare($conn, 'UPDATE steam_connections SET activity_updated_at = NOW() WHERE user_id = ?');
+            mysqli_stmt_bind_param($statement, 'i', $profileUserId);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+        }
+    }
+}
 
 $gameId = trim((string) ($activity['current_game_id'] ?? ''));
 $gameName = trim((string) ($activity['current_game_name'] ?? ''));

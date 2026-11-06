@@ -10,16 +10,27 @@ if (isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 $error = '';
 $identity = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireSecurityCsrf();
-    $identity = trim($_POST['identity'] ?? '');
-    $password = $_POST['password'] ?? '';
+    $identity = is_string($_POST['identity'] ?? null) ? trim($_POST['identity']) : '';
+    $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
+    $clientIp = securityRateLimitClientIp();
+    $identitySubject = mb_strtolower(mb_substr($identity, 0, 255), 'UTF-8');
+    if ($identitySubject === '') $identitySubject = '(empty)';
+    $ipAllowed = consumeSecurityRateLimit($conn, 'login_ip', $clientIp, 50, 900);
+    $identityAllowed = $ipAllowed && consumeSecurityRateLimit($conn, 'login_identity', $identitySubject, 10, 900);
 
-    if ($identity === '' || $password === '') {
+    if (!$ipAllowed || !$identityAllowed) {
+        http_response_code(429);
+        $error = 'Too many login attempts. Wait a little while, then try again.';
+    } elseif (strlen($identity) > 255 || strlen($password) > 1024) {
+        $error = 'Check your username, email address, and password, then try again.';
+    } elseif ($identity === '' || $password === '') {
         $error = 'Enter your username or email address and password.';
     } else {
         $statement = mysqli_prepare(
@@ -33,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         mysqli_stmt_close($statement);
 
         if ($user && password_verify($password, $user['password_hash'])) {
+            clearSecurityRateLimit($conn, 'login_identity', $identitySubject);
             session_regenerate_id(true);
             unset($_SESSION['security_csrf']);
             $_SESSION['user_id'] = (int) $user['id'];

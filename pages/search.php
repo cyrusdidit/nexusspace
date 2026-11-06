@@ -59,7 +59,7 @@ if ($isJson) {
     <link rel="stylesheet" href="../assets/css/style.css?v=<?= filemtime(__DIR__ . '/../assets/css/style.css') ?>">
     <script src="../assets/js/activity.js?v=<?= filemtime(__DIR__ . '/../assets/js/activity.js') ?>" defer></script>
 </head>
-<body data-activity-endpoint="../activity-ping.php">
+<body data-activity-endpoint="../activity-ping.php" data-security-csrf="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
     <main class="card">
         <h1>Find users</h1>
         <form class="user-search" role="search" method="get" action="search.php">
