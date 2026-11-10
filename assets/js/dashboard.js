@@ -442,7 +442,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUnreadCount();
 
         const notificationCategory = (type) => ({
-            post_like: 'likes',
             post_comment: 'comments',
             comment_reply: 'replies',
             comment_pin: 'pins',

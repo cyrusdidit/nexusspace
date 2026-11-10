@@ -59,7 +59,7 @@ Add optional image uploads displayed in a 1:1 ratio, with a fallback color when 
 Support text-only posts by using the post image/text area for text
 Build comment system with threading and show the newest or selected top comment on each feed card
 Add reply functionality to comments
-Add likes to posts
+Post likes were removed from the planned scope.
 Let users pin up to 3 of their posts at the top of their profile page
 
 # Week VI
@@ -68,7 +68,7 @@ Let users pin up to 3 of their posts at the top of their profile page
 
 Build friend request system: send, accept, and decline
 Replace the friends placeholder with a real ordered Top 8 friends display
-Order the dashboard friends list by latest interaction: messages, comments, or likes on each other's posts
+Order the dashboard friends list by latest interaction: messages or comments
 Let each user pin up to 3 friends at the top of the dashboard friends list, ordered by which friend was pinned first, second, and last
 Add drag-and-drop ordering and save each user's profile Top 8 order
 Add Spotify search and embed functionality for profile songs
@@ -95,7 +95,7 @@ Build private messaging: inbox, send, and receive
 Replace the compact chat-panel placeholder with real recent-message previews and a main chat page
 Let each user separately pin up to 3 friends at the top of the Messages list, ordered by which friend was pinned first, second, and last
 Add a looping typing indicator for active conversations
-Build notifications for likes, comments, replies, friend requests, and messages
+Build notifications for comments, replies, friend requests, and messages
 Add unread-notification badge logic capped at 9+
 Security audit: XSS, CSRF, and SQL injection protection
 Add Content Security Policy headers

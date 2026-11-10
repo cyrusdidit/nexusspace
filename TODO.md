@@ -9,20 +9,24 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [ ] Test public/friends/private audiences and blocking across feeds, comments, search, messages, notifications, previews, and activity endpoints.
 - [x] Blocking now severs friendship and pending requests, removes pair notifications, and requires a new request after unblock.
 - [x] Recheck friendship and block state in the message insert itself; hide unread polling data from non-friends.
+- [x] Recheck post visibility and block state atomically when adding comments and replies.
 - [x] Recheck block state under account locks before friend-request actions.
 - [x] Add CSRF protection to login and registration; change logout and integration connection starts to protected POST forms.
 - [x] Audit the remaining state-changing routes for CSRF coverage; protect dashboard status updates with the shared session token.
 - [x] Hide custom statuses marked “No one” from Messages friend previews.
 - [x] Require a session CSRF token for activity heartbeat updates.
 - [x] Require a session CSRF token for profile customization preview drafts.
-- [ ] Review Spotify and Steam callback security: bind linking to the initiating user/browser, enforce expiration and single use, handle rejection, and verify Steam identity assertions.
+- [x] Review Spotify and Steam callback security: bind linking to the initiating user/browser, enforce expiration and single use, handle rejection, and verify Steam identity assertions.
 - [x] Bind Spotify and Steam callback state to the initiating browser session and account.
 - [x] Require Steam's signed identity fields to match and reject stale OpenID nonces.
 - [x] Centralize session settings: HttpOnly, SameSite=Lax, Secure on HTTPS, cookie-only sessions, strict session mode, and ID regeneration after login/registration.
 - [ ] Verify authenticated session expiry, logout invalidation, and production HTTPS/proxy configuration end to end.
+- [x] Enforce a 30-minute authenticated idle timeout and a 12-hour absolute session lifetime; active-user heartbeats extend only the idle timeout.
+- [x] Allow `NEXUSSPACE_FORCE_SECURE_COOKIE=1` for deployments where HTTPS terminates at a trusted reverse proxy.
 - [ ] Add server-side rate limits for login, registration, messages, friend requests, comments, uploads, and integration requests.
 - [x] Add database-backed limits for login by IP/account and registration by IP.
 - [x] Add rate limits for messages, friend requests, comments, post media uploads, and Spotify song requests.
+- [x] Add per-account rate limits for Spotify and Steam activity refresh endpoints.
 - [ ] Apply `database/20261105_create_security_rate_limits.sql` to existing installs and verify behavior.
 - [ ] Audit custom HTML/CSS sanitization for stored XSS, unsafe URLs, SVG/MathML, attributes, CSS escapes, and styles escaping the profile. Decide whether to replace the custom sanitizer with a maintained library; the original plan names HTML Purifier.
 - [x] Block custom SVG/MathML markup, namespaced attributes, unsafe URL schemes, and CSS escape obfuscation.
@@ -39,6 +43,7 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [ ] Use HTTPS and production callback URLs when hosted. Preserve certificate verification for outbound requests.
 - [ ] Show safe errors to users and log useful diagnostics without tokens, API keys, authorization codes, or passwords. Disable public PHP stack traces in production.
 - [ ] Add focused regression tests for authorization, CSRF, audiences, blocking, sanitizer bypasses, and upload validation.
+- [x] Enforce a 64-character maximum for registration passwords in server validation and both registration fields.
 
 ## 2. Account connections
 
@@ -50,8 +55,10 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 ## 3. Finish the planned social features
 
+- [x] Remove post likes from the UI, endpoint behavior, notifications, profile customization targets, and fresh-install schema.
+- [x] Add and apply `database/20261109_remove_post_likes.sql` locally; run it on other existing installations to delete old post-like notifications and drop `post_likes`.
 - [ ] Pin up to three posts on a profile, with predictable ordering and owner-only controls.
-- [ ] Order dashboard friends by latest interaction, including messages, comments, and likes.
+- [ ] Order dashboard friends by latest interaction, including messages and comments.
 - [ ] Add up to three dashboard friend pins, ordered by pin time and independent of profile Top 8.
 - [ ] Add up to three Messages friend pins, independent of dashboard pins and Top 8.
 - [ ] Add a real typing indicator with expiry and cleanup when a conversation closes.
@@ -80,8 +87,19 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [ ] Check indexes and pagination with larger message, friend, post, comment, and notification datasets.
 - [ ] Define upload/storage limits and cleanup for expired OAuth requests, drafts/revisions, and unused media.
 - [ ] Add a database/upload backup and restore procedure and test restoration.
-- [ ] Run an end-to-end pass with two accounts: register, log in, friend request, accept, message, post, comment, reply, like, block, unblock, and log out.
+- [ ] Run an end-to-end pass with two accounts after the planned like removal: register, log in, friend request, accept, message, post, comment, reply, block, unblock, and log out.
 - [ ] Prepare demonstration accounts/content and a short final demo flow.
+
+## 6. Qualification documentation
+
+- [ ] Complete the Latvian and English abstracts and generate the contents page from final headings and page numbers.
+- [ ] Match the Myura World example's A4 page setup, cover layout and date placement, heading hierarchy, paragraph and table formatting, figure/table captions, page numbering, and numbered references.
+- [ ] Reconcile requirements with the current NexusSpace implementation and planned changes; distinguish completed features from future work and resolve contradictions such as post likes and password length.
+- [ ] Complete system modeling with architecture, database/entity descriptions, and relevant use-case, sequence, and component diagrams.
+- [ ] Complete the user guide with verified installation/access steps and annotated screenshots of the main workflows.
+- [ ] Complete test examples with scenarios, expected results, observed results, and evidence for core account, profile, friendship, post, comment, messaging, privacy, and integration features.
+- [ ] Write conclusions based on the completed requirements and test results; complete the glossary, reference list, and appendices, including checking every in-text citation against the bibliography.
+- [ ] Replace remaining instructional placeholders, correct figure descriptions and captions, and remove or redact configuration details in screenshots.
 
 ## Suggested next task
 

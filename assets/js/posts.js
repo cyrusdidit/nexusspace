@@ -192,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let action = '';
         const values = {};
-        if (button.matches('[data-post-like]')) action = 'toggle_like';
         if (button.matches('[data-comment-pin]')) { action = 'toggle_pin'; values.comment_id = button.closest('[data-comment-id]').dataset.commentId; }
         if (button.matches('[data-comment-delete]')) {
             if (!window.confirm('Delete this comment?')) return;

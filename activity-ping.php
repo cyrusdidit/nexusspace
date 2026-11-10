@@ -29,6 +29,7 @@ if (!in_array($state, $allowedStates, true)) {
 $userId = (int) $_SESSION['user_id'];
 $isActive = ($_POST['active'] ?? '') === '1';
 if ($isActive) {
+    markAuthenticatedSessionActive();
     $statement = mysqli_prepare($conn, "UPDATE users SET activity_state = 'online', last_active_at = NOW() WHERE id = ?");
 } else {
     $statement = mysqli_prepare($conn, "UPDATE users SET activity_state = CASE WHEN last_active_at IS NULL OR TIMESTAMPDIFF(SECOND, last_active_at, NOW()) >= 600 THEN 'offline' WHEN TIMESTAMPDIFF(SECOND, last_active_at, NOW()) >= 300 THEN 'idle' ELSE 'online' END WHERE id = ?");

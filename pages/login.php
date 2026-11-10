@@ -14,6 +14,8 @@ require_once __DIR__ . '/../includes/rate_limit.php';
 
 $error = '';
 $identity = '';
+$sessionExpired = !empty($_SESSION['auth_expired']);
+unset($_SESSION['auth_expired']);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireSecurityCsrf();
@@ -49,6 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['security_csrf']);
             $_SESSION['user_id'] = (int) $user['id'];
             $_SESSION['username'] = $user['username'];
+            $_SESSION['authenticated_at'] = time();
+            $_SESSION['authenticated_last_active_at'] = time();
+            unset($_SESSION['auth_expired']);
 
             header('Location: ../index.php');
             exit;
@@ -70,6 +75,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="card">
         <h1>Log in</h1>
         <p>Welcome back to NexusSpace.</p>
+
+        <?php if ($sessionExpired): ?>
+            <p class="settings-notice" role="status">Your session expired. Please log in again.</p>
+        <?php endif; ?>
 
         <?php if ($error): ?>
             <div class="error-box" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>

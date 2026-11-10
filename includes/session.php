@@ -2,11 +2,15 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/env.php';
+
 if (session_status() === PHP_SESSION_NONE) {
-    // Local HTTP remains usable; HTTPS sessions receive Secure cookies.
-    $https = !empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off';
+    // Set NEXUSSPACE_FORCE_SECURE_COOKIE=1 when TLS terminates at a trusted proxy.
+    $https = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
+        || filter_var(getenv('NEXUSSPACE_FORCE_SECURE_COOKIE') ?: '0', FILTER_VALIDATE_BOOLEAN);
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
+    ini_set('session.gc_maxlifetime', '43200');
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
@@ -15,6 +19,27 @@ if (session_status() === PHP_SESSION_NONE) {
         'samesite' => 'Lax',
     ]);
     session_start();
+
+    if (isset($_SESSION['user_id'])) {
+        $now = time();
+        $authenticatedAt = filter_var($_SESSION['authenticated_at'] ?? null, FILTER_VALIDATE_INT) ?: $now;
+        $lastActiveAt = filter_var($_SESSION['authenticated_last_active_at'] ?? null, FILTER_VALIDATE_INT) ?: $authenticatedAt;
+        if ($now - $lastActiveAt >= 1800 || $now - $authenticatedAt >= 43200) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+            $_SESSION['auth_expired'] = true;
+        } else {
+            $_SESSION['authenticated_at'] = $authenticatedAt;
+            $_SESSION['authenticated_last_active_at'] = $lastActiveAt;
+        }
+    }
+}
+
+function markAuthenticatedSessionActive(): void
+{
+    if (isset($_SESSION['user_id'])) {
+        $_SESSION['authenticated_last_active_at'] = time();
+    }
 }
 
 function securityCsrfToken(): string

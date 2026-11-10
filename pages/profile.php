@@ -27,7 +27,7 @@ $userId = $userId === false ? 0 : $userId;
 $isOwnProfile = $userId === $currentUserId;
 $statement = mysqli_prepare(
     $conn,
-    'SELECT username, email, registration_date, avatar_path, bio, status_text, spotify_track_id, profile_song_name, profile_song_artist, profile_song_image_url, profile_song_url, custom_status_audience, spotify_status_audience, steam_status_audience, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
+    'SELECT username, registration_date, avatar_path, bio, status_text, spotify_track_id, profile_song_name, profile_song_artist, profile_song_image_url, profile_song_url, custom_status_audience, spotify_status_audience, steam_status_audience, activity_state, last_active_at, TIMESTAMPDIFF(SECOND, last_active_at, NOW()) AS activity_age_seconds FROM users WHERE id = ? LIMIT 1'
 );
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);

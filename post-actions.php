@@ -31,7 +31,7 @@ if (!is_string($token) || !isset($_SESSION['posts_csrf']) || !hash_equals($_SESS
 $viewerId = (int) $_SESSION['user_id'];
 $postId = filter_var($_POST['post_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
-$allowedActions = ['edit_post', 'delete_post', 'add_media', 'replace_media', 'reorder_media', 'remove_media', 'toggle_like', 'add_comment', 'edit_comment', 'delete_comment', 'purge_comment', 'toggle_pin'];
+$allowedActions = ['edit_post', 'delete_post', 'add_media', 'replace_media', 'reorder_media', 'remove_media', 'add_comment', 'edit_comment', 'delete_comment', 'purge_comment', 'toggle_pin'];
 if (!$postId || !in_array($action, $allowedActions, true)) postActionResponse(['ok' => false, 'error' => 'Invalid post action.'], 422);
 
 $statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1");
@@ -159,20 +159,6 @@ try {
         }
         mysqli_stmt_close($statement);
         deletePostMedia($mediaPath, $viewerId);
-    } elseif ($action === 'toggle_like') {
-        mysqli_begin_transaction($conn);
-        $statement = mysqli_prepare($conn, 'SELECT 1 FROM post_likes WHERE post_id = ? AND user_id = ? FOR UPDATE');
-        mysqli_stmt_bind_param($statement, 'ii', $postId, $viewerId);
-        mysqli_stmt_execute($statement);
-        $liked = mysqli_num_rows(mysqli_stmt_get_result($statement)) > 0;
-        mysqli_stmt_close($statement);
-        $statement = mysqli_prepare($conn, $liked ? 'DELETE FROM post_likes WHERE post_id = ? AND user_id = ?' : 'INSERT INTO post_likes (post_id, user_id) VALUES (?, ?)');
-        mysqli_stmt_bind_param($statement, 'ii', $postId, $viewerId);
-        mysqli_stmt_execute($statement);
-        mysqli_stmt_close($statement);
-        if ($liked) removeNotification($conn, $postOwnerId, 'post_like:' . $postId . ':' . $viewerId);
-        else createNotification($conn, $postOwnerId, $viewerId, 'post_like', (int) $postId, (int) $postId, 'post_like:' . $postId . ':' . $viewerId);
-        mysqli_commit($conn);
     } elseif ($action === 'add_comment') {
         if ($content === '' || mb_strlen($content, 'UTF-8') > 1000) postActionResponse(['ok' => false, 'error' => 'Use 1 to 1,000 characters.'], 422);
         if (!consumeSecurityRateLimit($conn, 'comment_author', (string) $viewerId, 30, 600)) postActionResponse(['ok' => false, 'error' => 'You have commented a lot recently. Wait a little while, then try again.'], 429);
@@ -185,15 +171,17 @@ try {
             $validParent = $parentComment !== null;
             mysqli_stmt_close($statement);
             if (!$validParent) postActionResponse(['ok' => false, 'error' => 'That comment cannot be replied to.'], 422);
-            $statement = mysqli_prepare($conn, 'INSERT INTO post_comments (post_id, user_id, parent_id, content) VALUES (?, ?, ?, ?)');
-            mysqli_stmt_bind_param($statement, 'iiis', $postId, $viewerId, $parentId, $content);
+            $statement = mysqli_prepare($conn, "INSERT INTO post_comments (post_id, user_id, parent_id, content) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))) AND EXISTS (SELECT 1 FROM post_comments c WHERE c.id = ? AND c.post_id = ? AND c.parent_id IS NULL AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = ?)))");
+            mysqli_stmt_bind_param($statement, 'iiisiiiiiiiiii', $postId, $viewerId, $parentId, $content, $postId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId, $parentId, $postId, $viewerId, $viewerId);
         } else {
-            $statement = mysqli_prepare($conn, 'INSERT INTO post_comments (post_id, user_id, content) VALUES (?, ?, ?)');
-            mysqli_stmt_bind_param($statement, 'iis', $postId, $viewerId, $content);
+            $statement = mysqli_prepare($conn, "INSERT INTO post_comments (post_id, user_id, content) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)))");
+            mysqli_stmt_bind_param($statement, 'iisiiiiii', $postId, $viewerId, $content, $postId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId);
         }
         mysqli_stmt_execute($statement);
+        $commentInserted = mysqli_stmt_affected_rows($statement) === 1;
         $newCommentId = (int) mysqli_insert_id($conn);
         mysqli_stmt_close($statement);
+        if (!$commentInserted) postActionResponse(['ok' => false, 'error' => 'This post is no longer available for comments.'], 403);
         if ($parentId) createNotification($conn, (int) $parentComment['user_id'], $viewerId, 'comment_reply', $newCommentId, (int) $postId, 'comment_reply:' . $newCommentId);
         else createNotification($conn, $postOwnerId, $viewerId, 'post_comment', $newCommentId, (int) $postId, 'post_comment:' . $newCommentId);
     } elseif (in_array($action, ['edit_comment', 'delete_comment'], true)) {

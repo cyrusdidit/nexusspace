@@ -1480,7 +1480,6 @@ main.dashboard {
 .post-action-bar { display: flex; align-items: center; gap: 4px; }
 .post-action-bar button, .post-comment-actions button { border: 0; background: transparent; color: #2878a8; padding: 4px 6px; font-size: 12px; cursor: pointer; }
 .post-action-bar button:hover, .post-comment-actions button:hover { background: #edf8fd; }
-.post-action-bar .post-heart.is-liked { color: #c32f54; }
 .post-card.is-owned .post-header { padding-right: 76px; }
 .post-owner-actions { position: absolute; top: 5px; right: 6px; display: flex; gap: 2px; }
 .post-owner-actions button { border: 0; background: transparent; color: #2878a8; padding: 3px 4px; font-size: 11px; cursor: pointer; }

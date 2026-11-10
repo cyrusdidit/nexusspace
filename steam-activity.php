@@ -13,14 +13,22 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/includes/db_connect.php';
+require_once __DIR__ . '/includes/rate_limit.php';
 require_once __DIR__ . '/includes/steam.php';
+
+$userId = (int) $_SESSION['user_id'];
+if (!consumeSecurityRateLimit($conn, 'steam_activity', (string) $userId, 30, 60)) {
+    header('Retry-After: 60');
+    http_response_code(429);
+    echo json_encode(['active' => false, 'error' => 'Steam activity refresh is temporarily limited.']);
+    exit;
+}
 
 if (!steamIsConfigured()) {
     echo json_encode(['active' => false, 'connected' => false]);
     exit;
 }
 
-$userId = (int) $_SESSION['user_id'];
 $statement = mysqli_prepare($conn, 'SELECT * FROM steam_connections WHERE user_id = ? LIMIT 1');
 mysqli_stmt_bind_param($statement, 'i', $userId);
 mysqli_stmt_execute($statement);

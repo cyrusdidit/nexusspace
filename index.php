@@ -572,7 +572,6 @@ if (isset($_SESSION['user_id'])) {
                                 <label for="notification-filter">Filter:</label>
                                 <select id="notification-filter" data-notification-filter aria-label="Filter notifications">
                                     <option value="all">All</option>
-                                    <option value="likes">Likes</option>
                                     <option value="comments">Comments</option>
                                     <option value="replies">Replies</option>
                                     <option value="pins">Pins</option>

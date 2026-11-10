@@ -6,6 +6,13 @@ require_once __DIR__ . '/includes/session.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    header('Allow: POST');
+    http_response_code(405);
+    echo json_encode(['error' => 'This action requires POST.']);
+    exit;
+}
+
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['error' => 'Sign in required.']);

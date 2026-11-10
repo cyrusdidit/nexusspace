@@ -24,10 +24,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Too many registration attempts. Wait a while, then try again.';
     }
 
-    if (strlen($password) > 1024) {
-        $errors[] = 'Password must be 1,024 characters or fewer.';
-    }
-
     if (!preg_match('/^[A-Za-z0-9_]{3,35}$/', $username)) {
         $errors[] = 'Username must be 3 to 35 characters and use only letters, numbers, or underscores.';
     }
@@ -38,11 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (
         strlen($password) < 8
+        || strlen($password) > 64
         || !preg_match('/[A-Z]/', $password)
         || !preg_match('/[0-9]/', $password)
         || !preg_match('/[^A-Za-z0-9]/', $password)
     ) {
-        $errors[] = 'Password must be at least 8 characters and include an uppercase letter, number, and symbol.';
+        $errors[] = 'Password must be 8 to 64 characters and include an uppercase letter, number, and symbol.';
     }
 
     if ($password !== $confirmPassword) {
@@ -78,6 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             unset($_SESSION['security_csrf']);
             $_SESSION['user_id'] = mysqli_insert_id($conn);
             $_SESSION['username'] = $username;
+            $_SESSION['authenticated_at'] = time();
+            $_SESSION['authenticated_last_active_at'] = time();
+            unset($_SESSION['auth_expired']);
             mysqli_stmt_close($insertStatement);
 
             header('Location: ../index.php');
@@ -121,11 +121,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input id="email" name="email" type="email" value="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>" autocomplete="email" required>
 
             <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="new-password" required>
-            <small>Use at least 8 characters, including an uppercase letter, number, and symbol.</small>
+            <input id="password" name="password" type="password" minlength="8" maxlength="64" autocomplete="new-password" required>
+            <small>Use 8 to 64 characters, including an uppercase letter, number, and symbol.</small>
 
             <label for="confirm_password">Confirm password</label>
-            <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
+            <input id="confirm_password" name="confirm_password" type="password" minlength="8" maxlength="64" autocomplete="new-password" required>
 
             <button type="submit">Create account</button>
         </form>

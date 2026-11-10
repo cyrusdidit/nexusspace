@@ -19,14 +19,7 @@ function loadPostInteractions(mysqli $conn, array $postIds, int $viewerId): arra
     if (!$ids) return [];
     $idList = implode(',', $ids);
     $result = [];
-    foreach ($ids as $id) $result[$id] = ['like_count' => 0, 'liked' => false, 'comments' => []];
-
-    $likes = mysqli_query($conn, "SELECT post_id, COUNT(*) AS like_count, MAX(user_id = {$viewerId}) AS liked FROM post_likes WHERE post_id IN ({$idList}) GROUP BY post_id");
-    while ($row = mysqli_fetch_assoc($likes)) {
-        $postId = (int) $row['post_id'];
-        $result[$postId]['like_count'] = (int) $row['like_count'];
-        $result[$postId]['liked'] = (bool) $row['liked'];
-    }
+    foreach ($ids as $id) $result[$id] = ['comments' => []];
 
     $comments = mysqli_query($conn, "SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at, c.edited_at, c.deleted_at, c.pinned_at, u.username, u.avatar_path FROM post_comments c JOIN users u ON u.id = c.user_id WHERE c.post_id IN ({$idList}) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = {$viewerId} AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = {$viewerId})) ORDER BY c.created_at, c.id");
     $byPost = [];
@@ -101,7 +94,6 @@ function renderPostInteractions(array $post, array $interaction, int $viewerId, 
 {
     $postId = (int) $post['id'];
     $ownerId = (int) $post['user_id'];
-    $liked = (bool) ($interaction['liked'] ?? false);
     $comments = $interaction['comments'] ?? [];
     $commentCount = 0;
     foreach ($comments as $comment) {
@@ -115,7 +107,6 @@ function renderPostInteractions(array $post, array $interaction, int $viewerId, 
     <div class="post-interactions" data-profile-style="post.interactions" data-post-interactions data-post-version="<?= $version ?>">
         <?php if ($ownerId === $viewerId): ?><div class="post-owner-actions" data-profile-style="post.owner-actions"><button type="button" data-profile-style="post.edit-control" data-post-edit>Edit</button><button type="button" data-profile-style="post.delete-control" data-post-delete>Delete</button></div><?php endif; ?>
         <div class="post-action-bar" data-profile-style="post.action-bar">
-            <button type="button" class="post-heart<?= $liked ? ' is-liked' : '' ?>" data-profile-style="post.heart-control" data-post-like aria-pressed="<?= $liked ? 'true' : 'false' ?>"><span aria-hidden="true"><?= $liked ? '&#9829;' : '&#9825;' ?></span> <span data-like-count><?= (int) ($interaction['like_count'] ?? 0) ?></span></button>
             <button type="button" data-profile-style="post.comment-control" data-comment-focus>Comment <span><?= $commentCount ?></span></button>
         </div>
         <form class="post-comment-form" data-profile-style="comment.composer" data-post-comment-form>

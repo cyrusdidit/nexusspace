@@ -88,7 +88,7 @@ that profile. The mobile breakpoint ignores the saved width and stacks content.
 | Media | `post.media-grid`, `post.media-item`, `post.image`, `post.video`, `post.video-speed` |
 | Owner media tools | `post.media-remove-control`, `post.media-reorder-controls`, `post.media-move-control`, `post.media-replace-control`, `post.media-add-control` |
 | Owner post tools | `post.owner-actions`, `post.edit-control`, `post.delete-control`, `post.edit-form`, `post.edit-title-field`, `post.edit-body-field`, `post.edit-actions`, `post.save-control`, `post.cancel-control`, `post.upload-progress` |
-| Reactions | `post.action-bar`, `post.heart-control`, `post.comment-control` |
+| Post interactions | `post.action-bar`, `post.comment-control` |
 | Comment composer | `comment.composer`, `comment.composer-field`, `comment.composer-submit`, `comment.status` |
 | Comment | `comment.card`, `comment.header`, `comment.avatar`, `comment.author`, `comment.timestamp`, `comment.body` |
 | Comment states | `comment.pinned`, `comment.deleted`, `comment.reply`, `comment.replies-thread` |
@@ -109,7 +109,7 @@ base keys.
 - Top 8 view, reorder, search, drag, save, and cancel states.
 - Profile-song playback, muted volume, picker, search, and removal states.
 - Text-only posts and every one-to-five-media arrangement.
-- Post editing, media replacement, upload progress, likes, comments, replies,
+- Post editing, media replacement, upload progress, comments, replies,
   pinned comments, deleted comments, and live updates.
 - Desktop, narrow desktop, and mobile layouts.
 
