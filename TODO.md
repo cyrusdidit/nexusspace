@@ -47,6 +47,7 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 ## 2. Account connections
 
+- [x] Require an explicit click on the embedded Spotify player to start a profile song; unrelated page clicks no longer start playback.
 - [x] Remove the unused legacy Spotify playback endpoint that returned the account token.
 - [ ] Verify Spotify connect, reconnect, disconnect, token refresh, current activity, song search, and playback through the browser.
 - [ ] Verify Steam connect, reconnect, disconnect, game activity, and one Steam account shared by multiple NexusSpace accounts.
@@ -57,7 +58,8 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 - [x] Remove post likes from the UI, endpoint behavior, notifications, profile customization targets, and fresh-install schema.
 - [x] Add and apply `database/20261109_remove_post_likes.sql` locally; run it on other existing installations to delete old post-like notifications and drop `post_likes`.
-- [ ] Pin up to three posts on a profile, with predictable ordering and owner-only controls.
+- [x] Pin up to three posts on a profile, ordered by pin time with owner-only controls.
+- [x] Add and apply `database/20261112_add_profile_post_pins.sql` locally; apply it to existing databases before deploying.
 - [ ] Order dashboard friends by latest interaction, including messages and comments.
 - [ ] Add up to three dashboard friend pins, ordered by pin time and independent of profile Top 8.
 - [ ] Add up to three Messages friend pins, independent of dashboard pins and Top 8.

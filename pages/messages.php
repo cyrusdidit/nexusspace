@@ -119,6 +119,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = 'Could not send. Refresh the page and choose a friend.';
         }
+    } elseif (in_array($action, ['typing', 'stop_typing'], true)) {
+        $clientKey = is_string($_POST['typing_client_key'] ?? null) ? $_POST['typing_client_key'] : '';
+        if (!preg_match('/^[a-f0-9]{32}$/', $clientKey)) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Invalid typing request.']);
+            exit;
+        }
+        if ($action === 'typing' && !$selectedFriend) {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Choose a current friend to message.']);
+            exit;
+        }
+        if ($action === 'typing') {
+            if (!consumeSecurityRateLimit($conn, 'typing_update', (string) $currentUserId, 90, 60)) {
+                http_response_code(429);
+                echo json_encode(['ok' => false, 'error' => 'Typing updates are temporarily limited.']);
+                exit;
+            }
+            $statement = mysqli_prepare($conn, 'INSERT INTO message_typing (sender_id, receiver_id, client_key, updated_at) SELECT ?, ?, ?, UTC_TIMESTAMP(6) WHERE EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = ?) OR (f.user_id = ? AND f.friend_id = ?)) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = ?) OR (b.blocker_id = ? AND b.blocked_id = ?)) ON DUPLICATE KEY UPDATE updated_at = UTC_TIMESTAMP(6)');
+            mysqli_stmt_bind_param($statement, 'iisiiiiiiii', $currentUserId, $selectedId, $clientKey, $currentUserId, $selectedId, $selectedId, $currentUserId, $currentUserId, $selectedId, $selectedId, $currentUserId);
+            mysqli_stmt_execute($statement);
+            $typingSaved = mysqli_stmt_affected_rows($statement) > 0;
+            mysqli_stmt_close($statement);
+            if (!$typingSaved) {
+                http_response_code(403);
+                echo json_encode(['ok' => false, 'error' => 'Choose a current friend to message.']);
+                exit;
+            }
+            if (random_int(1, 100) === 1) {
+                mysqli_query($conn, 'DELETE FROM message_typing WHERE updated_at < UTC_TIMESTAMP(6) - INTERVAL 1 DAY ORDER BY updated_at ASC LIMIT 500');
+            }
+        } else {
+            $statement = mysqli_prepare($conn, 'DELETE FROM message_typing WHERE sender_id = ? AND receiver_id = ? AND client_key = ?');
+            mysqli_stmt_bind_param($statement, 'iis', $currentUserId, $selectedId, $clientKey);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_close($statement);
+        }
+        echo json_encode(['ok' => true]);
+        exit;
     } elseif ($action === 'copy_messages_background') {
         $appearancePanelOpen = true;
         $sourceRegion = is_string($_POST['source_region'] ?? null) ? $_POST['source_region'] : '';
@@ -331,6 +370,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 http_response_code(403);
                 $error = 'You can only message a current friend.';
             } else {
+                $typingClientKey = is_string($_POST['typing_client_key'] ?? null) && preg_match('/^[a-f0-9]{32}$/', $_POST['typing_client_key']) ? $_POST['typing_client_key'] : '';
+                if ($typingClientKey !== '') {
+                    $clearTyping = mysqli_prepare($conn, 'DELETE FROM message_typing WHERE sender_id = ? AND receiver_id = ? AND client_key = ?');
+                    mysqli_stmt_bind_param($clearTyping, 'iis', $currentUserId, $selectedId, $typingClientKey);
+                    mysqli_stmt_execute($clearTyping);
+                    mysqli_stmt_close($clearTyping);
+                }
                 createNotification($conn, $selectedId, $currentUserId, 'message', $newMessageId, null, 'message:' . $newMessageId);
                 if ($isJson) {
                     echo json_encode(['ok' => true]);
@@ -354,6 +400,7 @@ $messageChangeCursor = mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['p
 mysqli_stmt_close($statement);
 $messageChanges = [];
 $hasOlder = false;
+$isFriendTyping = false;
 if ($selectedFriend && $error === '') {
     $sql = 'SELECT id, sender_id, content, created_at, is_read, edited_at FROM messages WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)) AND deleted_at IS NULL';
     if ($after) {
@@ -396,13 +443,18 @@ if ($selectedFriend && $error === '') {
     mysqli_stmt_execute($statement);
     $lastReadOutgoingId = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['last_read_id'] ?? 0);
     mysqli_stmt_close($statement);
+    $statement = mysqli_prepare($conn, 'SELECT EXISTS (SELECT 1 FROM message_typing WHERE sender_id = ? AND receiver_id = ? AND updated_at >= UTC_TIMESTAMP(6) - INTERVAL 6 SECOND) AS is_typing');
+    mysqli_stmt_bind_param($statement, 'ii', $selectedId, $currentUserId);
+    mysqli_stmt_execute($statement);
+    $isFriendTyping = (bool) (mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['is_typing'] ?? false);
+    mysqli_stmt_close($statement);
 }
 if ($isJson) {
     $friendActivity = array_map(
         static fn (array $friend): array => ['id' => (int) $friend['id'], 'state' => $friend['activity_state']],
         $friends
     );
-    echo json_encode(['messages' => $messages, 'messageChanges' => $messageChanges, 'messageChangeCursor' => $messageChangeCursor, 'error' => $error, 'friend' => $selectedFriend, 'friendActivity' => $friendActivity, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token]);
+    echo json_encode(['messages' => $messages, 'messageChanges' => $messageChanges, 'messageChangeCursor' => $messageChangeCursor, 'error' => $error, 'friend' => $selectedFriend, 'friendActivity' => $friendActivity, 'viewerId' => $currentUserId, 'lastReadOutgoingId' => $lastReadOutgoingId, 'token' => $token, 'typing' => $isFriendTyping]);
     exit;
 }
 $sharedLinks = [];
@@ -551,6 +603,7 @@ if ($selectedFriend) {
                     <?php if (!$before): ?>
                     <form method="post" action="messages.php?user=<?= $selectedId ?>" data-message-form data-friend-name="<?= htmlspecialchars($selectedDisplayName, ENT_QUOTES, 'UTF-8') ?>">
                         <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="typing_client_key" value="">
                         <label class="sr-only" for="message-content">Message</label>
                         <textarea id="message-content" name="content" rows="3" maxlength="2000" required><?= htmlspecialchars($content, ENT_QUOTES, 'UTF-8') ?></textarea>
                         <button type="submit">Send</button>

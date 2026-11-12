@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!box) return;
     const list = box.querySelector('[data-mini-messages]');
     const status = box.querySelector('[data-mini-status]');
+    const typingIndicator = box.querySelector('[data-mini-typing]');
     const heading = box.querySelector('h2');
     const avatar = box.querySelector('[data-mini-avatar]');
     const activity = box.querySelector('[data-mini-activity]');
@@ -37,6 +38,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chat !== state) return;
             if (!response.ok || data.error || !data.friend) throw new Error(data.error || 'Could not open chat.');
             state.token = data.token;
+            if (typingIndicator) {
+                typingIndicator.textContent = `${data.friend.username} is typing…`;
+                typingIndicator.hidden = !data.typing;
+            }
             send.disabled = state.sending;
             heading.textContent = data.friend.username;
             if (activity) {
@@ -76,7 +81,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return state.loading;
     };
     const close = () => {
-        if (chat) drafts.set(chat.id, input.value);
+        if (chat) {
+            drafts.set(chat.id, input.value);
+            stopTyping(chat, true);
+        }
         chat = null;
         box.hidden = true;
         const url = new URL(location.href);
@@ -86,8 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const open = (id) => {
         id = Number(id);
         if (!Number.isSafeInteger(id) || id < 1) return;
-        if (chat) drafts.set(chat.id, input.value);
-        const state = {id, first: 0, last: 0, token: '', loaded: false, sending: false, loading: null};
+        if (chat) {
+            drafts.set(chat.id, input.value);
+            stopTyping(chat, true);
+        }
+        const state = {id, first: 0, last: 0, token: '', loaded: false, sending: false, loading: null, typingClientKey: Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join(''), typingAt: 0, typingTimer: null, typingActive: false};
         chat = state;
         box.hidden = false;
         list.replaceChildren(); avatar.replaceChildren();
@@ -97,11 +108,39 @@ document.addEventListener('DOMContentLoaded', () => {
         refresh(state).catch(() => {if (chat === state) status.textContent = 'Could not load chat. Retrying…';});
         input.focus();
     };
+    const sendTypingState = (state, action, useBeacon = false) => {
+        if (!state.token) return;
+        const url = urlFor(state);
+        const body = new URLSearchParams({token: state.token, action, typing_client_key: state.typingClientKey});
+        if (useBeacon && navigator.sendBeacon) { navigator.sendBeacon(url, body); return; }
+        fetch(url, {method: 'POST', credentials: 'same-origin', body, keepalive: useBeacon}).catch(() => {});
+    };
+    const stopTyping = (state, useBeacon = false) => {
+        if (state.typingTimer) window.clearTimeout(state.typingTimer);
+        state.typingTimer = null;
+        if (state.typingActive) sendTypingState(state, 'stop_typing', useBeacon);
+        state.typingActive = false;
+    };
+    const noteTyping = () => {
+        const state = chat;
+        if (!state || !input.value.trim()) { if (state) stopTyping(state); return; }
+        const now = Date.now();
+        if (!state.typingActive || now - state.typingAt >= 1800) {
+            sendTypingState(state, 'typing');
+            state.typingAt = now;
+            state.typingActive = true;
+        }
+        if (state.typingTimer) window.clearTimeout(state.typingTimer);
+        state.typingTimer = window.setTimeout(() => stopTyping(state), 3200);
+    };
+    input.addEventListener('input', noteTyping);
+    input.addEventListener('blur', () => { if (chat) stopTyping(chat); });
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const state = chat;
         if (!state?.token || state.sending || !input.value.trim()) return;
         const text = input.value;
+        stopTyping(state);
         state.sending = true; send.disabled = true;
         try {
             await post(state, {content: text});
@@ -125,6 +164,8 @@ document.addEventListener('DOMContentLoaded', () => {
     box.querySelector('[data-mini-close]').addEventListener('click', close);
     window.setInterval(poll, 3000);
     window.addEventListener('focus', poll);
+    document.addEventListener('visibilitychange', () => { if (document.hidden && chat) stopTyping(chat, true); });
+    window.addEventListener('pagehide', () => { if (chat) stopTyping(chat, true); });
     window.miniChat = {open, close};
     const initial = new URL(location.href).searchParams.get('chat');
     if (initial) open(initial);

@@ -40,9 +40,16 @@ if ($mode === 'older') {
     }
     $escapedCreated = mysqli_real_escape_string($conn, $beforeCreated);
     $cursorFilter = "(p.created_at < '{$escapedCreated}' OR (p.created_at = '{$escapedCreated}' AND p.id < {$beforeId})) AND ";
+    if ($context === 'profile') $cursorFilter = 'p.pinned_at IS NULL AND ' . $cursorFilter;
 }
 $limit = $mode === 'older' ? 26 : min(250, max(50, $requestedCount + 50));
-$query = "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path FROM posts p JOIN users u ON u.id = p.user_id WHERE {$authorFilter}{$cursorFilter}(p.visibility = 'public' OR p.user_id = {$viewerId} OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = {$viewerId} AND f.friend_id = p.user_id) OR (f.friend_id = {$viewerId} AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = {$viewerId} AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = {$viewerId})) ORDER BY p.created_at DESC, p.id DESC LIMIT {$limit}";
+$pinFields = $context === 'profile'
+    ? ', p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count'
+    : ', NULL AS pinned_at, 0 AS pinned_post_count';
+$orderBy = $context === 'profile'
+    ? 'p.pinned_at IS NULL ASC, p.pinned_at ASC, p.created_at DESC, p.id DESC'
+    : 'p.created_at DESC, p.id DESC';
+$query = "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at{$pinFields}, u.username, u.avatar_path FROM posts p JOIN users u ON u.id = p.user_id WHERE {$authorFilter}{$cursorFilter}(p.visibility = 'public' OR p.user_id = {$viewerId} OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = {$viewerId} AND f.friend_id = p.user_id) OR (f.friend_id = {$viewerId} AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = {$viewerId} AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = {$viewerId})) ORDER BY {$orderBy} LIMIT {$limit}";
 $result = mysqli_query($conn, $query);
 $posts = [];
 while ($post = mysqli_fetch_assoc($result)) $posts[(int) $post['id']] = $post;
@@ -57,7 +64,7 @@ $payload = [];
 
 foreach ($posts as $postId => $post) {
     ob_start();
-    renderPostInteractions($post, $interactions[$postId] ?? [], $viewerId, $assetPrefix);
+    renderPostInteractions($post, $interactions[$postId] ?? [], $viewerId, $assetPrefix, $context === 'profile' && (int) $post['user_id'] === $viewerId);
     $interactionsHtml = ob_get_clean();
     ob_start();
     renderPostMedia($post, $assetPrefix, (int) $post['user_id'] === $viewerId);
@@ -70,6 +77,9 @@ foreach ($posts as $postId => $post) {
         'title' => $post['title'],
         'content' => $post['content'],
         'edited' => $post['edited_at'] !== null,
+        'pinned' => !empty($post['pinned_at']),
+        'pinnedAt' => $post['pinned_at'],
+        'pinnedCount' => (int) $post['pinned_post_count'],
         'mediaKey' => implode('|', array_map(static fn(array $item): string => (string) $item['id'] . ':' . $item['media_path'], $post['media'])),
         'mediaHtml' => $mediaHtml,
         'interactionsHtml' => $interactionsHtml,

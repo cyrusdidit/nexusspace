@@ -758,7 +758,7 @@ $temporaryProfileUsers = array_map(
 );
 $profileHasMorePosts = false;
 if ($user) {
-    $statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.created_at DESC, p.id DESC LIMIT 51");
+    $statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.pinned_at IS NULL ASC, p.pinned_at ASC, p.created_at DESC, p.id DESC LIMIT 51");
     mysqli_stmt_bind_param($statement, 'iiii', $userId, $currentUserId, $currentUserId, $currentUserId);
     mysqli_stmt_execute($statement);
     $profilePosts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
@@ -1032,7 +1032,7 @@ if ($isOwnProfile) {
             <div class="profile-now-playing profile-song-banner" data-profile-style="profile-song.container" data-profile-song-banner data-has-song="<?= $profileSong ? 'true' : 'false' ?>" data-track-id="<?= htmlspecialchars($profileSong['id'] ?? '', ENT_QUOTES, 'UTF-8') ?>"<?= !$profileSong && !$isOwnProfile ? ' hidden' : '' ?>>
                 <div class="profile-now-playing-bar">
                     <div class="profile-song-browser-player" data-profile-song-browser-player<?= $profileSong ? '' : ' hidden' ?>>
-                        <?php if ($profileSong): ?><iframe src="https://open.spotify.com/embed/track/<?= rawurlencode($profileSong['id']) ?>?theme=0" title="Profile song" width="100%" height="80" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe><?php endif; ?>
+                        <?php if ($profileSong): ?><iframe src="https://open.spotify.com/embed/track/<?= rawurlencode($profileSong['id']) ?>?theme=0" title="Profile song" width="100%" height="80" allow="clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe><?php endif; ?>
                     </div>
                     <span class="profile-song-empty-label" data-profile-style="profile-song.label">Profile song: <a href="<?= htmlspecialchars($profileSong['url'] ?? '', ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener" data-profile-song-link<?= !empty($profileSong['url']) ? '' : ' hidden' ?>><strong data-profile-style="profile-song.title" data-profile-song-name><?= $profileSong ? htmlspecialchars($profileSong['name'], ENT_QUOTES, 'UTF-8') : '' ?></strong><span data-profile-song-separator<?= $profileSong && $profileSong['artist'] !== '' ? '' : ' hidden' ?>> &bull; </span><span data-profile-style="profile-song.artist" data-profile-song-artist><?= $profileSong ? htmlspecialchars($profileSong['artist'], ENT_QUOTES, 'UTF-8') : '' ?></span></a></span>
 
@@ -1064,7 +1064,7 @@ if ($isOwnProfile) {
             <p class="post-empty" data-profile-style="posts.empty-state" data-post-empty<?= $profilePosts ? ' hidden' : '' ?>>No posts to show yet.</p>
             <div class="post-list" data-profile-style="posts.list" data-post-list>
             <?php foreach ($profilePosts as $post): ?>
-                <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $isOwnProfile ? ' is-owned' : '' ?>" data-profile-style="post.card" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>">
+                <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $isOwnProfile ? ' is-owned' : '' ?>" data-profile-style="post.card" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>" data-post-pinned="<?= !empty($post['pinned_at']) ? 'true' : 'false' ?>"<?= $isOwnProfile ? ' data-profile-post-pins' : '' ?>>
                     <header class="post-header" data-profile-style="post.header">
                         <span class="post-author" data-profile-style="post.author">
                             <span class="post-avatar" data-profile-style="post.avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatarPath): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
@@ -1076,7 +1076,7 @@ if ($isOwnProfile) {
                     <p class="post-content" data-profile-style="post.body" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
                     <?php renderPostMedia($post, '../', $isOwnProfile); ?>
                     <?php if ($isOwnProfile) renderPostEditForm($post); ?>
-                    <?php renderPostInteractions($post, $postInteractions[(int) $post['id']] ?? [], $currentUserId, '../'); ?>
+                    <?php renderPostInteractions($post, $postInteractions[(int) $post['id']] ?? [], $currentUserId, '../', $isOwnProfile); ?>
                 </article>
             <?php endforeach; ?>
             </div>

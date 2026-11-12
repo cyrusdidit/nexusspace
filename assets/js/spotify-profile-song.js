@@ -11,71 +11,21 @@
     const bannerOpen = banner?.querySelector('[data-profile-song-picker-open]');
     const bannerIcon = banner?.querySelector('[data-profile-song-action-icon]');
     const playerHost = banner?.querySelector('[data-profile-song-browser-player]');
-    let embedApi = null;
-    let embedController = null;
-    let currentTrackId = banner?.dataset.trackId || '';
-    let playbackDismissed = false;
-    let playing = false;
-
-    const tryPlay = () => {
-        if (!embedController || !currentTrackId || playbackDismissed || playing) return;
-        try { embedController.play(); } catch (_) {
-            banner.title = 'Press play in the profile song header to listen.';
-        }
-    };
-    const createBrowserPlayer = () => {
-        if (!embedApi || !playerHost || !currentTrackId) return;
-        embedController?.destroy();
-        embedController = null;
-        playerHost.replaceChildren();
-        const target = document.createElement('div');
-        playerHost.append(target);
-        const creatingTrackId = currentTrackId;
-        embedApi.createController(target, {
-            uri: `spotify:track:${creatingTrackId}`,
-            width: '100%',
-            height: 80,
-        }, (controller) => {
-            if (currentTrackId !== creatingTrackId || playbackDismissed) {
-                controller.destroy();
-                return;
-            }
-            embedController = controller;
-            controller.addListener('ready', tryPlay);
-            controller.addListener('playback_update', ({ data }) => {
-                playing = !data.isPaused;
-                banner.dataset.playbackState = playing ? 'playing' : 'paused';
-            });
-        });
-    };
-    const playProfileSong = (trackId) => {
-        currentTrackId = trackId || '';
-        playing = false;
-        playbackDismissed = false;
-        if (banner) banner.dataset.trackId = currentTrackId;
+    const setProfileSongEmbed = (trackId) => {
+        const id = trackId || '';
+        if (banner) banner.dataset.trackId = id;
         if (!playerHost) return;
-        playerHost.hidden = !currentTrackId;
-        if (!currentTrackId) {
-            embedController?.destroy();
-            embedController = null;
-            playerHost.replaceChildren();
-        } else {
-            createBrowserPlayer();
-        }
+        playerHost.hidden = !id;
+        playerHost.replaceChildren();
+        if (!/^[A-Za-z0-9]{22}$/.test(id)) return;
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://open.spotify.com/embed/track/${encodeURIComponent(id)}?theme=0`;
+        iframe.title = 'Profile song';
+        iframe.width = '100%';
+        iframe.height = '80';
+        iframe.allow = 'clipboard-write; encrypted-media; fullscreen; picture-in-picture';
+        playerHost.append(iframe);
     };
-    if (playerHost) {
-        window.onSpotifyIframeApiReady = (api) => {
-            embedApi = api;
-            createBrowserPlayer();
-        };
-        const script = document.createElement('script');
-        script.src = 'https://open.spotify.com/embed/iframe-api/v1';
-        script.async = true;
-        document.body.append(script);
-        window.addEventListener('click', tryPlay);
-        window.addEventListener('keydown', tryPlay);
-        window.addEventListener('pagehide', () => embedController?.destroy());
-    }
 
     const updateBanner = (track) => {
         if (!banner) return;
@@ -97,8 +47,6 @@
             bannerOpen.setAttribute('aria-label', label);
             bannerOpen.title = label;
         }
-        playProfileSong(track?.id || '');
-
     };
 
     const saveSelection = async (action, trackId = '') => {
@@ -133,6 +81,7 @@
         const showSelectedTrack = (track) => {
             const trackId = track?.id || '';
             picker.dataset.trackId = trackId;
+            setProfileSongEmbed(trackId);
             if (embed && current) {
                 if (trackId) {
                     embed.src = `https://open.spotify.com/embed/track/${encodeURIComponent(trackId)}?utm_source=generator&theme=0`;
@@ -262,8 +211,7 @@
     });
 
     banner?.querySelector('[data-profile-song-dismiss]')?.addEventListener('click', () => {
-        embedController?.pause();
-        playbackDismissed = true;
+        setProfileSongEmbed('');
         banner.hidden = true;
     });
     document.addEventListener('keydown', (event) => {

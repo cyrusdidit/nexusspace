@@ -31,10 +31,10 @@ if (!is_string($token) || !isset($_SESSION['posts_csrf']) || !hash_equals($_SESS
 $viewerId = (int) $_SESSION['user_id'];
 $postId = filter_var($_POST['post_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
-$allowedActions = ['edit_post', 'delete_post', 'add_media', 'replace_media', 'reorder_media', 'remove_media', 'add_comment', 'edit_comment', 'delete_comment', 'purge_comment', 'toggle_pin'];
+$allowedActions = ['edit_post', 'delete_post', 'add_media', 'replace_media', 'reorder_media', 'remove_media', 'add_comment', 'edit_comment', 'delete_comment', 'purge_comment', 'toggle_pin', 'toggle_post_pin'];
 if (!$postId || !in_array($action, $allowedActions, true)) postActionResponse(['ok' => false, 'error' => 'Invalid post action.'], 422);
 
-$statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1");
+$statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1");
 mysqli_stmt_bind_param($statement, 'iiiiii', $postId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId);
 mysqli_stmt_execute($statement);
 $post = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
@@ -50,7 +50,50 @@ $newMediaFiles = [];
 $replacedMediaPath = null;
 
 try {
-    if ($action === 'edit_post') {
+    if ($action === 'toggle_post_pin') {
+        if ($postOwnerId !== $viewerId || ($_POST['context'] ?? '') !== 'profile') postActionResponse(['ok' => false, 'error' => 'Only the post creator can pin posts on their profile.'], 403);
+        mysqli_begin_transaction($conn);
+        $ownerLock = mysqli_prepare($conn, 'SELECT id FROM users WHERE id = ? FOR UPDATE');
+        mysqli_stmt_bind_param($ownerLock, 'i', $viewerId);
+        mysqli_stmt_execute($ownerLock);
+        $ownerExists = mysqli_fetch_assoc(mysqli_stmt_get_result($ownerLock)) !== null;
+        mysqli_stmt_close($ownerLock);
+        $postLock = mysqli_prepare($conn, 'SELECT pinned_at FROM posts WHERE id = ? AND user_id = ? FOR UPDATE');
+        mysqli_stmt_bind_param($postLock, 'ii', $postId, $viewerId);
+        mysqli_stmt_execute($postLock);
+        $lockedPost = mysqli_fetch_assoc(mysqli_stmt_get_result($postLock));
+        mysqli_stmt_close($postLock);
+        if (!$ownerExists || !$lockedPost) {
+            mysqli_rollback($conn);
+            postActionResponse(['ok' => false, 'error' => 'That post is no longer available.'], 404);
+        }
+        if ($lockedPost['pinned_at'] !== null) {
+            $statement = mysqli_prepare($conn, 'UPDATE posts SET pinned_at = NULL WHERE id = ? AND user_id = ?');
+            mysqli_stmt_bind_param($statement, 'ii', $postId, $viewerId);
+        } else {
+            $countStatement = mysqli_prepare($conn, 'SELECT COUNT(*) AS total FROM posts WHERE user_id = ? AND pinned_at IS NOT NULL');
+            mysqli_stmt_bind_param($countStatement, 'i', $viewerId);
+            mysqli_stmt_execute($countStatement);
+            $pinnedCount = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStatement))['total'];
+            mysqli_stmt_close($countStatement);
+            if ($pinnedCount >= 3) {
+                mysqli_rollback($conn);
+                postActionResponse(['ok' => false, 'error' => 'You can pin up to three posts on your profile. Unpin one first.'], 409);
+            }
+            $statement = mysqli_prepare($conn, 'UPDATE posts SET pinned_at = UTC_TIMESTAMP(6) WHERE id = ? AND user_id = ? AND pinned_at IS NULL');
+            mysqli_stmt_bind_param($statement, 'ii', $postId, $viewerId);
+        }
+        mysqli_stmt_execute($statement);
+        mysqli_stmt_close($statement);
+        mysqli_commit($conn);
+        $stateStatement = mysqli_prepare($conn, 'SELECT pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count FROM posts p WHERE p.id = ? AND p.user_id = ? LIMIT 1');
+        mysqli_stmt_bind_param($stateStatement, 'ii', $postId, $viewerId);
+        mysqli_stmt_execute($stateStatement);
+        $pinState = mysqli_fetch_assoc(mysqli_stmt_get_result($stateStatement)) ?: ['pinned_at' => null, 'pinned_post_count' => 0];
+        mysqli_stmt_close($stateStatement);
+        $post['pinned_at'] = $pinState['pinned_at'];
+        $post['pinned_post_count'] = (int) $pinState['pinned_post_count'];
+    } elseif ($action === 'edit_post') {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can edit this post.'], 403);
         if (mb_strlen($title, 'UTF-8') > 100) postActionResponse(['ok' => false, 'error' => 'Keep the post title under 100 characters.'], 422);
         if (mb_strlen($content, 'UTF-8') > 2500 || ($title === '' && $content === '' && !$post['media'])) postActionResponse(['ok' => false, 'error' => 'Add a title, write something, or keep the attached media, using no more than 2,500 characters.'], 422);
@@ -278,7 +321,7 @@ $post['media'] = loadPostMedia($conn, [$postId])[$postId] ?? [];
 $interactions = loadPostInteractions($conn, [$postId], $viewerId);
 $assetPrefix = ($_POST['context'] ?? '') === 'profile' ? '../' : '';
 ob_start();
-renderPostInteractions($post, $interactions[$postId] ?? [], $viewerId, $assetPrefix);
+renderPostInteractions($post, $interactions[$postId] ?? [], $viewerId, $assetPrefix, ($_POST['context'] ?? '') === 'profile' && $postOwnerId === $viewerId);
 $html = ob_get_clean();
 ob_start();
 renderPostMedia($post, $assetPrefix, $postOwnerId === $viewerId);
@@ -291,4 +334,7 @@ postActionResponse([
     'mediaKey' => implode('|', array_map(static fn(array $item): string => (string) $item['id'] . ':' . $item['media_path'], $post['media'])),
     'mediaHtml' => $mediaHtml,
     'interactionsHtml' => $html,
+    'pinned' => !empty($post['pinned_at']),
+    'pinnedAt' => $post['pinned_at'],
+    'pinnedCount' => (int) ($post['pinned_post_count'] ?? 0),
 ]);

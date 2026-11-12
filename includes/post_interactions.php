@@ -90,7 +90,7 @@ function renderPostComment(array $comment, int $viewerId, int $postOwnerId, stri
     <?php
 }
 
-function renderPostInteractions(array $post, array $interaction, int $viewerId, string $assetPrefix = ''): void
+function renderPostInteractions(array $post, array $interaction, int $viewerId, string $assetPrefix = '', bool $allowPostPin = false): void
 {
     $postId = (int) $post['id'];
     $ownerId = (int) $post['user_id'];
@@ -102,10 +102,10 @@ function renderPostInteractions(array $post, array $interaction, int $viewerId, 
             if ($reply['deleted_at'] === null || $ownerId === $viewerId) $commentCount++;
         }
     }
-    $version = substr(hash('sha256', json_encode([$post['title'] ?? '', $post['content'] ?? '', $post['media'] ?? [$post['media_path'] ?? null, $post['media_type'] ?? null], $post['edited_at'] ?? null, $interaction])), 0, 16);
+    $version = substr(hash('sha256', json_encode([$post['title'] ?? '', $post['content'] ?? '', $post['media'] ?? [$post['media_path'] ?? null, $post['media_type'] ?? null], $post['edited_at'] ?? null, $post['pinned_at'] ?? null, $post['pinned_post_count'] ?? 0, $interaction])), 0, 16);
     ?>
     <div class="post-interactions" data-profile-style="post.interactions" data-post-interactions data-post-version="<?= $version ?>">
-        <?php if ($ownerId === $viewerId): ?><div class="post-owner-actions" data-profile-style="post.owner-actions"><button type="button" data-profile-style="post.edit-control" data-post-edit>Edit</button><button type="button" data-profile-style="post.delete-control" data-post-delete>Delete</button></div><?php endif; ?>
+        <?php if ($ownerId === $viewerId): ?><div class="post-owner-actions" data-profile-style="post.owner-actions"><?php if ($allowPostPin): $isPinned = !empty($post['pinned_at']); $pinLimitReached = !$isPinned && (int) ($post['pinned_post_count'] ?? 0) >= 3; ?><button type="button" data-post-pin-toggle aria-pressed="<?= $isPinned ? 'true' : 'false' ?>"<?= $pinLimitReached ? ' disabled title="You can pin up to three posts."' : '' ?>><?= $isPinned ? 'Unpin' : 'Pin' ?></button><?php endif; ?><button type="button" data-profile-style="post.edit-control" data-post-edit>Edit</button><button type="button" data-profile-style="post.delete-control" data-post-delete>Delete</button></div><?php endif; ?>
         <div class="post-action-bar" data-profile-style="post.action-bar">
             <button type="button" data-profile-style="post.comment-control" data-comment-focus>Comment <span><?= $commentCount ?></span></button>
         </div>
@@ -130,7 +130,7 @@ function renderLivePostCard(array $post, array $interaction, int $viewerId, stri
     $avatarPath = trim((string) ($post['avatar_path'] ?? ''));
     $avatar = $avatarPath !== '' && !preg_match('~^(?:[a-z][a-z0-9+.-]*:|//)~i', $avatarPath) ? $assetPrefix . ltrim($avatarPath, '/') : '';
     ?>
-    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $owned ? ' is-owned' : '' ?>" data-profile-style="post.card" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>">
+    <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $owned ? ' is-owned' : '' ?>" data-profile-style="post.card" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>" data-post-pinned="<?= !empty($post['pinned_at']) ? 'true' : 'false' ?>"<?= $profileContext && $owned ? ' data-profile-post-pins' : '' ?>>
         <header class="post-header" data-profile-style="post.header">
             <a class="post-author" data-profile-style="post.author" href="<?= $profileLink . (int) $post['user_id'] ?>">
                 <span class="post-avatar" data-profile-style="post.avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($post['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatar): ?><img src="<?= htmlspecialchars($avatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
@@ -142,7 +142,7 @@ function renderLivePostCard(array $post, array $interaction, int $viewerId, stri
         <p class="post-content" data-profile-style="post.body" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
         <?php renderPostMedia($post, $assetPrefix, $owned); ?>
         <?php if ($owned) renderPostEditForm($post); ?>
-        <?php renderPostInteractions($post, $interaction, $viewerId, $assetPrefix); ?>
+        <?php renderPostInteractions($post, $interaction, $viewerId, $assetPrefix, $profileContext && $owned); ?>
     </article>
     <?php
 }

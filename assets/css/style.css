@@ -1481,10 +1481,13 @@ main.dashboard {
 .post-action-bar button, .post-comment-actions button { border: 0; background: transparent; color: #2878a8; padding: 4px 6px; font-size: 12px; cursor: pointer; }
 .post-action-bar button:hover, .post-comment-actions button:hover { background: #edf8fd; }
 .post-card.is-owned .post-header { padding-right: 76px; }
+.post-card.is-owned[data-profile-post-pins] .post-header { padding-right: 126px; }
+.post-card[data-post-pinned="true"] .post-meta::after { content: " · Pinned"; color: #7b4d13; font-weight: 700; }
 .post-owner-actions { position: absolute; top: 5px; right: 6px; display: flex; gap: 2px; }
 .post-owner-actions button { border: 0; background: transparent; color: #2878a8; padding: 3px 4px; font-size: 11px; cursor: pointer; }
 .post-owner-actions [data-post-delete] { color: #a12c42; }
 .post-owner-actions button:hover { background: #edf8fd; }
+.post-owner-actions [data-post-pin-toggle] { color: #7b4d13; }
 .post-comment-form, .post-reply-form { display: flex; align-items: flex-end; gap: 6px; margin-top: 6px; }
 .post-comment-form textarea, .post-reply-form textarea, .post-comment-edit textarea { flex: 1; min-width: 0; min-height: 34px; max-height: 110px; padding: 6px; resize: vertical; font: inherit; }
 .post-comment-form button, .post-reply-form button, .post-comment-edit button { flex: 0 0 auto; padding: 6px 9px; }
@@ -1615,6 +1618,7 @@ main.dashboard {
 .mini-chat-bubble { background: #79b9dd; border-radius: 12px; margin: 0 28px 8px 0; padding: 6px 9px; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mini-chat-bubble.is-mine { background: #238bc5; color: white; margin-left: 28px; margin-right: 0; }
 .mini-chat-status { font-size: 11px; margin: 2px 8px; }
+.mini-chat-typing, .message-typing-indicator { color: #777; font-size: 12px; margin: 4px 10px; }
 .mini-chat .chat-input-placeholder { position: static; flex-shrink: 0; }
 .mini-chat .chat-input-placeholder button { cursor: pointer; }
 .message-popup { position: absolute; top: calc(100% + 8px); left: -1px; right: -1px; z-index: 20; display: flex; align-items: stretch; background: #dff2ff; border: 1px solid #79b9dd; border-radius: 4px; box-shadow: 0 4px 12px rgb(22 59 92 / 18%); }

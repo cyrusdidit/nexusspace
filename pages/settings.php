@@ -196,7 +196,7 @@ $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
                         <button type="button" data-profile-song-remove<?= $profileSongId !== '' ? '' : ' hidden' ?>>Remove</button>
                     </div>
                     <div class="spotify-profile-song-current" data-profile-song-current<?= $profileSongId !== '' ? '' : ' hidden' ?>>
-                        <iframe<?= $profileSongId !== '' ? ' src="https://open.spotify.com/embed/track/' . rawurlencode($profileSongId) . '?utm_source=generator&amp;theme=0"' : '' ?> title="Selected Spotify profile song" width="100%" height="80" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" data-profile-song-embed></iframe>
+                        <iframe<?= $profileSongId !== '' ? ' src="https://open.spotify.com/embed/track/' . rawurlencode($profileSongId) . '?utm_source=generator&amp;theme=0"' : '' ?> title="Selected Spotify profile song" width="100%" height="80" loading="lazy" allow="clipboard-write; encrypted-media; fullscreen; picture-in-picture" data-profile-song-embed></iframe>
                     </div>
                     <form class="spotify-profile-song-search" role="search" data-profile-song-search-form>
                         <label for="spotify-profile-song-search">Find a song</label>

@@ -415,6 +415,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = document.querySelector('[data-message-status]');
     const input = form.elements.content;
     const button = form.querySelector('button');
+    const typingClientKey = Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+    form.elements.typing_client_key.value = typingClientKey;
+    const typingIndicator = document.createElement('p');
+    typingIndicator.className = 'message-typing-indicator';
+    typingIndicator.setAttribute('role', 'status');
+    typingIndicator.setAttribute('aria-live', 'polite');
+    typingIndicator.hidden = true;
+    typingIndicator.textContent = `${form.dataset.friendName} is typing…`;
+    list.closest('.conversation-messages-shell')?.after(typingIndicator);
+    let typingTimer = null;
+    let lastTypingUpdate = 0;
+    let typingActive = false;
+    const sendTypingState = (action, useBeacon = false) => {
+        const url = new URL(form.action);
+        url.searchParams.set('format', 'json');
+        const body = new URLSearchParams({token: form.elements.token.value, action, typing_client_key: typingClientKey});
+        if (useBeacon && navigator.sendBeacon) {
+            navigator.sendBeacon(url, body);
+            return;
+        }
+        fetch(url, {method: 'POST', credentials: 'same-origin', body, keepalive: useBeacon}).catch(() => {});
+    };
+    const stopTyping = (useBeacon = false) => {
+        if (typingTimer) window.clearTimeout(typingTimer);
+        typingTimer = null;
+        if (typingActive) sendTypingState('stop_typing', useBeacon);
+        typingActive = false;
+    };
+    const noteTyping = () => {
+        if (!input.value.trim()) { stopTyping(); return; }
+        const now = Date.now();
+        if (!typingActive || now - lastTypingUpdate >= 1800) {
+            sendTypingState('typing');
+            lastTypingUpdate = now;
+            typingActive = true;
+        }
+        if (typingTimer) window.clearTimeout(typingTimer);
+        typingTimer = window.setTimeout(() => stopTyping(), 3200);
+    };
+    input.addEventListener('input', noteTyping);
+    input.addEventListener('blur', () => stopTyping());
     const conversationList = document.querySelector('.conversation-list');
     const selectedFriendItem = document.querySelector('[data-conversation-friend][aria-current="page"]');
     let lastId = Number(list.lastElementChild?.dataset.messageId || 0);
@@ -658,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok || data.error) throw new Error(data.error || 'Could not load messages.');
             updateActivity(data.friend);
             updateFriendActivity(data.friendActivity);
+            typingIndicator.hidden = !data.typing;
             applyMessageChanges(data.messageChanges);
             syncSidebarPreview(data.friend);
             if (data.messageChangeCursor) changeCursor = data.messageChangeCursor;
@@ -884,6 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (button.disabled || !input.value.trim()) return;
+        stopTyping();
         const submitted = input.value;
         button.disabled = true;
         status.textContent = 'Sending…';
@@ -912,4 +955,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     window.setInterval(poll, 3000);
     window.addEventListener('focus', poll);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) stopTyping(true); });
+    window.addEventListener('pagehide', () => stopTyping(true));
 });

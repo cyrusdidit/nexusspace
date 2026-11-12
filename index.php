@@ -724,6 +724,7 @@ if (isset($_SESSION['user_id'])) {
                         <button type="button" data-mini-close aria-label="Close chat">×</button>
                     </div>
                     <div class="chat-messages" data-mini-messages role="log" aria-label="Conversation" tabindex="0"></div>
+                    <p class="mini-chat-typing" data-mini-typing role="status" aria-live="polite" hidden>A friend is typing…</p>
                     <p class="mini-chat-status" data-mini-status role="status"></p>
                     <form class="chat-input-placeholder" data-chat-form>
                         <label class="sr-only" for="chat-message">Type a chat message</label>

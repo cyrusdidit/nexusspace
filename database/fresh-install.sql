@@ -73,6 +73,18 @@ CREATE TABLE messages (
     FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE message_typing (
+    sender_id INT UNSIGNED NOT NULL,
+    receiver_id INT UNSIGNED NOT NULL,
+    client_key CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (sender_id, receiver_id, client_key),
+    KEY message_typing_receiver (receiver_id, updated_at),
+    KEY message_typing_expiry (updated_at),
+    CONSTRAINT fk_message_typing_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_message_typing_receiver FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE posts (
     id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NOT NULL,
@@ -83,8 +95,10 @@ CREATE TABLE posts (
     visibility ENUM('friends', 'public') NOT NULL DEFAULT 'friends',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     edited_at DATETIME NULL,
+    pinned_at DATETIME(6) NULL,
     INDEX posts_feed (created_at, id),
     INDEX posts_author (user_id, created_at),
+    INDEX posts_profile_pins (user_id, pinned_at, created_at, id),
     CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

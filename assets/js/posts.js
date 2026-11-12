@@ -136,6 +136,17 @@ document.addEventListener('DOMContentLoaded', () => {
         heading.textContent = value;
         card.querySelector('.post-header')?.insertAdjacentElement('afterend', heading);
     };
+    const updatePinState = (card, data) => {
+        if (typeof data.pinned !== 'boolean') return;
+        card.dataset.postPinned = String(data.pinned);
+        const control = card.querySelector('[data-post-pin-toggle]');
+        if (control) {
+            control.textContent = data.pinned ? 'Unpin' : 'Pin';
+            control.setAttribute('aria-pressed', String(data.pinned));
+            control.disabled = !data.pinned && Number(data.pinnedCount) >= 3;
+            control.title = control.disabled ? 'You can pin up to three posts.' : '';
+        }
+    };
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
@@ -148,6 +159,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const button = event.target.closest('button');
         const card = button?.closest('[data-post-card]');
         if (!button || !card) return;
+        if (button.matches('[data-post-pin-toggle]')) {
+            button.disabled = true;
+            try {
+                const data = await request(card, 'toggle_post_pin');
+                updateInteractions(card, data);
+                updatePinState(card, data);
+                liveChannel?.postMessage({ postId: card.dataset.postId });
+                await refreshPosts();
+                const status = card.querySelector('[data-post-interaction-status]');
+                if (status) {
+                    status.textContent = data.pinned ? 'Post pinned to your profile.' : 'Post unpinned.';
+                    status.hidden = false;
+                }
+            } catch (error) {
+                const currentButton = card.querySelector('[data-post-pin-toggle]');
+                if (currentButton) currentButton.disabled = false;
+                showError(card, error);
+            }
+            return;
+        }
         if (button.matches('[data-comment-focus]')) { card.querySelector('[data-post-comment-form] textarea')?.focus(); return; }
         if (button.matches('[data-post-edit]')) {
             card.classList.add('is-editing');
@@ -348,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 updateMedia(card, post);
                 updateInteractions(card, post, true);
+                updatePinState(card, post);
             });
             const empty = document.querySelector('[data-post-empty]');
             if (empty) empty.hidden = data.posts.length > 0;
