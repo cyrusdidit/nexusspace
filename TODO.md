@@ -1,6 +1,6 @@
 # NexusSpace TODO
 
-Working backlog — 4 November 2026. Based on the timeline and source review;
+Working backlog — 13 November 2026. Based on the timeline and source review;
 unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 ## 1. Security — before public hosting
@@ -26,8 +26,9 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [ ] Add server-side rate limits for login, registration, messages, friend requests, comments, uploads, and integration requests.
 - [x] Add database-backed limits for login by IP/account and registration by IP.
 - [x] Add rate limits for messages, friend requests, comments, post media uploads, and Spotify song requests.
+- [x] Limit profile picture and user background image uploads per account.
 - [x] Add per-account rate limits for Spotify and Steam activity refresh endpoints.
-- [ ] Apply `database/20261105_create_security_rate_limits.sql` to existing installs and verify behavior.
+- [x] Apply the pending 20261104–20261112 schema migrations to the local database; browser behavior still needs verification.
 - [ ] Audit custom HTML/CSS sanitization for stored XSS, unsafe URLs, SVG/MathML, attributes, CSS escapes, and styles escaping the profile. Decide whether to replace the custom sanitizer with a maintained library; the original plan names HTML Purifier.
 - [x] Block custom SVG/MathML markup, namespaced attributes, unsafe URL schemes, and CSS escape obfuscation.
 - [ ] Audit output escaping and SQL queries throughout the app; retain prepared statements for user-controlled values.
@@ -39,7 +40,8 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Add Apache rules to disable directory listing and block hidden files and internal directories.
 - [x] Deny web access to script and HTML files inside uploads.
 - [ ] Confirm the Apache rules work in Laragon and also secure the production web server.
-- [ ] Move database credentials out of source and use a dedicated database user with limited privileges for deployment.
+- [x] Move local database credentials to ignored `.env` configuration and use a schema-scoped application account with CRUD privileges.
+- [ ] Configure and verify the production database account and secret outside the source tree.
 - [ ] Use HTTPS and production callback URLs when hosted. Preserve certificate verification for outbound requests.
 - [ ] Show safe errors to users and log useful diagnostics without tokens, API keys, authorization codes, or passwords. Disable public PHP stack traces in production.
 - [ ] Add focused regression tests for authorization, CSRF, audiences, blocking, sanitizer bypasses, and upload validation.
@@ -105,6 +107,6 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 ## Suggested next task
 
-Start with authorization/privacy and CSRF coverage, then session hardening and
-customization sanitization. Finish the remaining social features after those
-checks, followed by browser/mobile QA and deployment preparation.
+Finish the authorization, output-escaping, and custom HTML/CSS audits, then add
+a report-only Content Security Policy. Verify security behavior in the browser
+before deployment preparation and the remaining social features.

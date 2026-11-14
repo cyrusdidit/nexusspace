@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/rate_limit.php';
+
 const USER_BACKGROUND_REGIONS = ['messages', 'profile_cover', 'profile_posts', 'dashboard_feed'];
 const USER_BACKGROUND_IMAGE_FITS = ['cover', 'contain', 'tile'];
 const USER_BACKGROUND_DEFAULTS = [
@@ -83,7 +85,7 @@ function saveUserBackgroundSetting(mysqli $conn, int $userId, string $region, st
     mysqli_stmt_close($statement);
 }
 
-function storeUserBackgroundImage(array $upload, int $userId): string
+function storeUserBackgroundImage(mysqli $conn, array $upload, int $userId): string
 {
     $error = $upload['error'] ?? UPLOAD_ERR_NO_FILE;
     if ($error !== UPLOAD_ERR_OK) {
@@ -96,6 +98,9 @@ function storeUserBackgroundImage(array $upload, int $userId): string
     if (($upload['size'] ?? 0) > 5 * 1024 * 1024) throw new InvalidArgumentException('Use an image smaller than 5 MB.');
     $temporaryPath = is_string($upload['tmp_name'] ?? null) ? $upload['tmp_name'] : '';
     if ($temporaryPath === '' || !is_uploaded_file($temporaryPath)) throw new InvalidArgumentException('The uploaded image could not be verified.');
+    if (!consumeSecurityRateLimit($conn, 'background_upload_user', (string) $userId, 10, 3600)) {
+        throw new SecurityRateLimitException('You have uploaded a lot of background images recently. Wait a while, then try again.');
+    }
 
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($temporaryPath);
     $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];

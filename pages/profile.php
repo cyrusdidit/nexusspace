@@ -316,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             if ($submittedType === 'image') {
                 $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
                 if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                    $savedImagePath = storeUserBackgroundImage($upload, $currentUserId);
+                    $savedImagePath = storeUserBackgroundImage($conn, $upload, $currentUserId);
                 } elseif (!$savedImagePath) {
                     throw new InvalidArgumentException('Choose an image to upload.');
                 }
@@ -343,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
-            http_response_code(422);
+            http_response_code($exception instanceof SecurityRateLimitException ? 429 : 422);
             $profileAppearanceError = $exception->getMessage();
         }
     }
@@ -419,7 +419,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             if ($submittedType === 'image') {
                 $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
                 if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                    $savedImagePath = storeUserBackgroundImage($upload, $currentUserId);
+                    $savedImagePath = storeUserBackgroundImage($conn, $upload, $currentUserId);
                 } elseif (!$savedImagePath) {
                     throw new InvalidArgumentException('Choose a cover image to upload.');
                 }
@@ -430,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
-            http_response_code(422);
+            http_response_code($exception instanceof SecurityRateLimitException ? 429 : 422);
             $profileCoverError = $exception->getMessage();
         }
     }
@@ -473,6 +473,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
         $avatarError = 'Choose an image to upload.';
     } elseif (($upload['size'] ?? 0) > 5 * 1024 * 1024) {
         $avatarError = 'Use an image smaller than 5 MB.';
+    } elseif (!consumeSecurityRateLimit($conn, 'avatar_upload_user', (string) $currentUserId, 10, 3600)) {
+        http_response_code(429);
+        $avatarError = 'You have uploaded a lot of profile pictures recently. Wait a while, then try again.';
     } else {
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name']);
         $extensions = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];

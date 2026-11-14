@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+final class SecurityRateLimitException extends RuntimeException
+{
+}
+
 function consumeSecurityRateLimit(mysqli $conn, string $scope, string $subject, int $limit, int $windowSeconds): bool
 {
     if (!preg_match('/^[a-z0-9_]{1,32}$/', $scope) || $subject === '' || $limit < 1 || $windowSeconds < 1) {

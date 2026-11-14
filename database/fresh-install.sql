@@ -1,5 +1,5 @@
 -- NexusSpace: complete schema for a NEW, EMPTY database.
--- Includes existing migrations through 20261002. Do not run those migrations again.
+-- Includes migrations through 20261112. Do not run those migrations again.
 -- No DROP statements; existing tables cause an error rather than being replaced.
 CREATE DATABASE IF NOT EXISTS nexusspace CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE nexusspace;

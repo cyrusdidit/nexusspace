@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($submittedType === 'image') {
                     $upload = is_array($_FILES['background_image'] ?? null) ? $_FILES['background_image'] : ['error' => UPLOAD_ERR_NO_FILE];
                     if (($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                        $savedImagePath = storeUserBackgroundImage($upload, $currentUserId);
+                        $savedImagePath = storeUserBackgroundImage($conn, $upload, $currentUserId);
                     } elseif (!$savedImagePath) {
                         throw new InvalidArgumentException('Choose an image to upload.');
                     }
@@ -236,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             } catch (InvalidArgumentException | RuntimeException $exception) {
                 if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
-                http_response_code(422);
+                http_response_code($exception instanceof SecurityRateLimitException ? 429 : 422);
                 $appearanceError = $exception->getMessage();
             }
         }
