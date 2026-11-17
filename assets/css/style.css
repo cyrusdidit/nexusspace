@@ -417,6 +417,7 @@ a {
 .profile-top-eight .friends-list { margin: 0; padding: 5px 4px 15px 33px; list-style: decimal; }
 .profile-top-eight .friends-list li { display: list-item; overflow: visible; margin: 3px 0; color: #163b5c; font-size: 22px; line-height: 29px; }
 .profile-top-eight .friends-list li::marker { color: #163b5c; font-weight: 700; }
+.profile-top-eight .friends-list .top-eight-empty { margin: 8px 0; list-style: none; color: #496b82; font-size: 12px; line-height: 1.4; }
 .profile-top-eight .top-friend-link { display: inline-flex; align-items: center; gap: 9px; box-sizing: border-box; vertical-align: top; width: calc(100% - 4px); height: 31px; padding: 1px 7px; overflow: hidden; border: 2px solid #668596; border-radius: 8px; background: linear-gradient(#fafdff 0%, #eaf6fc 42%, #c5dce7 100%); box-shadow: inset 0 0 0 2px #f7fcff, inset 0 -3px 4px rgb(56 92 112 / 22%), 0 1px 1px rgb(22 59 92 / 18%); color: #27485f; font-size: 17px; line-height: 25px; }
 .profile-top-eight .friends-list a.top-friend-link:hover { background: linear-gradient(#fff 0%, #f1faff 42%, #d4e7f0 100%); color: #166da5; text-decoration: none; }
 .profile-top-eight .friends-list a.top-friend-link:active { background: linear-gradient(#bed5e0 0%, #e7f3f9 42%, #fafdff 100%); box-shadow: inset 0 2px 4px rgb(56 92 112 / 25%), inset 0 0 0 2px #f5fbfe; }
@@ -1359,6 +1360,13 @@ main.dashboard {
 .dashboard-sidebar .friends-list .mini-avatar img { object-position: 50% 50%; }
 .dashboard-sidebar .friends-list .top-friend-link > span:last-child { min-width: 0; overflow: hidden; border: 0; background: transparent; text-overflow: ellipsis; }
 .dashboard-sidebar .friends-list .dashboard-friend-chat { display: grid; flex: 0 0 25px; place-items: center; padding: 0; border-radius: 50%; background: #b9e3f8; color: #166da5; cursor: pointer; }
+.dashboard-sidebar .friends-list .top-friend-link { flex: 1; min-width: 0; }
+.dashboard-sidebar .friends-list li.is-dashboard-pinned .top-friend-link { border-color: #b48532; }
+.dashboard-friend-pin-form { display: inline-flex; flex: 0 0 25px; margin-left: 3px; }
+.dashboard-friend-pin-form button { width: 25px; height: 25px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #8b6b2e; font-size: 19px; line-height: 1; cursor: pointer; }
+.dashboard-friend-pin-form button:hover:not(:disabled) { background: #fff0bd; }
+.dashboard-friend-pin-form button:disabled { color: #8c9ba3; cursor: not-allowed; opacity: .65; }
+.dashboard-friend-pin-notice { margin: 6px 10px; color: #27485f; font-size: 12px; }
 .dashboard-friend-preview { display: flex; align-items: center; flex: 1; min-width: 0; height: 100%; }
 .dashboard-friend-name { display: flex; align-items: center; width: 100%; height: 100%; min-width: 0; overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-friend-name:hover { color: #166da5; text-decoration: none; }

@@ -37,7 +37,7 @@ if (topEightForm) {
     };
 
     const itemsIn = (container) => Array.from(container?.querySelectorAll(':scope > [data-top-eight-item]') || []);
-    const itemKey = (item) => item.dataset.friendId ? `friend:${item.dataset.friendId}` : `temp:${item.dataset.tempUser}`;
+    const itemKey = (item) => `friend:${item.dataset.friendId}`;
     itemsIn(pool)
         .sort((first, second) => Number(second.dataset.lastInteraction || 0) - Number(first.dataset.lastInteraction || 0))
         .forEach((item) => pool.append(item));
@@ -119,7 +119,9 @@ if (topEightForm) {
     if (picker && pool) {
         try {
             const savedOrder = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
-            if (Array.isArray(savedOrder) && savedOrder.length) {
+            if (Array.isArray(savedOrder) && savedOrder.some((key) => typeof key === 'string' && key.startsWith('temp:'))) {
+                window.localStorage.removeItem(storageKey);
+            } else if (Array.isArray(savedOrder) && savedOrder.length) {
                 const availableItems = new Map(
                     [...itemsIn(list), ...itemsIn(pool)].map((item) => [itemKey(item), item])
                 );

@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') { http_response_code(405); echo json_encode(['ok' => false, 'error' => 'Method not allowed.']); exit; }
-$statement = mysqli_prepare($conn, "SELECT n.id, n.type, n.entity_id, n.post_id, n.is_read, n.created_at, n.actor_id, u.username FROM notifications n JOIN users u ON u.id = n.actor_id WHERE n.recipient_id = ? AND n.type <> 'post_like' AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = n.actor_id) OR (b.blocker_id = n.actor_id AND b.blocked_id = ?)) ORDER BY n.created_at DESC, n.id DESC LIMIT 50");
+$statement = mysqli_prepare($conn, "SELECT n.id, n.type, n.entity_id, n.post_id, n.is_read, n.created_at, n.actor_id, u.username FROM notifications n JOIN users u ON u.id = n.actor_id WHERE n.recipient_id = ? AND n.type NOT IN ('post_like', 'profile_view') AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = n.actor_id) OR (b.blocker_id = n.actor_id AND b.blocked_id = ?)) ORDER BY n.created_at DESC, n.id DESC LIMIT 50");
 mysqli_stmt_bind_param($statement, 'iii', $userId, $userId, $userId);
 mysqli_stmt_execute($statement);
 $rows = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
@@ -51,7 +51,7 @@ $labels = [
     'friend_request' => ' sent you a friend request', 'friend_accept' => ' accepted your friend request',
     'post_comment' => ' commented on your post',
     'comment_reply' => ' replied to your comment', 'comment_pin' => ' pinned your comment',
-    'message' => ' sent you a message', 'profile_view' => ' viewed your profile',
+    'message' => ' sent you a message',
 ];
 foreach ($rows as &$row) {
     $row['id'] = (int) $row['id']; $row['actor_id'] = (int) $row['actor_id']; $row['post_id'] = $row['post_id'] === null ? null : (int) $row['post_id']; $row['is_read'] = (bool) $row['is_read'];
@@ -63,7 +63,7 @@ foreach ($rows as &$row) {
     };
 }
 unset($row);
-$statement = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM notifications n WHERE n.recipient_id = ? AND n.is_read = 0 AND n.type <> 'post_like' AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = n.actor_id) OR (b.blocker_id = n.actor_id AND b.blocked_id = ?))");
+$statement = mysqli_prepare($conn, "SELECT COUNT(*) AS total FROM notifications n WHERE n.recipient_id = ? AND n.is_read = 0 AND n.type NOT IN ('post_like', 'profile_view') AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = n.actor_id) OR (b.blocker_id = n.actor_id AND b.blocked_id = ?))");
 mysqli_stmt_bind_param($statement, 'iii', $userId, $userId, $userId); mysqli_stmt_execute($statement);
 $unreadTotal = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($statement))['total']; mysqli_stmt_close($statement);
 echo json_encode(['ok' => true, 'notifications' => $rows, 'unreadTotal' => $unreadTotal]);

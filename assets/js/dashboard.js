@@ -448,7 +448,6 @@ document.addEventListener('DOMContentLoaded', () => {
             message: 'messages',
             friend_request: 'friends',
             friend_accept: 'friends',
-            profile_view: 'profile',
         })[type] || 'other';
         const applyNotificationFilter = () => {
             if (!notificationsFeed) return;

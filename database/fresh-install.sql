@@ -36,6 +36,7 @@ CREATE TABLE friends (
     user_id INT UNSIGNED NOT NULL,
     friend_id INT UNSIGNED NOT NULL,
     top_eight_position TINYINT UNSIGNED NULL,
+    dashboard_pinned_at TIMESTAMP(6) NULL DEFAULT NULL,
     nickname VARCHAR(50) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY friends_pair (user_id, friend_id),

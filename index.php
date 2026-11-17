@@ -91,6 +91,68 @@ $_SESSION['notifications_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['dashboard_appearance_csrf'] ??= bin2hex(random_bytes(32));
 $_SESSION['status_visibility_csrf'] ??= bin2hex(random_bytes(32));
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_dashboard_friend_pin') {
+    if (!isset($_SESSION['user_id'])) {
+        header('Location: pages/login.php');
+        exit;
+    }
+    requireSecurityCsrf();
+    $userId = (int) $_SESSION['user_id'];
+    $friendId = filter_var($_POST['friend_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+    if (!$friendId || $friendId === $userId) {
+        http_response_code(422);
+        exit('Choose a valid friend.');
+    }
+
+    mysqli_begin_transaction($conn);
+    try {
+        $lock = mysqli_prepare($conn, 'SELECT id FROM users WHERE id = ? FOR UPDATE');
+        mysqli_stmt_bind_param($lock, 'i', $userId);
+        mysqli_stmt_execute($lock);
+        $accountExists = mysqli_fetch_assoc(mysqli_stmt_get_result($lock)) !== null;
+        mysqli_stmt_close($lock);
+
+        $friendship = mysqli_prepare($conn, 'SELECT f.dashboard_pinned_at FROM friends f WHERE f.user_id = ? AND f.friend_id = ? AND EXISTS (SELECT 1 FROM friends reciprocal WHERE reciprocal.user_id = ? AND reciprocal.friend_id = ?) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = ?) OR (b.blocker_id = ? AND b.blocked_id = ?)) LIMIT 1');
+        mysqli_stmt_bind_param($friendship, 'iiiiiiii', $userId, $friendId, $friendId, $userId, $userId, $friendId, $friendId, $userId);
+        mysqli_stmt_execute($friendship);
+        $friendshipRow = mysqli_fetch_assoc(mysqli_stmt_get_result($friendship));
+        mysqli_stmt_close($friendship);
+        if (!$accountExists || !$friendshipRow) {
+            mysqli_rollback($conn);
+            http_response_code(403);
+            exit('That person is not available in your friends list.');
+        }
+
+        if ($friendshipRow['dashboard_pinned_at'] !== null) {
+            $update = mysqli_prepare($conn, 'UPDATE friends SET dashboard_pinned_at = NULL WHERE user_id = ? AND friend_id = ?');
+            mysqli_stmt_bind_param($update, 'ii', $userId, $friendId);
+            mysqli_stmt_execute($update);
+            mysqli_stmt_close($update);
+        } else {
+            $count = mysqli_prepare($conn, 'SELECT COUNT(*) AS pin_count FROM friends WHERE user_id = ? AND dashboard_pinned_at IS NOT NULL');
+            mysqli_stmt_bind_param($count, 'i', $userId);
+            mysqli_stmt_execute($count);
+            $pinCount = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($count))['pin_count'] ?? 0);
+            mysqli_stmt_close($count);
+            if ($pinCount >= 3) {
+                mysqli_rollback($conn);
+                header('Location: index.php?friend_pin=limit');
+                exit;
+            }
+            $update = mysqli_prepare($conn, 'UPDATE friends SET dashboard_pinned_at = UTC_TIMESTAMP(6) WHERE user_id = ? AND friend_id = ? AND dashboard_pinned_at IS NULL');
+            mysqli_stmt_bind_param($update, 'ii', $userId, $friendId);
+            mysqli_stmt_execute($update);
+            mysqli_stmt_close($update);
+        }
+        mysqli_commit($conn);
+    } catch (Throwable $exception) {
+        mysqli_rollback($conn);
+        throw $exception;
+    }
+    header('Location: index.php?friend_pin=updated');
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_dashboard_background') {
     $dashboardAppearanceJson = ($_POST['response_format'] ?? '') === 'json'
         || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
@@ -452,11 +514,12 @@ if (isset($_SESSION['user_id'])) {
     if ($hasMorePosts) array_pop($posts);
     attachPostMedia($posts, loadPostMedia($conn, array_column($posts, 'id')));
     $postInteractions = loadPostInteractions($conn, array_column($posts, 'id'), $userId);
-    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN f.top_eight_position ELSE NULL END, u.username, u.id');
+    $topStatement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date, f.dashboard_pinned_at, f.top_eight_position FROM friends f JOIN users u ON u.id = f.friend_id WHERE f.user_id = ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY f.dashboard_pinned_at IS NULL, f.dashboard_pinned_at, CASE WHEN f.top_eight_position BETWEEN 1 AND 8 THEN 0 ELSE 1 END, f.top_eight_position, u.username, u.id');
     mysqli_stmt_bind_param($topStatement, 'iii', $userId, $userId, $userId);
     mysqli_stmt_execute($topStatement);
     $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($topStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($topStatement);
+    $dashboardPinnedFriendCount = count(array_filter($topFriends, static fn (array $friend): bool => $friend['dashboard_pinned_at'] !== null));
 
     $activityStatement = mysqli_prepare($conn, "UPDATE users SET activity_state = 'online', last_active_at = NOW() WHERE id = ?");
     mysqli_stmt_bind_param($activityStatement, 'i', $userId);
@@ -578,7 +641,6 @@ if (isset($_SESSION['user_id'])) {
                                     <option value="pins">Pins</option>
                                     <option value="messages">Messages</option>
                                     <option value="friends">Friends</option>
-                                    <option value="profile">Profile</option>
                                 </select>
                                 <span class="notifications-unread-count" data-notification-count aria-label="0 unread notifications" hidden>0</span>
                             </div>
@@ -640,6 +702,7 @@ if (isset($_SESSION['user_id'])) {
                     <div class="panel-heading">
                         <a class="friends-link" id="friends-heading" href="pages/messages.php">Friends <span class="friends-unread-total" data-unread-total hidden></span></a>
                     </div>
+                    <?php if (isset($_GET['friend_pin']) && $_GET['friend_pin'] === 'limit'): ?><p class="dashboard-friend-pin-notice" role="status">You can pin up to 3 friends. Unpin one before adding another.</p><?php elseif (isset($_GET['friend_pin']) && $_GET['friend_pin'] === 'updated'): ?><p class="dashboard-friend-pin-notice" role="status">Dashboard friend pins updated.</p><?php endif; ?>
                     <ul class="friends-list">
                         <?php foreach ($topFriends as $friend): ?>
                             <?php
@@ -649,7 +712,7 @@ if (isset($_SESSION['user_id'])) {
                             $friendPreviewBackground = preg_match('/^#[0-9a-f]{6}$/i', $friend['profile_background_color'] ?? '') ? $friend['profile_background_color'] : '#ffffff';
                             $friendPreviewColor = preg_match('/^#[0-9a-f]{6}$/i', $friend['profile_text_color'] ?? '') ? $friend['profile_text_color'] : '#163b5c';
                             ?>
-                            <li>
+                            <li<?= $friend['dashboard_pinned_at'] !== null ? ' class="is-dashboard-pinned"' : '' ?>>
                                 <div class="top-friend-link">
                                     <button class="mini-avatar dashboard-friend-chat" type="button" data-top-friend-chat="<?= (int) $friend['id'] ?>" aria-label="Message <?= $friendName ?>" title="Message <?= $friendName ?>"><span><?= $friendInitial ?></span><?php if ($friendAvatar !== ''): ?><img src="<?= $friendAvatar ?>" alt=""><?php endif; ?></button>
                                     <div class="dashboard-friend-preview" data-profile-preview data-profile-preview-delay="1000" data-profile-preview-placement="right">
@@ -664,6 +727,13 @@ if (isset($_SESSION['user_id'])) {
                                             </div>
                                         </aside>
                                     </div>
+                                    <form class="dashboard-friend-pin-form" method="post" action="index.php">
+                                        <input type="hidden" name="action" value="toggle_dashboard_friend_pin">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                        <input type="hidden" name="friend_id" value="<?= (int) $friend['id'] ?>">
+                                        <?php $friendIsPinned = $friend['dashboard_pinned_at'] !== null; ?>
+                                        <button type="submit" aria-label="<?= $friendIsPinned ? 'Unpin' : 'Pin' ?> <?= $friendName ?> on your dashboard" title="<?= $friendIsPinned ? 'Unpin friend' : ($dashboardPinnedFriendCount >= 3 ? 'You have reached the 3 friend pin limit' : 'Pin friend') ?>"<?= !$friendIsPinned && $dashboardPinnedFriendCount >= 3 ? ' disabled' : '' ?>><?= $friendIsPinned ? '&#9733;' : '&#9734;' ?></button>
+                                    </form>
                                 </div>
                                 <a class="friend-unread-diamond" data-friend-unread="<?= (int) $friend['id'] ?>" data-friend-name="<?= $friendName ?>" href="index.php?chat=<?= (int) $friend['id'] ?>" hidden></a>
                             </li>

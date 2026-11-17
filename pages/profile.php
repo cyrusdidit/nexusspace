@@ -41,9 +41,6 @@ if ($user && !$isOwnProfile && usersAreBlocked($conn, $currentUserId, $userId)) 
 if (!$user) {
     http_response_code(404);
 }
-if ($user && !$isOwnProfile && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    createNotification($conn, $userId, $currentUserId, 'profile_view', $currentUserId, null, 'profile_view:' . $currentUserId . ':' . $userId . ':' . date('Y-m-d'));
-}
 $profileNickname = '';
 if ($user && !$isOwnProfile) {
     $statement = mysqli_prepare($conn, 'SELECT nickname FROM friends WHERE user_id = ? AND friend_id = ? LIMIT 1');
@@ -755,10 +752,6 @@ $profilePosts = [];
 $postInteractions = [];
 $topFriends = [];
 $allFriends = [];
-$temporaryProfileUsers = array_map(
-    static fn (int $number): array => ['username' => 'TempUser' . $number],
-    range(1, 20)
-);
 $profileHasMorePosts = false;
 if ($user) {
     $statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count FROM posts p WHERE p.user_id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) ORDER BY p.pinned_at IS NULL ASC, p.pinned_at ASC, p.created_at DESC, p.id DESC LIMIT 51");
@@ -959,16 +952,7 @@ if ($isOwnProfile) {
                         <span><?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?></span>
                     </a><button class="top-eight-remove" type="button" data-profile-style="top-eight.remove-control" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($friend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button></li>
                 <?php endforeach; ?>
-                <?php $visibleTemporaryFriends = max(0, 8 - count($topFriends)); ?>
-                <?php foreach (array_slice($temporaryProfileUsers, 0, $visibleTemporaryFriends) as $temporaryFriend): ?>
-                    <li class="temporary-profile-friend" data-profile-style="top-eight.item" data-top-eight-item data-temp-user="<?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?>">
-                        <span class="top-friend-link" data-profile-style="top-eight.name">
-                            <span class="post-avatar" data-profile-style="top-eight.avatar" aria-hidden="true">T</span>
-                            <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
-                        </span>
-                        <button class="top-eight-remove" type="button" data-profile-style="top-eight.remove-control" data-top-eight-remove aria-label="Remove <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> from Top 8">&times;</button>
-                    </li>
-                <?php endforeach; ?>
+                <?php if (!$topFriends && $isOwnProfile): ?><li class="top-eight-empty">Choose friends from the reorder menu to feature them here.</li><?php endif; ?>
             </ol>
             <?php if ($isOwnProfile): ?>
                 <aside class="top-eight-friend-picker" data-profile-style="top-eight.picker" data-top-eight-picker hidden>
@@ -981,15 +965,7 @@ if ($isOwnProfile) {
                         <input id="top-eight-friend-search" type="search" placeholder="Find a friend" autocomplete="off" data-profile-style="top-eight.search-field" data-top-eight-search>
                     </div>
                     <ul data-top-eight-pool>
-                        <?php foreach (array_slice($temporaryProfileUsers, $visibleTemporaryFriends) as $temporaryFriend): ?>
-                            <li class="temporary-profile-friend" data-top-eight-item data-temp-user="<?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?>">
-                                <span class="top-friend-link">
-                                    <span class="post-avatar" aria-hidden="true">T</span>
-                                    <span><?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?></span>
-                                </span>
-                                <button type="button" data-profile-style="top-eight.add-control" data-top-eight-add aria-label="Add <?= htmlspecialchars($temporaryFriend['username'], ENT_QUOTES, 'UTF-8') ?> to Top 8">&#10003;</button>
-                            </li>
-                        <?php endforeach; ?>
+                        <?php if (!$allFriends): ?><li class="top-eight-empty">You do not have friends to add yet.</li><?php endif; ?>
                         <?php foreach ($allFriends as $friend): ?>
                             <?php if ((int) ($friend['top_eight_position'] ?? 0) >= 1 && (int) $friend['top_eight_position'] <= 8) continue; ?>
                             <?php
