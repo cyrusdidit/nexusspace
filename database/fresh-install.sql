@@ -37,10 +37,12 @@ CREATE TABLE friends (
     friend_id INT UNSIGNED NOT NULL,
     top_eight_position TINYINT UNSIGNED NULL,
     dashboard_pinned_at TIMESTAMP(6) NULL DEFAULT NULL,
+    messages_pinned_at TIMESTAMP(6) NULL DEFAULT NULL,
     nickname VARCHAR(50) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY friends_pair (user_id, friend_id),
     KEY friends_other_user (friend_id),
+    KEY friends_messages_pins (user_id, messages_pinned_at),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

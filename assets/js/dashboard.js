@@ -428,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (notificationCount) {
                 notificationCount.hidden = unreadCount === 0;
-                notificationCount.textContent = String(unreadCount);
+                notificationCount.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
                 notificationCount.setAttribute('aria-label', `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`);
             }
             if (notificationBell) {

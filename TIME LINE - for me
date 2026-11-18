@@ -96,7 +96,7 @@ Replace the compact chat-panel placeholder with real recent-message previews and
 Let each user separately pin up to 3 friends at the top of the Messages list, ordered by which friend was pinned first, second, and last
 Add a looping typing indicator for active conversations
 Build notifications for comments, replies, friend requests, and messages
-Add unread-notification badge logic capped at 9+
+Cap the displayed unread-notification count at 99+
 Security audit: XSS, CSRF, and SQL injection protection
 Add Content Security Policy headers
 Design retro-theme polish

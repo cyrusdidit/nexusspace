@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let visibleFriends = 0;
         friendItems.forEach((item) => {
             item.hidden = !item.dataset.friendName.toLocaleLowerCase().includes(query);
+            const row = item.closest('.conversation-list-row');
+            if (row) row.hidden = item.hidden;
             if (!item.hidden) visibleFriends++;
         });
         if (searchEmpty) searchEmpty.hidden = visibleFriends !== 0;
@@ -458,6 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
     input.addEventListener('blur', () => stopTyping());
     const conversationList = document.querySelector('.conversation-list');
     const selectedFriendItem = document.querySelector('[data-conversation-friend][aria-current="page"]');
+    const selectedFriendRow = selectedFriendItem?.closest('.conversation-list-row');
     let lastId = Number(list.lastElementChild?.dataset.messageId || 0);
     let changeCursor = list.dataset.changeCursor || '';
     let refreshing = null;
@@ -521,7 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     const updateSidebarPreview = (message, mine) => {
-        if (!selectedFriendItem || !conversationList) return;
+        if (!selectedFriendItem || !selectedFriendRow || !conversationList) return;
         const preview = selectedFriendItem.querySelector('.conversation-list-preview');
         const heading = selectedFriendItem.querySelector('.conversation-list-heading');
         if (preview) {
@@ -538,7 +541,11 @@ document.addEventListener('DOMContentLoaded', () => {
             time.textContent = sidebarTimestamp(message.created_at);
         }
         selectedFriendItem.querySelector('.conversation-unread')?.remove();
-        conversationList.prepend(selectedFriendItem);
+        if (!selectedFriendRow.classList.contains('is-message-pinned')) {
+            const firstUnpinnedRow = Array.from(conversationList.querySelectorAll('.conversation-list-row'))
+                .find((row) => !row.classList.contains('is-message-pinned'));
+            if (firstUnpinnedRow && firstUnpinnedRow !== selectedFriendRow) firstUnpinnedRow.before(selectedFriendRow);
+        }
     };
     const syncSidebarPreview = (friend) => {
         if (!friend || !selectedFriendItem) return;

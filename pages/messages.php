@@ -70,8 +70,8 @@ $viewer = mysqli_fetch_assoc(mysqli_stmt_get_result($statement)) ?: ['username' 
 mysqli_stmt_close($statement);
 
 $selectedId = filter_var($_GET['user'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
-$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.custom_status_audience, u.activity_state, u.last_active_at, TIMESTAMPDIFF(SECOND, u.last_active_at, NOW()) AS activity_age_seconds, (SELECT f.nickname FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS nickname, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0 AND unread.deleted_at IS NULL) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id)) AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
-mysqli_stmt_bind_param($statement, 'iiiiiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
+$statement = mysqli_prepare($conn, 'SELECT u.id, u.username, u.avatar_path, u.status_text, u.custom_status_audience, u.activity_state, u.last_active_at, TIMESTAMPDIFF(SECOND, u.last_active_at, NOW()) AS activity_age_seconds, (SELECT f.nickname FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS nickname, (SELECT f.messages_pinned_at FROM friends f WHERE f.user_id = ? AND f.friend_id = u.id LIMIT 1) AS messages_pinned_at, latest_message.sender_id AS last_sender_id, latest_message.content AS last_message, latest_message.created_at AS last_message_at, (SELECT COUNT(*) FROM messages unread WHERE unread.sender_id = u.id AND unread.receiver_id = ? AND unread.is_read = 0 AND unread.deleted_at IS NULL) AS unread_count FROM users u LEFT JOIN messages latest_message ON latest_message.id = (SELECT m.id FROM messages m WHERE ((m.sender_id = ? AND m.receiver_id = u.id) OR (m.receiver_id = ? AND m.sender_id = u.id)) AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT 1) WHERE u.id <> ? AND EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = u.id) OR (f.friend_id = ? AND f.user_id = u.id)) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY messages_pinned_at IS NULL, messages_pinned_at, latest_message.created_at IS NULL, latest_message.created_at DESC, u.username, u.id');
+mysqli_stmt_bind_param($statement, 'iiiiiiiiii', $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId, $currentUserId);
 mysqli_stmt_execute($statement);
 $friends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
 mysqli_stmt_close($statement);
@@ -79,6 +79,13 @@ foreach ($friends as &$friend) {
     $friend['activity_state'] = resolvedActivityState($friend['activity_state'] ?? null, $friend['last_active_at'] ?? null, isset($friend['activity_age_seconds']) ? (int) $friend['activity_age_seconds'] : null);
 }
 unset($friend);
+$messagePinnedFriendCount = count(array_filter($friends, static fn (array $friend): bool => $friend['messages_pinned_at'] !== null));
+$messagePinNotice = match ($_GET['friend_pin'] ?? '') {
+    'updated' => 'Messages friend pins updated.',
+    'limit' => 'You can pin up to 3 friends in Messages. Unpin one before adding another.',
+    'invalid' => 'That friend is no longer available to pin.',
+    default => '',
+};
 $selectedFriend = null;
 foreach ($friends as $friend) {
     if ((int) $friend['id'] === $selectedId) $selectedFriend = $friend;
@@ -118,6 +125,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $appearanceError = 'Refresh the page and try again.';
         } else {
             $error = 'Could not send. Refresh the page and choose a friend.';
+        }
+    } elseif ($action === 'toggle_message_friend_pin') {
+        $friendId = filter_var($_POST['friend_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
+        if (!$friendId || $friendId === $currentUserId) {
+            http_response_code(422);
+            $error = 'Choose a valid friend to pin.';
+        } else {
+            mysqli_begin_transaction($conn);
+            try {
+                $lock = mysqli_prepare($conn, 'SELECT id FROM users WHERE id = ? FOR UPDATE');
+                mysqli_stmt_bind_param($lock, 'i', $currentUserId);
+                mysqli_stmt_execute($lock);
+                $accountExists = mysqli_fetch_assoc(mysqli_stmt_get_result($lock)) !== null;
+                mysqli_stmt_close($lock);
+
+                $friendship = mysqli_prepare($conn, 'SELECT f.messages_pinned_at FROM friends f WHERE f.user_id = ? AND f.friend_id = ? AND EXISTS (SELECT 1 FROM friends reciprocal WHERE reciprocal.user_id = ? AND reciprocal.friend_id = ?) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = ?) OR (b.blocker_id = ? AND b.blocked_id = ?)) LIMIT 1');
+                mysqli_stmt_bind_param($friendship, 'iiiiiiii', $currentUserId, $friendId, $friendId, $currentUserId, $currentUserId, $friendId, $friendId, $currentUserId);
+                mysqli_stmt_execute($friendship);
+                $friendshipRow = mysqli_fetch_assoc(mysqli_stmt_get_result($friendship));
+                mysqli_stmt_close($friendship);
+
+                if (!$accountExists || !$friendshipRow) {
+                    mysqli_rollback($conn);
+                    header('Location: messages.php?friend_pin=invalid');
+                    exit;
+                }
+
+                if ($friendshipRow['messages_pinned_at'] !== null) {
+                    $update = mysqli_prepare($conn, 'UPDATE friends SET messages_pinned_at = NULL WHERE user_id = ? AND friend_id = ?');
+                    mysqli_stmt_bind_param($update, 'ii', $currentUserId, $friendId);
+                    mysqli_stmt_execute($update);
+                    mysqli_stmt_close($update);
+                } else {
+                    $count = mysqli_prepare($conn, 'SELECT COUNT(*) AS pin_count FROM friends WHERE user_id = ? AND messages_pinned_at IS NOT NULL');
+                    mysqli_stmt_bind_param($count, 'i', $currentUserId);
+                    mysqli_stmt_execute($count);
+                    $pinCount = (int) (mysqli_fetch_assoc(mysqli_stmt_get_result($count))['pin_count'] ?? 0);
+                    mysqli_stmt_close($count);
+                    if ($pinCount >= 3) {
+                        mysqli_rollback($conn);
+                        header('Location: messages.php?friend_pin=limit');
+                        exit;
+                    }
+                    $update = mysqli_prepare($conn, 'UPDATE friends SET messages_pinned_at = UTC_TIMESTAMP(6) WHERE user_id = ? AND friend_id = ? AND messages_pinned_at IS NULL');
+                    mysqli_stmt_bind_param($update, 'ii', $currentUserId, $friendId);
+                    mysqli_stmt_execute($update);
+                    mysqli_stmt_close($update);
+                }
+                mysqli_commit($conn);
+            } catch (Throwable $exception) {
+                mysqli_rollback($conn);
+                throw $exception;
+            }
+            header('Location: messages.php?friend_pin=updated');
+            exit;
         }
     } elseif (in_array($action, ['typing', 'stop_typing'], true)) {
         $clientKey = is_string($_POST['typing_client_key'] ?? null) ? $_POST['typing_client_key'] : '';
@@ -520,6 +582,7 @@ if ($selectedFriend) {
                 <input id="conversation-search-input" type="search" placeholder="Search friends" autocomplete="off" data-conversation-search>
             </div>
             <aside class="conversation-list" aria-label="Choose a friend">
+                <?php if ($messagePinNotice !== ''): ?><p class="message-friend-pin-notice" role="status"><?= htmlspecialchars($messagePinNotice, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 <?php if (!$friends): ?><p data-conversation-list-empty>Add a friend to start chatting.</p><?php endif; ?>
                 <?php foreach ($friends as $friend): ?>
                     <?php
@@ -531,6 +594,7 @@ if ($selectedFriend) {
                     $friendDisplayName = trim($friend['nickname'] ?? '') ?: $friend['username'];
                     $hasConversation = $friend['last_message_at'] !== null;
                     ?>
+                    <div class="conversation-list-row<?= $friend['messages_pinned_at'] !== null ? ' is-message-pinned' : '' ?>">
                     <a class="conversation-list-item" href="messages.php?user=<?= (int) $friend['id'] ?>" data-conversation-friend data-friend-name="<?= htmlspecialchars($friendDisplayName . ' ' . $friend['username'], ENT_QUOTES, 'UTF-8') ?>"<?= (int) $friend['id'] === $selectedId ? ' aria-current="page"' : '' ?>>
                         <span class="conversation-list-avatar" data-friend-activity data-friend-id="<?= (int) $friend['id'] ?>" data-state="<?= htmlspecialchars($friend['activity_state'], ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(activityStatusLabel($friend['activity_state'], $friend['last_active_at'] ?? null), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"><span><?= htmlspecialchars($friendInitial, ENT_QUOTES, 'UTF-8') ?></span><?php if ($friendAvatar): ?><img src="<?= htmlspecialchars($friendAvatar, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                         <span class="conversation-list-details">
@@ -542,6 +606,14 @@ if ($selectedFriend) {
                         </span>
                         <?php if ((int) $friend['unread_count'] > 0 && (int) $friend['id'] !== $selectedId): ?><span class="conversation-unread" aria-label="<?= (int) $friend['unread_count'] ?> unread messages"><?= (int) $friend['unread_count'] ?></span><?php endif; ?>
                     </a>
+                    <form class="message-friend-pin-form" method="post" action="messages.php">
+                        <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                        <input type="hidden" name="action" value="toggle_message_friend_pin">
+                        <input type="hidden" name="friend_id" value="<?= (int) $friend['id'] ?>">
+                        <?php $messageFriendIsPinned = $friend['messages_pinned_at'] !== null; ?>
+                        <button type="submit" aria-label="<?= $messageFriendIsPinned ? 'Unpin' : 'Pin' ?> <?= htmlspecialchars($friendDisplayName, ENT_QUOTES, 'UTF-8') ?> in Messages" aria-pressed="<?= $messageFriendIsPinned ? 'true' : 'false' ?>" title="<?= $messageFriendIsPinned ? 'Unpin from Messages' : ($messagePinnedFriendCount >= 3 ? 'You have reached the 3 friend pin limit' : 'Pin in Messages') ?>"<?= !$messageFriendIsPinned && $messagePinnedFriendCount >= 3 ? ' disabled' : '' ?>><?= $messageFriendIsPinned ? '&#9733;' : '&#9734;' ?></button>
+                    </form>
+                    </div>
                 <?php endforeach; ?>
                 <?php if ($friends): ?><p class="conversation-search-empty" data-conversation-search-empty hidden>No friends found.</p><?php endif; ?>
             </aside>

@@ -62,11 +62,13 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Add and apply `database/20261109_remove_post_likes.sql` locally; run it on other existing installations to delete old post-like notifications and drop `post_likes`.
 - [x] Pin up to three posts on a profile, ordered by pin time with owner-only controls.
 - [x] Add and apply `database/20261112_add_profile_post_pins.sql` locally; apply it to existing databases before deploying.
-- [ ] Order dashboard friends by latest interaction, including messages and comments.
+- [x] Order unpinned dashboard friends by latest messages or comments on each other's posts; keep dashboard pins and Top 8 as separate ordering rules.
 - [x] Add up to three dashboard friend pins, ordered by pin time and independent of profile Top 8.
-- [ ] Add up to three Messages friend pins, independent of dashboard pins and Top 8.
+- [x] Add up to three Messages friend pins, independent of dashboard pins and Top 8.
+- [x] Add `messages_pinned_at` to the fresh schema and add its upgrade migration.
+- [ ] Apply `database/20261117_add_messages_friend_pins.sql` to existing databases before deploying.
 - [ ] Add a real typing indicator with expiry and cleanup when a conversation closes.
-- [ ] Cap the displayed notification count at `9+` while preserving the real count.
+- [x] Cap the displayed notification count at `99+` while preserving the real count for accessibility and updates.
 - [ ] Consider a privacy-respecting profile visitor history as a replacement for profile-view notifications.
 - [ ] Verify notification creation, read/unread state, destinations, deduplication, and deleted or inaccessible content.
 
