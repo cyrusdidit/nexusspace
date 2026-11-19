@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const list = box.querySelector('[data-mini-messages]');
     const status = box.querySelector('[data-mini-status]');
     const typingIndicator = box.querySelector('[data-mini-typing]');
+    const typingIndicatorText = box.querySelector('[data-mini-typing-text]');
     const heading = box.querySelector('h2');
     const avatar = box.querySelector('[data-mini-avatar]');
     const activity = box.querySelector('[data-mini-activity]');
@@ -39,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok || data.error || !data.friend) throw new Error(data.error || 'Could not open chat.');
             state.token = data.token;
             if (typingIndicator) {
-                typingIndicator.textContent = `${data.friend.username} is typing…`;
+                if (typingIndicatorText) typingIndicatorText.textContent = `${data.friend.username} is typing`;
                 typingIndicator.hidden = !data.typing;
             }
             send.disabled = state.sending;

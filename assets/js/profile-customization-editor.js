@@ -15,10 +15,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const targetField = document.querySelector('[data-style-target]');
     const propertyFields = [...document.querySelectorAll('[data-style-property]')];
     const draftStatus = document.querySelector('[data-draft-status]');
+    const revisionSelect = document.querySelector('[data-revision-select]');
+    const previewRevision = document.querySelector('[data-preview-revision]');
+    const previewDraft = document.querySelector('[data-preview-draft]');
+    const restoreRevision = document.querySelector('[data-restore-revision]');
     let previewTimer;
     let previewRequest;
     let draftTimer;
-    let draftRequest;
+    let draftQueue = Promise.resolve();
+    let draftSavesPending = 0;
+    let submitAfterDraftSave = false;
+    let submissionWaiting = false;
+    let draftVersion = 0;
     let settings = {};
 
     try {
@@ -28,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     reset?.addEventListener('click', (event) => {
         if (!window.confirm('Restore the default profile template and remove saved styles?')) event.preventDefault();
+    });
+    restoreRevision?.addEventListener('click', (event) => {
+        if (!window.confirm('Restore this saved version? Your current draft will be kept as a history entry.')) event.preventDefault();
     });
     if (!form || !templateField || !cssField || !preview || !htmlWarnings || !cssWarnings || !htmlHighlight || !cssHighlight || !settingsField || !targetField) return;
 
@@ -136,25 +147,34 @@ document.addEventListener('DOMContentLoaded', () => {
             renderWarnings(htmlWarnings, Array.isArray(result.warnings?.html) ? result.warnings.html : []);
             renderWarnings(cssWarnings, Array.isArray(result.warnings?.css) ? result.warnings.css : []);
             preview.src = `profile-customization-preview.php?draft=${encodeURIComponent(result.draft)}`;
+            if (draftStatus) draftStatus.textContent = 'Previewing current draft';
         } catch (error) {
             if (error.name !== 'AbortError') console.error('Could not update the profile preview.', error);
         }
     };
-    const saveDraft = async () => {
-        draftRequest?.abort();
-        draftRequest = new AbortController();
+    const saveDraft = () => {
+        const savingVersion = draftVersion;
         const body = new FormData(form);
         body.set('action', 'draft');
         draftStatus.textContent = 'Saving draft...';
-        try {
-            const response = await fetch(form.action, { method: 'POST', body, credentials: 'same-origin', signal: draftRequest.signal, headers: { Accept: 'application/json' } });
+        draftSavesPending += 1;
+        const save = async () => {
+            const response = await fetch(form.action, { method: 'POST', body, credentials: 'same-origin', headers: { Accept: 'application/json' } });
             if (!response.ok) throw new Error('Draft could not be saved.');
-            draftStatus.textContent = 'Draft saved';
-        } catch (error) {
-            if (error.name !== 'AbortError') draftStatus.textContent = 'Draft not saved';
-        }
+            const result = await response.json();
+            if (result.saved !== true) throw new Error('Draft could not be saved.');
+            if (savingVersion === draftVersion) draftStatus.textContent = 'Draft saved';
+        };
+        const request = draftQueue.then(save, save);
+        draftQueue = request.catch(() => {
+            if (savingVersion === draftVersion) draftStatus.textContent = 'Draft not saved';
+        }).finally(() => {
+            draftSavesPending -= 1;
+        });
+        return draftQueue;
     };
     const scheduleChanges = () => {
+        draftVersion += 1;
         updateHighlights();
         window.clearTimeout(previewTimer);
         window.clearTimeout(draftTimer);
@@ -162,6 +182,16 @@ document.addEventListener('DOMContentLoaded', () => {
         draftTimer = window.setTimeout(saveDraft, 700);
         draftStatus.textContent = 'Unsaved draft';
     };
+
+    previewRevision?.addEventListener('click', () => {
+        const revision = Number(revisionSelect?.value);
+        if (!Number.isInteger(revision) || revision < 1) return;
+        window.clearTimeout(previewTimer);
+        previewRequest?.abort();
+        preview.src = `profile-customization-preview.php?revision=${encodeURIComponent(revision)}`;
+        if (draftStatus) draftStatus.textContent = `Previewing saved version #${revision}`;
+    });
+    previewDraft?.addEventListener('click', refreshPreview);
 
     propertyFields.forEach((field) => field.addEventListener('input', () => {
         const value = field.type === 'number' || field.type === 'range' ? (field.value === '' ? '' : Number(field.value)) : field.value;
@@ -197,7 +227,41 @@ document.addEventListener('DOMContentLoaded', () => {
     cssField.addEventListener('input', scheduleChanges);
     templateField.addEventListener('scroll', () => { htmlHighlight.scrollTop = templateField.scrollTop; htmlHighlight.scrollLeft = templateField.scrollLeft; });
     cssField.addEventListener('scroll', () => { cssHighlight.scrollTop = cssField.scrollTop; cssHighlight.scrollLeft = cssField.scrollLeft; });
-    form.addEventListener('submit', syncSettings);
+    const resumeSubmissionWhenDraftsFinish = (submitter) => {
+        window.clearTimeout(draftTimer);
+        draftTimer = undefined;
+        if (draftSavesPending > 0) {
+            draftQueue.finally(() => resumeSubmissionWhenDraftsFinish(submitter));
+            return;
+        }
+        submissionWaiting = false;
+        submitAfterDraftSave = true;
+        if (submitter && submitter.isConnected && !submitter.disabled) form.requestSubmit(submitter);
+        else form.requestSubmit();
+    };
+    form.addEventListener('submit', (event) => {
+        syncSettings();
+        window.clearTimeout(draftTimer);
+        draftTimer = undefined;
+        if (submissionWaiting) {
+            event.preventDefault();
+            return;
+        }
+        if (submitAfterDraftSave) {
+            submitAfterDraftSave = false;
+            if (draftSavesPending > 0) {
+                event.preventDefault();
+                submissionWaiting = true;
+                resumeSubmissionWhenDraftsFinish(event.submitter);
+            }
+            return;
+        }
+        if (draftSavesPending === 0) return;
+
+        event.preventDefault();
+        submissionWaiting = true;
+        resumeSubmissionWhenDraftsFinish(event.submitter);
+    });
     renderPropertyFields();
     updateHighlights();
     refreshPreview();

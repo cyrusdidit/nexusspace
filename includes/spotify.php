@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/provider_errors.php';
 
 const SPOTIFY_SCOPES = 'streaming user-read-email user-read-private user-read-currently-playing user-read-playback-state user-modify-playback-state user-library-modify';
 
@@ -72,9 +73,7 @@ function spotifyHttpRequest(string $method, string $url, array $headers = [], ?a
     curl_setopt_array($curl, $options);
     $body = curl_exec($curl);
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_error($curl);
-
-    if ($body === false) throw new RuntimeException($error !== '' ? $error : 'Spotify could not be reached.');
+    if ($body === false) throw new ProviderNetworkException('Spotify could not be reached.');
     $data = $body === '' ? null : json_decode($body, true);
     return ['status' => $status, 'data' => is_array($data) ? $data : null];
 }
@@ -87,6 +86,9 @@ function spotifyRefreshConnection(mysqli $conn, array $connection): array
         'refresh_token' => spotifyDecrypt($connection['refresh_token']),
         'client_id' => $config['client_id'],
     ]);
+    if ($response['status'] === 429 || $response['status'] >= 500) {
+        throw new ProviderNetworkException('Spotify is temporarily unavailable.');
+    }
     if ($response['status'] !== 200 || empty($response['data']['access_token'])) {
         throw new RuntimeException('Spotify authorization needs to be renewed.');
     }

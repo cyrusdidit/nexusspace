@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/env.php';
+require_once __DIR__ . '/provider_errors.php';
 
 function steamApiKey(): string
 {
@@ -52,9 +53,8 @@ function steamRequest(string $endpoint, array $parameters): array
     ]);
     $body = curl_exec($curl);
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_error($curl);
-
-    if ($body === false) throw new RuntimeException($error !== '' ? $error : 'Steam could not be reached.');
+    if ($body === false) throw new ProviderNetworkException('Steam could not be reached.');
+    if ($status === 429 || $status >= 500) throw new ProviderNetworkException('Steam is temporarily unavailable.');
     $data = json_decode($body, true);
     if ($status !== 200 || !is_array($data)) throw new RuntimeException('Steam returned an invalid response.');
     return $data;
@@ -119,7 +119,10 @@ function steamVerifyOpenId(array $query, string $state): string
     ]);
     $body = curl_exec($curl);
     $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    if ($body === false || $status !== 200 || !preg_match('/^is_valid:true$/mi', $body)) {
+    if ($body === false || $status === 429 || $status >= 500) {
+        throw new ProviderNetworkException('Steam could not verify the sign-in right now.');
+    }
+    if ($status !== 200 || !preg_match('/^is_valid:true$/mi', $body)) {
         throw new RuntimeException('Steam could not verify this login.');
     }
 

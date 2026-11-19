@@ -65,6 +65,8 @@ try {
     mysqli_stmt_execute($statement);
     mysqli_stmt_close($statement);
     header('Location: ' . steamSettingsUrl('connected'));
+} catch (ProviderNetworkException $exception) {
+    header('Location: ' . steamSettingsUrl('unavailable'));
 } catch (Throwable $exception) {
     header('Location: ' . steamSettingsUrl('failed'));
 }

@@ -424,7 +424,17 @@ document.addEventListener('DOMContentLoaded', () => {
     typingIndicator.setAttribute('role', 'status');
     typingIndicator.setAttribute('aria-live', 'polite');
     typingIndicator.hidden = true;
-    typingIndicator.textContent = `${form.dataset.friendName} is typing…`;
+    const typingIndicatorText = document.createElement('span');
+    typingIndicatorText.textContent = `${form.dataset.friendName} is typing`;
+    const typingIndicatorDots = document.createElement('span');
+    typingIndicatorDots.className = 'typing-indicator-dots';
+    typingIndicatorDots.setAttribute('aria-hidden', 'true');
+    for (let dot = 0; dot < 3; dot++) {
+        const typingDot = document.createElement('span');
+        typingDot.textContent = '•';
+        typingIndicatorDots.append(typingDot);
+    }
+    typingIndicator.append(typingIndicatorText, typingIndicatorDots);
     list.closest('.conversation-messages-shell')?.after(typingIndicator);
     let typingTimer = null;
     let lastTypingUpdate = 0;

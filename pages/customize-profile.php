@@ -41,7 +41,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Choose a valid revision.';
         } else {
             try {
-                $newRevision = restoreProfileCustomizationRevision($conn, $currentUserId, (int) $revisionNumber);
+                $revision = readProfileCustomizationRevision($conn, $currentUserId, (int) $revisionNumber);
+                if (!$revision) throw new InvalidArgumentException('That profile revision no longer exists.');
+
+                $draft = readProfileCustomizationDraft($conn, $currentUserId);
+                if ($draft) {
+                    $published = readProfileCustomization($conn, $currentUserId);
+                    $draftDiffers = $draft['template_html'] !== $published['template_html']
+                        || $draft['custom_css'] !== $published['custom_css']
+                        || $draft['simple_settings'] !== $published['simple_settings']
+                        || $draft['sidebar_width'] !== $published['sidebar_width'];
+                    if ($draftDiffers) {
+                        saveProfileCustomization($conn, $currentUserId, $draft['template_html'], $draft['custom_css'], $draft['simple_settings'], $draft['sidebar_width']);
+                    }
+                }
+                $newRevision = saveProfileCustomization(
+                    $conn,
+                    $currentUserId,
+                    (string) $revision['template_html'],
+                    (string) $revision['custom_css'],
+                    $revision['simple_settings'],
+                    $revision['sidebar_width']
+                );
                 if (str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json')) {
                     header('Content-Type: application/json; charset=utf-8');
                     echo json_encode(['saved' => true, 'revision' => $newRevision], JSON_UNESCAPED_SLASHES);
@@ -119,6 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+$revisionHistory = readProfileCustomizationRevisions($conn, $currentUserId);
 ?>
 <!doctype html>
 <html lang="en">
@@ -147,12 +170,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($error !== ''): ?><p class="profile-customization-notice is-error" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
             <?php if (isset($_GET['saved'])): ?><p class="profile-customization-notice" role="status">Customization saved.</p><?php endif; ?>
             <?php if (isset($_GET['reset'])): ?><p class="profile-customization-notice" role="status">Default template restored.</p><?php endif; ?>
+            <?php if (isset($_GET['restored'])): ?><p class="profile-customization-notice" role="status">Saved version restored. Your previous draft is available in history.</p><?php endif; ?>
             <div class="profile-customization-workspace">
                 <section class="profile-customization-tools" aria-label="Customization controls">
                     <div class="profile-customization-tabs" role="tablist" aria-label="Editor mode">
                         <button type="button" role="tab" aria-selected="true" aria-controls="profile-simple-editor" data-editor-mode="simple">Simple</button>
                         <button type="button" role="tab" aria-selected="false" aria-controls="profile-advanced-editor" data-editor-mode="advanced">Advanced</button>
                     </div>
+                    <details class="profile-revision-history">
+                        <summary>Saved versions (<?= count($revisionHistory) ?>)</summary>
+                        <?php if ($revisionHistory): ?>
+                            <label for="profile-revision-select">Choose a saved version</label>
+                            <select id="profile-revision-select" name="revision_number" data-revision-select>
+                                <?php foreach ($revisionHistory as $revision): ?>
+                                    <option value="<?= (int) $revision['revision_number'] ?>">#<?= (int) $revision['revision_number'] ?> &middot; <?= htmlspecialchars(date('M j, Y g:i A', strtotime($revision['created_at'])), ENT_QUOTES, 'UTF-8') ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="profile-revision-actions">
+                                <button type="button" class="button-secondary" data-preview-revision>Preview version</button>
+                                <button type="button" class="button-secondary" data-preview-draft>Back to draft</button>
+                                <button type="submit" name="action" value="restore_revision" data-restore-revision>Restore version</button>
+                            </div>
+                            <small>Restoring keeps the current draft as a new history entry.</small>
+                        <?php else: ?>
+                            <p>Saved versions will appear here after your first customization save.</p>
+                        <?php endif; ?>
+                    </details>
                     <div class="profile-simple-editor" id="profile-simple-editor" role="tabpanel" data-simple-editor>
                         <div class="profile-target-picker">
                             <label for="profile-style-target">Edit part</label>

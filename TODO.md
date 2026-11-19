@@ -54,7 +54,7 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [ ] Verify Spotify connect, reconnect, disconnect, token refresh, current activity, song search, and playback through the browser.
 - [ ] Verify Steam connect, reconnect, disconnect, game activity, and one Steam account shared by multiple NexusSpace accounts.
 - [ ] Test status visibility independently for custom status, Spotify, and Steam, as owner/friend/stranger/blocked user.
-- [ ] Make failed connection messages useful and distinguish configuration, provider denial, expired requests, and network failures.
+- [x] Make failed connection messages useful and distinguish configuration, provider denial, expired requests, and network failures.
 
 ## 3. Finish the planned social features
 
@@ -67,19 +67,21 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Add up to three Messages friend pins, independent of dashboard pins and Top 8.
 - [x] Add `messages_pinned_at` to the fresh schema and add its upgrade migration.
 - [ ] Apply `database/20261117_add_messages_friend_pins.sql` to existing databases before deploying.
-- [ ] Add a real typing indicator with expiry and cleanup when a conversation closes.
+- [x] Add a real typing indicator with expiry, conversation-close cleanup, and animated dots in Messages and mini-chat.
 - [x] Cap the displayed notification count at `99+` while preserving the real count for accessibility and updates.
 - [ ] Consider a privacy-respecting profile visitor history as a replacement for profile-view notifications.
 - [ ] Verify notification creation, read/unread state, destinations, deduplication, and deleted or inaccessible content.
 
 ## 4. Profile customization and visual polish
 
-- [ ] Check the condensed Top 8 and lowered position on desktop, short windows, narrow sidebars, and mobile.
-- [ ] Verify empty bio prompt appears only to the owner; visitors get a blank box. Test saving and clearing a bio.
-- [ ] Complete customization previews for activity, profile songs, post media, comments, and owner controls.
-- [ ] Verify each simple-editor target changes the intended element and preserves working controls.
-- [ ] Expose saved revision history and restore/recovery controls; session undo/redo already exists.
-- [ ] Test malformed HTML/CSS recovery and draft autosave across reloads.
+- [x] Review the condensed Top 8 and lowered position across desktop, short windows, narrow sidebars, and mobile; truncate long friend names on narrow rows.
+- [x] Show the empty bio prompt only to the owner; keep the visitor's empty bio box blank.
+- [x] Test saving and clearing a bio; verify the handler redirects after save and shows a blank-bio prompt only to the owner.
+- [x] Verify customization previews for activity, profile songs, post media, comments, and owner controls; confirm target markers are present in preview markup or shared renderers.
+- [x] Verify simple-editor targets against live profile markup and generated controls; remove stale profile-song volume targets that had no live controls.
+- [x] Expose saved revision history with preview and restore controls; preserve an unsaved draft as a recoverable revision before restore.
+- [x] Test malformed HTML/CSS recovery; preserve raw drafts, warn and sanitize previews, and allow corrected content to replace them.
+- [x] Test draft autosave, recovery after reloads, and cleanup after publishing.
 - [ ] Update `docs/profile-customization-map.md` where it no longer matches the implementation.
 - [ ] Finish the Messages custom CSS panel or remove its unfinished entry point until ready.
 - [ ] Check keyboard navigation, focus indicators, accessible labels, contrast, and reduced-motion behavior.

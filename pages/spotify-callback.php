@@ -52,12 +52,18 @@ try {
         'redirect_uri' => $config['redirect_uri'],
         'code_verifier' => (string) $oauth['code_verifier'],
     ]);
+    if ($tokenResponse['status'] === 429 || $tokenResponse['status'] >= 500) {
+        throw new ProviderNetworkException('Spotify is temporarily unavailable.');
+    }
     if ($tokenResponse['status'] !== 200 || empty($tokenResponse['data']['access_token']) || empty($tokenResponse['data']['refresh_token'])) {
         throw new RuntimeException('Spotify did not return usable credentials.');
     }
 
     $accessToken = (string) $tokenResponse['data']['access_token'];
     $profileResponse = spotifyHttpRequest('GET', 'https://api.spotify.com/v1/me', ['Authorization: Bearer ' . $accessToken]);
+    if ($profileResponse['status'] === 429 || $profileResponse['status'] >= 500) {
+        throw new ProviderNetworkException('Spotify is temporarily unavailable.');
+    }
     if ($profileResponse['status'] !== 200 || empty($profileResponse['data']['id'])) {
         throw new RuntimeException('Spotify profile information was unavailable.');
     }
@@ -76,6 +82,8 @@ try {
     mysqli_stmt_close($statement);
 
     header('Location: ' . spotifySettingsUrl('connected'));
+} catch (ProviderNetworkException $exception) {
+    header('Location: ' . spotifySettingsUrl('unavailable'));
 } catch (Throwable $exception) {
     header('Location: ' . spotifySettingsUrl('failed'));
 }
