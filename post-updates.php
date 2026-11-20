@@ -30,17 +30,24 @@ $profileUserId = filter_var($_POST['profile_user_id'] ?? null, FILTER_VALIDATE_I
 $mode = ($_POST['mode'] ?? '') === 'older' ? 'older' : 'refresh';
 $requestedIds = json_decode(is_string($_POST['post_ids'] ?? null) ? $_POST['post_ids'] : '[]', true);
 $requestedCount = is_array($requestedIds) ? min(200, count($requestedIds)) : 0;
-$authorFilter = $context === 'profile' ? 'p.user_id = ' . ($profileUserId ?: 0) . ' AND ' : '';
-$cursorFilter = '';
+$filters = [];
+$bindTypes = '';
+$bindValues = [];
+if ($context === 'profile') {
+    $filters[] = 'p.user_id = ?';
+    $bindTypes .= 'i';
+    $bindValues[] = (int) ($profileUserId ?: 0);
+}
 if ($mode === 'older') {
     $beforeCreated = is_string($_POST['before_created_at'] ?? null) ? $_POST['before_created_at'] : '';
     $beforeId = filter_var($_POST['before_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
     if ($beforeCreated === '' || !$beforeId || DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $beforeCreated) === false) {
         postUpdatesResponse(['ok' => false, 'error' => 'The post cursor is invalid.'], 422);
     }
-    $escapedCreated = mysqli_real_escape_string($conn, $beforeCreated);
-    $cursorFilter = "(p.created_at < '{$escapedCreated}' OR (p.created_at = '{$escapedCreated}' AND p.id < {$beforeId})) AND ";
-    if ($context === 'profile') $cursorFilter = 'p.pinned_at IS NULL AND ' . $cursorFilter;
+    if ($context === 'profile') $filters[] = 'p.pinned_at IS NULL';
+    $filters[] = '(p.created_at < ? OR (p.created_at = ? AND p.id < ?))';
+    $bindTypes .= 'ssi';
+    array_push($bindValues, $beforeCreated, $beforeCreated, (int) $beforeId);
 }
 $limit = $mode === 'older' ? 26 : min(250, max(50, $requestedCount + 50));
 $pinFields = $context === 'profile'
@@ -49,10 +56,21 @@ $pinFields = $context === 'profile'
 $orderBy = $context === 'profile'
     ? 'p.pinned_at IS NULL ASC, p.pinned_at ASC, p.created_at DESC, p.id DESC'
     : 'p.created_at DESC, p.id DESC';
-$query = "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at{$pinFields}, u.username, u.avatar_path FROM posts p JOIN users u ON u.id = p.user_id WHERE {$authorFilter}{$cursorFilter}(p.visibility = 'public' OR p.user_id = {$viewerId} OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = {$viewerId} AND f.friend_id = p.user_id) OR (f.friend_id = {$viewerId} AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = {$viewerId} AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = {$viewerId})) ORDER BY {$orderBy} LIMIT {$limit}";
-$result = mysqli_query($conn, $query);
+$filters[] = "(p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id)))";
+$filters[] = 'NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))';
+$bindTypes .= 'iiiii';
+array_push($bindValues, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId);
+$query = "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at{$pinFields}, u.username, u.avatar_path FROM posts p JOIN users u ON u.id = p.user_id WHERE " . implode(' AND ', $filters) . " ORDER BY {$orderBy} LIMIT {$limit}";
+$statement = mysqli_prepare($conn, $query);
+$bindParameters = [$statement, $bindTypes];
+foreach ($bindValues as $index => &$value) $bindParameters[] = &$value;
+unset($value);
+call_user_func_array('mysqli_stmt_bind_param', $bindParameters);
+mysqli_stmt_execute($statement);
+$result = mysqli_stmt_get_result($statement);
 $posts = [];
 while ($post = mysqli_fetch_assoc($result)) $posts[(int) $post['id']] = $post;
+mysqli_stmt_close($statement);
 $hasMore = $mode === 'older' && count($posts) > 25;
 if ($hasMore) array_pop($posts);
 $mediaByPost = loadPostMedia($conn, array_keys($posts));

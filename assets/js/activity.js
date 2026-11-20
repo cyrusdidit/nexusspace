@@ -95,26 +95,36 @@ if (activityEndpoint) {
 }
 
 if (profileActivity && activityStatusEndpoint) {
-    const refreshProfileActivity = async () => {
-        if (document.hidden) return;
-        try {
-            const url = new URL(activityStatusEndpoint, window.location.href);
-            url.searchParams.set('user', profileActivity.dataset.userId);
-            const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
-            const data = await response.json();
-            if (!response.ok || data.error) return;
-            profileActivity.dataset.state = data.state;
-            const label = data.state === 'online' ? 'Online' : data.state === 'idle' ? 'Idle' : 'Offline';
-            profileActivity.title = label;
-            profileActivity.querySelector('[data-activity-label]').textContent = label;
-        } catch (error) {
-            // Keep the last known status during a temporary connection failure.
-        }
-    };
+    const isOwnProfile = profileActivity.dataset.userId === activityRoot.dataset.currentUserId;
+    if (!isOwnProfile) {
+        let profileActivityRefreshInFlight = false;
+        const refreshProfileActivity = async () => {
+            if (document.hidden || profileActivityRefreshInFlight) return;
+            profileActivityRefreshInFlight = true;
+            try {
+                const url = new URL(activityStatusEndpoint, window.location.href);
+                url.searchParams.set('user', profileActivity.dataset.userId);
+                const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+                const data = await response.json();
+                if (!response.ok || data.error) return;
+                profileActivity.dataset.state = data.state;
+                const label = data.state === 'online' ? 'Online' : data.state === 'idle' ? 'Idle' : 'Offline';
+                profileActivity.title = label;
+                profileActivity.querySelector('[data-activity-label]').textContent = label;
+            } catch (error) {
+                // Keep the last known status during a temporary connection failure.
+            } finally {
+                profileActivityRefreshInFlight = false;
+            }
+        };
 
-    window.setInterval(refreshProfileActivity, 3000);
-    window.addEventListener('focus', refreshProfileActivity);
-    refreshProfileActivity();
+        window.setInterval(refreshProfileActivity, 15 * 1000);
+        window.addEventListener('focus', refreshProfileActivity);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) refreshProfileActivity();
+        });
+        refreshProfileActivity();
+    }
 }
 
 const spotifyActivityEndpoint = activityRoot.dataset.spotifyActivityEndpoint;

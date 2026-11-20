@@ -468,7 +468,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
         $avatarError = 'Please refresh the page and try again.';
     } elseif (!is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
         $avatarError = 'Choose an image to upload.';
-    } elseif (($upload['size'] ?? 0) > 5 * 1024 * 1024) {
+    } elseif (!is_string($upload['tmp_name'] ?? null) || !is_uploaded_file($upload['tmp_name'])) {
+        $avatarError = 'The uploaded image could not be verified.';
+    } elseif (!is_int($upload['size'] ?? null) || $upload['size'] < 1 || $upload['size'] > 5 * 1024 * 1024) {
         $avatarError = 'Use an image smaller than 5 MB.';
     } elseif (!consumeSecurityRateLimit($conn, 'avatar_upload_user', (string) $currentUserId, 10, 3600)) {
         http_response_code(429);

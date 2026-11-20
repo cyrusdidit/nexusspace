@@ -348,11 +348,15 @@ function sanitizeProfileTemplate(string $templateHtml): string
 
     $document = new DOMDocument('1.0', 'UTF-8');
     $previousErrors = libxml_use_internal_errors(true);
-    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $templateHtml . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $templateHtml . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
     libxml_clear_errors();
     libxml_use_internal_errors($previousErrors);
 
-    $blockedElements = ['base', 'button', 'embed', 'form', 'iframe', 'input', 'link', 'math', 'meta', 'object', 'option', 'script', 'select', 'style', 'svg', 'textarea'];
+    $blockedElements = [
+        'applet', 'base', 'button', 'embed', 'form', 'frame', 'frameset', 'iframe', 'input', 'link', 'math', 'meta',
+        'noembed', 'noframes', 'noscript', 'object', 'option', 'plaintext', 'portal', 'script', 'select', 'slot',
+        'style', 'svg', 'template', 'textarea', 'title', 'xmp',
+    ];
     $elements = [];
     foreach ($document->getElementsByTagName('*') as $element) $elements[] = $element;
     foreach ($elements as $element) {
@@ -366,11 +370,11 @@ function sanitizeProfileTemplate(string $templateHtml): string
             $lowerName = strtolower($attributeName);
             $value = $element->getAttribute($attributeName);
             if ($lowerName === 'id' && $value === 'profile-template-root') continue;
-            if (str_starts_with($lowerName, 'on') || str_starts_with($lowerName, 'data-') || in_array($lowerName, ['id', 'formaction', 'srcdoc', 'style'], true) || str_contains($lowerName, ':') || str_contains($value, '{{')) {
+            if (str_starts_with($lowerName, 'on') || str_starts_with($lowerName, 'data-') || in_array($lowerName, ['id', 'formaction', 'ping', 'srcdoc', 'srcset', 'style'], true) || str_contains($lowerName, ':') || str_contains($value, '{{')) {
                 $element->removeAttribute($attributeName);
                 continue;
             }
-            if (in_array($lowerName, ['href', 'src'], true) && !isSafeProfileTemplateUrl($value, $lowerName === 'href')) {
+            if (in_array($lowerName, ['background', 'cite', 'href', 'manifest', 'poster', 'src'], true) && !isSafeProfileTemplateUrl($value, $lowerName === 'href')) {
                 $element->removeAttribute($attributeName);
             }
         }
@@ -406,7 +410,7 @@ function decorateProfileTemplate(string $safeTemplate): string
 {
     $document = new DOMDocument('1.0', 'UTF-8');
     $previousErrors = libxml_use_internal_errors(true);
-    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $safeTemplate . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $safeTemplate . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
     libxml_clear_errors();
     libxml_use_internal_errors($previousErrors);
 
@@ -432,7 +436,7 @@ function appendLockedProfileControlsPlaceholder(string $safeTemplate): string
     $safeTemplate = str_replace('{{profile_controls}}', '', $safeTemplate);
     $document = new DOMDocument('1.0', 'UTF-8');
     $previousErrors = libxml_use_internal_errors(true);
-    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $safeTemplate . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+    $document->loadHTML('<?xml encoding="UTF-8"><div id="profile-template-root">' . $safeTemplate . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NONET);
     libxml_clear_errors();
     libxml_use_internal_errors($previousErrors);
 
@@ -480,7 +484,7 @@ function extractSafeProfileKeyframes(string $css, array &$nameMap): ?array
                 if (!preg_match('/^(?:from|to|(?:100|\d{1,2})(?:\.\d+)?%)$/i', $selector)) return null;
             }
             $declarations = trim(preg_replace('/\s*!important\b/i', '', $step[2]) ?? '');
-            if ($declarations === '' || preg_match('~(?:@|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i', $declarations)) return null;
+            if ($declarations === '' || preg_match('~(?:@|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:)~i', $declarations)) return null;
             $safeSteps[] = implode(', ', $selectors) . " {\n        " . $declarations . "\n    }";
         }
 
@@ -500,8 +504,9 @@ function sanitizeAndScopeProfileCss(string $customCss, string $scope = '.profile
     $css = preg_replace('~/\*.*?\*/~s', '', $customCss) ?? '';
     if (trim($css) === '') return '';
 
-    $blockedSyntax = '~(?:\\\\|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:|position\s*:\s*fixed\b)~i';
-    if (preg_match($blockedSyntax, $css) || substr_count($css, '{') !== substr_count($css, '}')) return '';
+    $blockedSyntax = '~(?:\\\\|url\s*\(|expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:)~i';
+    $nonStaticPosition = '~(?:^|[;{])\s*position\s*:\s*(?!static(?:\s*!important)?\s*(?:;|}|$))[^;}]*~i';
+    if (preg_match($blockedSyntax, $css) || preg_match($nonStaticPosition, $css) || substr_count($css, '{') !== substr_count($css, '}')) return '';
 
     $nameMap = [];
     $extracted = extractSafeProfileKeyframes($css, $nameMap);
@@ -616,14 +621,17 @@ function validateProfileTemplate(string $templateHtml): array
         if (!isset($placeholders[$placeholder])) $warnings[] = 'Missing {{' . $placeholder . '}}; that profile module will not appear.';
     }
 
-    if (preg_match('~<(?:base|button|embed|form|iframe|input|link|math|meta|object|option|script|select|style|svg|textarea)\b~i', $templateHtml)) {
-        $warnings[] = 'Interactive, script, style, SVG, MathML, or embedded elements are removed from custom HTML.';
+    if (preg_match('~<(?:applet|base|button|embed|form|frame|frameset|iframe|input|link|math|meta|noembed|noframes|noscript|object|option|plaintext|portal|script|select|slot|style|svg|template|textarea|title|xmp)\b~i', $templateHtml)) {
+        $warnings[] = 'Interactive, parser-sensitive, script, style, SVG, MathML, or embedded elements are removed from custom HTML.';
     }
     if (preg_match('~\s(?:on[a-z]+|style|srcdoc|formaction)\s*=~i', $templateHtml)) {
         $warnings[] = 'Inline styles and event attributes are removed from custom HTML.';
     }
     if (preg_match('~\s(?:id|data-[a-z0-9_-]+)\s*=~i', $templateHtml)) {
         $warnings[] = 'Custom IDs and data attributes are removed to protect profile controls.';
+    }
+    if (preg_match('~\s(?:ping|srcset)\s*=~i', $templateHtml)) {
+        $warnings[] = 'Link ping tracking and unvalidated responsive image URLs are removed from custom HTML.';
     }
 
     foreach (['div', 'aside', 'section', 'article', 'header', 'footer', 'nav', 'main', 'span'] as $tag) {
@@ -644,7 +652,9 @@ function validateProfileCss(string $customCss): array
     if (substr_count($css, '{') !== substr_count($css, '}')) $warnings[] = 'CSS braces are unbalanced.';
     if (preg_match('/@(?!keyframes\b)/i', $css)) $warnings[] = 'Only @keyframes animation rules are supported.';
     if (preg_match('~url\s*\(~i', $css)) $warnings[] = 'External images, fonts, and other url() resources are blocked.';
-    if (preg_match('~position\s*:\s*fixed\b~i', $css)) $warnings[] = 'Fixed positioning is blocked to keep customization inside the profile.';
+    if (preg_match('~(?:^|[;{])\s*position\s*:\s*(?!static(?:\s*!important)?\s*(?:;|}|$))[^;}]*~i', $css)) {
+        $warnings[] = 'Only static positioning is allowed so custom styles stay within the profile layout.';
+    }
     if (preg_match('~!important\b~i', $css)) $warnings[] = '!important is removed from custom CSS.';
     if (preg_match('~(?:expression\s*\(|javascript\s*:|vbscript\s*:|</?style|behavior\s*:|-moz-binding\s*:)~i', $css)) {
         $warnings[] = 'Unsafe CSS syntax is blocked.';

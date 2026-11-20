@@ -30,16 +30,22 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Add per-account rate limits for Spotify and Steam activity refresh endpoints.
 - [x] Apply the pending 20261104–20261112 schema migrations to the local database; browser behavior still needs verification.
 - [ ] Audit custom HTML/CSS sanitization for stored XSS, unsafe URLs, SVG/MathML, attributes, CSS escapes, and styles escaping the profile. Decide whether to replace the custom sanitizer with a maintained library; the original plan names HTML Purifier.
+- [x] Block parser-sensitive raw-text and embedded elements from profile templates to reduce browser/parser interpretation differences.
+- [x] Validate profile-template resource URLs and remove unparsed `srcset` and link-ping attributes.
+- [x] Block non-static CSS positioning, including values supplied through CSS variables, to keep custom styles inside the profile layout.
 - [x] Block custom SVG/MathML markup, namespaced attributes, unsafe URL schemes, and CSS escape obfuscation.
 - [ ] Audit output escaping and SQL queries throughout the app; retain prepared statements for user-controlled values.
+- [x] Bind profile author, pagination cursor, viewer, friendship, and block filters in the post refresh endpoint.
 - [x] Audit upload MIME/content checks, size and count limits, ownership, filenames, and deletion paths; cap avatar image dimensions and block script execution in upload directories.
 - [x] Serve post media through post visibility and block checks while preserving byte-range video requests.
-- [ ] Introduce CSP in report-only mode, resolve violations, then enforce it. Account for Spotify playback, media, custom profiles, and inline styles/scripts.
+- [x] Add an initial report-only CSP in Apache for same-origin scripts/styles/API requests, external HTTPS images, and the Spotify embed.
+- [ ] Review browser CSP reports for inline styles and any other required resources, adjust the policy, then enforce it. Account for Spotify playback, media, custom profiles, and inline styles/scripts.
 - [x] Set content-type sniffing, framing, and referrer protections in Apache.
-- [ ] Confirm the headers work in Laragon and add a CSP in report-only mode.
+- [x] Confirm the security headers work in Laragon.
 - [x] Add Apache rules to disable directory listing and block hidden files and internal directories.
 - [x] Deny web access to script and HTML files inside uploads.
-- [ ] Confirm the Apache rules work in Laragon and also secure the production web server.
+- [x] Confirm Apache blocks hidden files, internal directories, and executable upload paths in Laragon; directory indexes are disabled.
+- [ ] Confirm equivalent protections on the production web server.
 - [x] Move local database credentials to ignored `.env` configuration and use a schema-scoped application account with CRUD privileges.
 - [ ] Configure and verify the production database account and secret outside the source tree.
 - [ ] Use HTTPS and production callback URLs when hosted. Preserve certificate verification for outbound requests.
@@ -66,7 +72,7 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Add up to three dashboard friend pins, ordered by pin time and independent of profile Top 8.
 - [x] Add up to three Messages friend pins, independent of dashboard pins and Top 8.
 - [x] Add `messages_pinned_at` to the fresh schema and add its upgrade migration.
-- [ ] Apply `database/20261117_add_messages_friend_pins.sql` to existing databases before deploying.
+- [x] Apply `database/20261117_add_messages_friend_pins.sql` to the local database; apply it to other existing databases before deploying.
 - [x] Add a real typing indicator with expiry, conversation-close cleanup, and animated dots in Messages and mini-chat.
 - [x] Cap the displayed notification count at `99+` while preserving the real count for accessibility and updates.
 - [ ] Consider a privacy-respecting profile visitor history as a replacement for profile-view notifications.
@@ -83,16 +89,17 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Test malformed HTML/CSS recovery; preserve raw drafts, warn and sanitize previews, and allow corrected content to replace them.
 - [x] Test draft autosave, recovery after reloads, and cleanup after publishing.
 - [ ] Update `docs/profile-customization-map.md` where it no longer matches the implementation.
-- [ ] Finish the Messages custom CSS panel or remove its unfinished entry point until ready.
+- [x] Remove the Messages custom CSS entry point until a working editor is ready.
 - [ ] Check keyboard navigation, focus indicators, accessible labels, contrast, and reduced-motion behavior.
 - [ ] Review dashboard, profile, Messages, and Settings for consistent spacing and retro styling.
 
 ## 5. Reliability, setup, and performance
 
-- [ ] Add a README with Laragon setup, database import, environment settings, integration setup, and common startup errors.
+- [x] Add a README with Laragon setup, database import, environment settings, integration setup, and common startup errors.
 - [ ] Reconcile the fresh schema and migration documentation, including the shared-Steam-account migration. Fresh installs must not rerun historical migrations.
 - [ ] Test fresh installation and upgrades separately, including MySQL/MariaDB compatibility.
 - [ ] Profile polling frequency and queries; pause unnecessary background polling and prevent overlapping requests.
+- [x] Skip redundant own-profile presence polls, refresh visitor presence every 15 seconds, and prevent overlapping requests.
 - [ ] Check indexes and pagination with larger message, friend, post, comment, and notification datasets.
 - [ ] Define upload/storage limits and cleanup for expired OAuth requests, drafts/revisions, and unused media.
 - [ ] Add a database/upload backup and restore procedure and test restoration.

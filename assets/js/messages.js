@@ -21,9 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const customizationPanel = document.querySelector('[data-message-customization]');
     const customizationToggle = document.querySelector('[data-message-customization-toggle]');
     const customizationClose = document.querySelector('[data-message-customization-close]');
-    const customizationForm = document.querySelector('[data-message-customization] .messages-customization-form');
-    const cssToggle = document.querySelector('[data-message-css-toggle]');
-    const cssEditor = document.querySelector('[data-message-css-editor]');
     const resetDialog = document.querySelector('[data-message-reset-dialog]');
     const resetOpen = document.querySelector('[data-message-reset-open]');
     const resetCancel = resetDialog?.querySelectorAll('[data-message-reset-cancel]') || [];
@@ -50,13 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let backgroundThumbnail = document.querySelector('[data-message-background-thumbnail]');
     let previewImageUrl = '';
     let setCustomizationOpen = () => {};
-    const setCssEditorOpen = (open) => {
-        if (!customizationForm || !cssToggle || !cssEditor) return;
-        customizationForm.hidden = open;
-        cssEditor.hidden = !open;
-        cssToggle.setAttribute('aria-pressed', String(open));
-        if (open) cssEditor.querySelector('textarea')?.focus();
-    };
     const setProfileOpen = (open) => {
         if (!page || !profilePanel || !profileToggle) return;
         if (open) setCustomizationOpen(false);
@@ -128,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
         customizationPanel.hidden = !open;
         customizationToggle.setAttribute('aria-expanded', String(open));
         if (!open) {
-            setCssEditorOpen(false);
             if (restoreBackground) resetBackgroundControls();
         }
         if (open) customizationClose?.focus();
@@ -139,7 +128,6 @@ document.addEventListener('DOMContentLoaded', () => {
         profileToggle.focus();
     });
     customizationToggle?.addEventListener('click', () => setCustomizationOpen(customizationPanel.hidden));
-    cssToggle?.addEventListener('click', () => setCssEditorOpen(cssToggle.getAttribute('aria-pressed') !== 'true'));
     customizationClose?.addEventListener('click', () => {
         setCustomizationOpen(false);
         customizationToggle.focus();
