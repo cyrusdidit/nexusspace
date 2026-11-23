@@ -26,6 +26,22 @@ function spotifyIsConfigured(): bool
         && strlen($config['app_key']) >= 32;
 }
 
+function spotifySafeHttpsUrl(mixed $value, ?array $allowedHosts = null): ?string
+{
+    if (!is_string($value) || filter_var($value, FILTER_VALIDATE_URL) === false) return null;
+    $parts = parse_url($value);
+    if (!is_array($parts)
+        || strtolower((string) ($parts['scheme'] ?? '')) !== 'https'
+        || empty($parts['host'])
+        || isset($parts['user'])
+        || isset($parts['pass'])
+        || (isset($parts['port']) && (int) $parts['port'] !== 443)) {
+        return null;
+    }
+    if ($allowedHosts !== null && !in_array(strtolower((string) $parts['host']), $allowedHosts, true)) return null;
+    return $value;
+}
+
 function spotifySettingsUrl(string $status): string
 {
     $appUrl = spotifyConfig()['app_url'];

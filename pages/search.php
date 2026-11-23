@@ -20,31 +20,39 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 $query = is_string($_GET['q'] ?? null) ? trim($_GET['q']) : '';
 $error = '';
 $users = [];
 $hasMore = false;
+$searchRateLimited = false;
 
 if (strlen($query) > 50) {
     $error = 'Use 50 characters or fewer.';
 } elseif ($query !== '') {
-    // Match a literal part of a username, including underscores, without SQL wildcards.
-    $statement = mysqli_prepare(
-        $conn,
-        'SELECT id, username, avatar_path FROM users u WHERE LOCATE(LOWER(?), LOWER(username)) > 0 AND id <> ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY username, id LIMIT 51'
-    );
     $currentUserId = (int) $_SESSION['user_id'];
-    mysqli_stmt_bind_param($statement, 'siii', $query, $currentUserId, $currentUserId, $currentUserId);
-    mysqli_stmt_execute($statement);
-    $users = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
-    mysqli_stmt_close($statement);
-    $hasMore = count($users) > 50;
-    $users = array_slice($users, 0, 50);
+    if (!consumeSecurityRateLimit($conn, 'user_search', (string) $currentUserId, 60, 60)) {
+        $searchRateLimited = true;
+        $error = 'You are searching too quickly. Wait a minute, then try again.';
+    } else {
+        // Match a literal part of a username, including underscores, without SQL wildcards.
+        $statement = mysqli_prepare(
+            $conn,
+            'SELECT id, username, avatar_path FROM users u WHERE LOCATE(LOWER(?), LOWER(username)) > 0 AND id <> ? AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?)) ORDER BY username, id LIMIT 51'
+        );
+        mysqli_stmt_bind_param($statement, 'siii', $query, $currentUserId, $currentUserId, $currentUserId);
+        mysqli_stmt_execute($statement);
+        $users = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
+        mysqli_stmt_close($statement);
+        $hasMore = count($users) > 50;
+        $users = array_slice($users, 0, 50);
+    }
 }
+if ($searchRateLimited) http_response_code(429);
 if ($isJson) {
     if ($error !== '') {
-        http_response_code(422);
+        http_response_code($searchRateLimited ? 429 : 422);
     }
     echo json_encode(['users' => $users, 'hasMore' => $hasMore, 'error' => $error]);
     exit;

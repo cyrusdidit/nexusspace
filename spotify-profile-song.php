@@ -51,17 +51,13 @@ $trackPayload = static function (array $track): array {
         is_array($track['artists'] ?? null) ? $track['artists'] : []
     ))));
     $images = is_array($track['album']['images'] ?? null) ? $track['album']['images'] : [];
-    $image = isset($images[0]['url']) && filter_var($images[0]['url'], FILTER_VALIDATE_URL)
-        ? (string) $images[0]['url']
-        : null;
+    $image = spotifySafeHttpsUrl($images[0]['url'] ?? null);
     return [
         'id' => (string) ($track['id'] ?? ''),
         'name' => trim((string) ($track['name'] ?? '')),
         'artist' => $artists,
         'image' => $image,
-        'url' => filter_var($track['external_urls']['spotify'] ?? null, FILTER_VALIDATE_URL)
-            ? (string) $track['external_urls']['spotify']
-            : null,
+        'url' => spotifySafeHttpsUrl($track['external_urls']['spotify'] ?? null, ['open.spotify.com']),
     ];
 };
 

@@ -185,9 +185,18 @@ function loadPostMedia(mysqli $conn, array $postIds): array
 {
     $postIds = array_values(array_unique(array_filter(array_map('intval', $postIds), static fn(int $id): bool => $id > 0)));
     if (!$postIds) return [];
-    $result = mysqli_query($conn, 'SELECT id, post_id, media_path, media_type, sort_order FROM post_media WHERE post_id IN (' . implode(',', $postIds) . ') ORDER BY post_id, sort_order, id');
+    $placeholders = implode(',', array_fill(0, count($postIds), '?'));
+    $statement = mysqli_prepare($conn, 'SELECT id, post_id, media_path, media_type, sort_order FROM post_media WHERE post_id IN (' . $placeholders . ') ORDER BY post_id, sort_order, id');
+    $types = str_repeat('i', count($postIds));
+    $bindArguments = [$statement, $types];
+    foreach ($postIds as &$postId) $bindArguments[] = &$postId;
+    unset($postId);
+    call_user_func_array('mysqli_stmt_bind_param', $bindArguments);
+    mysqli_stmt_execute($statement);
+    $result = mysqli_stmt_get_result($statement);
     $media = [];
     while ($item = mysqli_fetch_assoc($result)) $media[(int) $item['post_id']][] = $item;
+    mysqli_stmt_close($statement);
     return $media;
 }
 

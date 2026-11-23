@@ -253,8 +253,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             } catch (InvalidArgumentException | RuntimeException $exception) {
                 if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $currentUserId);
-                http_response_code(422);
-                $appearanceError = $exception->getMessage();
+                http_response_code($exception instanceof mysqli_sql_exception ? 500 : 422);
+                $appearanceError = safeUserFacingError($exception, 'The Messages background could not be copied. Please try again.', 'Messages background copy');
             }
         }
     } elseif ($action === 'update_messages_background') {
@@ -298,8 +298,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             } catch (InvalidArgumentException | RuntimeException $exception) {
                 if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
-                http_response_code($exception instanceof SecurityRateLimitException ? 429 : 422);
-                $appearanceError = $exception->getMessage();
+                http_response_code($exception instanceof mysqli_sql_exception ? 500 : ($exception instanceof SecurityRateLimitException ? 429 : 422));
+                $appearanceError = safeUserFacingError($exception, 'The Messages background could not be saved. Please try again.', 'Messages background update');
             }
         }
     } elseif ($action === 'remove_messages_background_image') {
@@ -489,17 +489,6 @@ if ($selectedFriend && $error === '') {
         $hasOlder = count($messages) > 100;
         $messages = array_reverse(array_slice($messages, 0, 100));
     }
-    // Only acknowledge incoming messages actually included in this response.
-    if ($messages && ($_GET['mini'] ?? '') !== '1') {
-        $firstId = (int) $messages[0]['id'];
-        $lastId = (int) $messages[count($messages) - 1]['id'];
-        $statement = mysqli_prepare($conn, 'UPDATE messages SET is_read = 1 WHERE sender_id = ? AND receiver_id = ? AND id BETWEEN ? AND ? AND deleted_at IS NULL');
-        mysqli_stmt_bind_param($statement, 'iiii', $selectedId, $currentUserId, $firstId, $lastId);
-        mysqli_stmt_execute($statement);
-        mysqli_stmt_close($statement);
-        markMessageNotificationsRead($conn, $currentUserId, $selectedId, $firstId, $lastId);
-    }
-
     $statement = mysqli_prepare($conn, 'SELECT COALESCE(MAX(id), 0) AS last_read_id FROM messages WHERE sender_id = ? AND receiver_id = ? AND is_read = 1 AND deleted_at IS NULL');
     mysqli_stmt_bind_param($statement, 'ii', $currentUserId, $selectedId);
     mysqli_stmt_execute($statement);

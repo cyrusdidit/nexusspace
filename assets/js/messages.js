@@ -464,6 +464,39 @@ document.addEventListener('DOMContentLoaded', () => {
     let refreshing = null;
     list.scrollTop = list.scrollHeight;
 
+    const pendingReadIds = new Set(Array.from(
+        list.querySelectorAll('.conversation-message.is-incoming[data-message-id]'),
+        (message) => Number(message.dataset.messageId)
+    ).filter((id) => Number.isSafeInteger(id) && id > 0));
+    let acknowledgingRead = false;
+    const acknowledgePendingRead = async () => {
+        if (document.hidden || acknowledgingRead || pendingReadIds.size === 0) return;
+        acknowledgingRead = true;
+        const messageIds = Array.from(pendingReadIds);
+        const first = Math.min(...messageIds);
+        const last = Math.max(...messageIds);
+        const body = new URLSearchParams({
+            token: form.elements.token.value,
+            action: 'read',
+            first: String(first),
+            last: String(last),
+        });
+        const url = new URL(form.action);
+        url.searchParams.set('format', 'json');
+        try {
+            const response = await fetch(url, { method: 'POST', credentials: 'same-origin', body });
+            if (!response.ok) return;
+            const data = await response.json();
+            if (data.ok) messageIds.forEach((id) => pendingReadIds.delete(id));
+        } catch {
+            // Keep the IDs pending so the next visible poll can retry.
+        } finally {
+            acknowledgingRead = false;
+        }
+    };
+
+    acknowledgePendingRead();
+
     const sidebarTimestamp = (value) => {
         const date = new Date(value.replace(' ', 'T'));
         const today = new Date();
@@ -754,7 +787,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (startsNewDay) list.append(createDateSeparator(dateKey));
                 list.append(item);
                 lastId = Number(message.id);
+                if (!mine && Number.isSafeInteger(lastId) && lastId > 0) pendingReadIds.add(lastId);
             });
+            acknowledgePendingRead();
             updateReadReceipts(data.lastReadOutgoingId);
             if (nearBottom) list.scrollTop = list.scrollHeight;
         })().finally(() => { refreshing = null; });
@@ -956,10 +991,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     const poll = () => {
         if (document.hidden) return;
+        acknowledgePendingRead();
         refresh().catch(() => { status.textContent = 'Connection interrupted. Retrying…'; });
     };
     window.setInterval(poll, 3000);
     window.addEventListener('focus', poll);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) stopTyping(true); });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopTyping(true);
+        else poll();
+    });
     window.addEventListener('pagehide', () => stopTyping(true));
 });

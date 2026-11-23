@@ -370,7 +370,7 @@ function sanitizeProfileTemplate(string $templateHtml): string
             $lowerName = strtolower($attributeName);
             $value = $element->getAttribute($attributeName);
             if ($lowerName === 'id' && $value === 'profile-template-root') continue;
-            if (str_starts_with($lowerName, 'on') || str_starts_with($lowerName, 'data-') || in_array($lowerName, ['id', 'formaction', 'ping', 'srcdoc', 'srcset', 'style'], true) || str_contains($lowerName, ':') || str_contains($value, '{{')) {
+            if (str_starts_with($lowerName, 'on') || str_starts_with($lowerName, 'data-') || in_array($lowerName, ['autoplay', 'id', 'formaction', 'ping', 'srcdoc', 'srcset', 'style'], true) || str_contains($lowerName, ':') || str_contains($value, '{{')) {
                 $element->removeAttribute($attributeName);
                 continue;
             }
@@ -402,7 +402,7 @@ function isSafeProfileTemplateUrl(string $value, bool $isLink): bool
     $scheme = parse_url($normalized, PHP_URL_SCHEME);
     if ($scheme === null) return true;
 
-    $allowedSchemes = $isLink ? ['http', 'https', 'mailto', 'tel'] : ['http', 'https'];
+    $allowedSchemes = $isLink ? ['http', 'https', 'mailto', 'tel'] : ['https'];
     return in_array(strtolower((string) $scheme), $allowedSchemes, true);
 }
 
@@ -632,6 +632,12 @@ function validateProfileTemplate(string $templateHtml): array
     }
     if (preg_match('~\s(?:ping|srcset)\s*=~i', $templateHtml)) {
         $warnings[] = 'Link ping tracking and unvalidated responsive image URLs are removed from custom HTML.';
+    }
+    if (preg_match('~\s(?:background|cite|manifest|poster|src)\s*=\s*(?:"http://|\'http://|http://)~i', $templateHtml)) {
+        $warnings[] = 'Insecure HTTP media resources are removed; use HTTPS or a relative URL.';
+    }
+    if (preg_match('~\sautoplay(?:\s|=|>)~i', $templateHtml)) {
+        $warnings[] = 'Autoplay is removed from custom media so it does not start when someone visits the profile.';
     }
 
     foreach (['div', 'aside', 'section', 'article', 'header', 'footer', 'nav', 'main', 'span'] as $tag) {

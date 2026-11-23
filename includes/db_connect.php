@@ -30,3 +30,12 @@ if (!$conn) {
 }
 
 mysqli_set_charset($conn, 'utf8mb4');
+
+function safeUserFacingError(Throwable $exception, string $fallback, string $context): string
+{
+    if ($exception instanceof mysqli_sql_exception) {
+        error_log('NexusSpace ' . $context . ' failed with database error code ' . (int) $exception->getCode() . '.');
+        return $fallback;
+    }
+    return $exception->getMessage();
+}

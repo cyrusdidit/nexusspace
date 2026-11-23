@@ -13,6 +13,7 @@ require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/profile_customization.php';
 require_once __DIR__ . '/../includes/background_customization.php';
 require_once __DIR__ . '/../includes/activity.php';
+require_once __DIR__ . '/../includes/spotify.php';
 require_once __DIR__ . '/../includes/blocks.php';
 require_once __DIR__ . '/../includes/post_interactions.php';
 require_once __DIR__ . '/../includes/post_media.php';
@@ -72,8 +73,8 @@ if ($user && preg_match('/^[A-Za-z0-9]{22}$/', (string) ($user['spotify_track_id
         'id' => (string) $user['spotify_track_id'],
         'name' => trim((string) $user['profile_song_name']),
         'artist' => trim((string) ($user['profile_song_artist'] ?? '')),
-        'image' => filter_var($user['profile_song_image_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $user['profile_song_image_url'] : '',
-        'url' => filter_var($user['profile_song_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $user['profile_song_url'] : '',
+        'image' => spotifySafeHttpsUrl($user['profile_song_image_url'] ?? null) ?? '',
+        'url' => spotifySafeHttpsUrl($user['profile_song_url'] ?? null, ['open.spotify.com']) ?? '',
     ];
 }
 if ($user) {
@@ -101,8 +102,8 @@ if ($user) {
             'id' => trim((string) ($musicRow['current_item_id'] ?? '')),
             'name' => trim((string) $musicRow['current_item_name']),
             'artist' => trim((string) ($musicRow['current_artist_name'] ?? '')),
-            'image' => filter_var($musicRow['current_image_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $musicRow['current_image_url'] : '',
-            'url' => filter_var($musicRow['current_external_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $musicRow['current_external_url'] : '',
+            'image' => spotifySafeHttpsUrl($musicRow['current_image_url'] ?? null) ?? '',
+            'url' => spotifySafeHttpsUrl($musicRow['current_external_url'] ?? null, ['open.spotify.com']) ?? '',
         ];
     }
 }
@@ -237,8 +238,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $currentUserId);
-            http_response_code(422);
-            $profileAppearanceError = $exception->getMessage();
+            http_response_code($exception instanceof mysqli_sql_exception ? 500 : 422);
+            $profileAppearanceError = safeUserFacingError($exception, 'The profile background could not be copied. Please try again.', 'profile background copy');
         }
     }
 }
@@ -269,8 +270,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $currentUserId);
-            http_response_code(422);
-            $profileCoverError = $exception->getMessage();
+            http_response_code($exception instanceof mysqli_sql_exception ? 500 : 422);
+            $profileCoverError = safeUserFacingError($exception, 'The profile cover could not be copied. Please try again.', 'profile cover copy');
         }
     }
 }
@@ -340,8 +341,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
-            http_response_code($exception instanceof SecurityRateLimitException ? 429 : 422);
-            $profileAppearanceError = $exception->getMessage();
+            http_response_code($exception instanceof mysqli_sql_exception ? 500 : ($exception instanceof SecurityRateLimitException ? 429 : 422));
+            $profileAppearanceError = safeUserFacingError($exception, 'The profile background could not be saved. Please try again.', 'profile background update');
         }
     }
 }
@@ -427,8 +428,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($savedImagePath && $savedImagePath !== $previousImagePath) deleteUserBackgroundImage($savedImagePath, $currentUserId);
-            http_response_code($exception instanceof SecurityRateLimitException ? 429 : 422);
-            $profileCoverError = $exception->getMessage();
+            http_response_code($exception instanceof mysqli_sql_exception ? 500 : ($exception instanceof SecurityRateLimitException ? 429 : 422));
+            $profileCoverError = safeUserFacingError($exception, 'The profile cover could not be saved. Please try again.', 'profile cover update');
         }
     }
 }
@@ -494,10 +495,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
                     $avatarError = 'The profile picture could not be saved.';
                 } else {
                     $storedPath = 'uploads/avatars/' . $filename;
+                    $previousAvatarPath = is_string($user['avatar_path'] ?? null) ? $user['avatar_path'] : '';
                     $statement = mysqli_prepare($conn, 'UPDATE users SET avatar_path = ? WHERE id = ?');
                     mysqli_stmt_bind_param($statement, 'si', $storedPath, $currentUserId);
                     mysqli_stmt_execute($statement);
                     mysqli_stmt_close($statement);
+                    if ($previousAvatarPath !== $storedPath
+                        && preg_match('/^uploads\/avatars\/avatar-' . preg_quote((string) $currentUserId, '/') . '-[a-f0-9]{16}\.(?:jpg|png|webp|gif)$/', $previousAvatarPath)) {
+                        $previousAvatarFile = __DIR__ . '/../' . $previousAvatarPath;
+                        if (is_file($previousAvatarFile)) @unlink($previousAvatarFile);
+                    }
                     header('Location: profile.php?id=' . $currentUserId);
                     exit;
                 }

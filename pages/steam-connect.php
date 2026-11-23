@@ -12,6 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../includes/db_connect.php';
 require_once __DIR__ . '/../includes/steam.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 if (!steamIsConfigured()) {
     header('Location: settings.php?steam=not-configured');
@@ -20,6 +21,10 @@ if (!steamIsConfigured()) {
 
 $state = rtrim(strtr(base64_encode(random_bytes(24)), '+/', '-_'), '=');
 $userId = (int) $_SESSION['user_id'];
+if (!consumeSecurityRateLimit($conn, 'steam_connect_user', (string) $userId, 10, 3600)) {
+    header('Location: settings.php?steam=rate-limited');
+    exit;
+}
 $expiresAt = date('Y-m-d H:i:s', time() + 600);
 mysqli_query($conn, 'DELETE FROM steam_auth_requests WHERE expires_at < NOW()');
 $statement = mysqli_prepare($conn, 'INSERT INTO steam_auth_requests (state, user_id, expires_at) VALUES (?, ?, ?)');

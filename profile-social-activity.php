@@ -14,6 +14,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/includes/db_connect.php';
 require_once __DIR__ . '/includes/steam.php';
+require_once __DIR__ . '/includes/spotify.php';
 
 $currentUserId = (int) $_SESSION['user_id'];
 $profileUserId = filter_var($_GET['user'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
@@ -102,8 +103,8 @@ echo json_encode([
         'id' => (string) ($activity['current_item_id'] ?? ''),
         'name' => $songName,
         'artist' => $artistName,
-        'image' => filter_var($activity['current_image_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $activity['current_image_url'] : null,
-        'url' => filter_var($activity['current_external_url'] ?? null, FILTER_VALIDATE_URL) ? (string) $activity['current_external_url'] : null,
+        'image' => spotifySafeHttpsUrl($activity['current_image_url'] ?? null),
+        'url' => spotifySafeHttpsUrl($activity['current_external_url'] ?? null, ['open.spotify.com']),
     ] : null,
     'game' => $gameActive ? [
         'name' => $gameName,

@@ -280,8 +280,8 @@ try {
         mysqli_stmt_bind_param($statement, 'i', $postId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
-        $statement = mysqli_prepare($conn, 'SELECT pinned_at, user_id FROM post_comments WHERE id = ? AND post_id = ? AND parent_id IS NULL AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
-        mysqli_stmt_bind_param($statement, 'ii', $commentId, $postId);
+        $statement = mysqli_prepare($conn, 'SELECT c.pinned_at, c.user_id FROM post_comments c WHERE c.id = ? AND c.post_id = ? AND c.parent_id IS NULL AND c.deleted_at IS NULL AND (c.pinned_at IS NOT NULL OR NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = ?))) LIMIT 1 FOR UPDATE');
+        mysqli_stmt_bind_param($statement, 'iiii', $commentId, $postId, $viewerId, $viewerId);
         mysqli_stmt_execute($statement);
         $comment = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
         mysqli_stmt_close($statement);
@@ -313,7 +313,9 @@ try {
 } catch (Throwable $exception) {
     if (mysqli_errno($conn)) @mysqli_rollback($conn);
     foreach ($newMediaFiles as $media) deletePostMedia($media['path'], $viewerId);
-    $message = $exception instanceof InvalidArgumentException || $exception instanceof RuntimeException ? $exception->getMessage() : 'The post could not be updated. Please try again.';
+    $message = $exception instanceof InvalidArgumentException || $exception instanceof RuntimeException
+        ? safeUserFacingError($exception, 'The post could not be updated. Please try again.', 'post update')
+        : 'The post could not be updated. Please try again.';
     postActionResponse(['ok' => false, 'error' => $message], $exception instanceof InvalidArgumentException ? 422 : 500);
 }
 

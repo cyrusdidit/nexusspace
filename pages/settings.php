@@ -110,6 +110,7 @@ $spotifyNotices = [
     'failed' => 'Spotify could not complete account linking. Check the Client ID, Client Secret, and callback URL in your Spotify app settings.',
     'unavailable' => 'Spotify could not be reached. Check your connection and try again.',
     'not-configured' => 'Spotify needs to be configured before it can be connected.',
+    'rate-limited' => 'Too many Spotify connection attempts. Wait an hour before trying again.',
 ];
 $spotifyNotice = $spotifyNotices[$_GET['spotify'] ?? ''] ?? '';
 
@@ -127,6 +128,7 @@ $steamNotices = [
     'failed' => 'Steam could not verify the sign-in. Check your Web API key and configured site URL, then try again.',
     'unavailable' => 'Steam could not be reached. Check your connection and try again.',
     'not-configured' => 'Steam needs to be configured before accounts can be connected.',
+    'rate-limited' => 'Too many Steam connection attempts. Wait an hour before trying again.',
 ];
 $steamNotice = $steamNotices[$_GET['steam'] ?? ''] ?? '';
 ?>

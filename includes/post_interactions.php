@@ -17,13 +17,22 @@ function loadPostInteractions(mysqli $conn, array $postIds, int $viewerId): arra
 {
     $ids = array_values(array_unique(array_filter(array_map('intval', $postIds), static fn (int $id): bool => $id > 0)));
     if (!$ids) return [];
-    $idList = implode(',', $ids);
     $result = [];
     foreach ($ids as $id) $result[$id] = ['comments' => []];
 
-    $comments = mysqli_query($conn, "SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at, c.edited_at, c.deleted_at, c.pinned_at, u.username, u.avatar_path FROM post_comments c JOIN users u ON u.id = c.user_id WHERE c.post_id IN ({$idList}) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = {$viewerId} AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = {$viewerId})) ORDER BY c.created_at, c.id");
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $statement = mysqli_prepare($conn, "SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at, c.edited_at, c.deleted_at, c.pinned_at, u.username, u.avatar_path FROM post_comments c JOIN users u ON u.id = c.user_id WHERE c.post_id IN ({$placeholders}) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = ?)) ORDER BY c.created_at, c.id");
+    $parameters = [...$ids, $viewerId, $viewerId];
+    $types = str_repeat('i', count($parameters));
+    $bindArguments = [$statement, $types];
+    foreach ($parameters as &$parameter) $bindArguments[] = &$parameter;
+    unset($parameter);
+    call_user_func_array('mysqli_stmt_bind_param', $bindArguments);
+    mysqli_stmt_execute($statement);
+    $comments = mysqli_stmt_get_result($statement);
     $byPost = [];
     while ($comment = mysqli_fetch_assoc($comments)) $byPost[(int) $comment['post_id']][] = $comment;
+    mysqli_stmt_close($statement);
     foreach ($byPost as $postId => $commentsForPost) {
         $topLevel = [];
         $replies = [];

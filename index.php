@@ -175,6 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     $submittedPositionX = is_numeric($_POST['image_position_x'] ?? null) ? (float) $_POST['image_position_x'] : -1;
     $submittedPositionY = is_numeric($_POST['image_position_y'] ?? null) ? (float) $_POST['image_position_y'] : -1;
     $submittedZoom = is_numeric($_POST['image_zoom'] ?? null) ? (float) $_POST['image_zoom'] : -1;
+    $dashboardAppearanceResponseStatus = 422;
     if (!is_string($token) || !hash_equals($_SESSION['dashboard_appearance_csrf'], $token)) {
         $dashboardAppearanceError = 'Your session changed. Please refresh the page and try again.';
     } elseif (!in_array($submittedType, ['color', 'image'], true)) {
@@ -238,12 +239,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
             if ($savedImagePath && $savedImagePath !== $previousImagePath) {
                 deleteUserBackgroundImage($savedImagePath, $appearanceUserId);
             }
-            http_response_code($exception instanceof SecurityRateLimitException ? 429 : 422);
-            $dashboardAppearanceError = $exception->getMessage();
+            http_response_code($exception instanceof mysqli_sql_exception ? 500 : ($exception instanceof SecurityRateLimitException ? 429 : 422));
+            $dashboardAppearanceResponseStatus = $exception instanceof mysqli_sql_exception ? 500 : ($exception instanceof SecurityRateLimitException ? 429 : 422);
+            $dashboardAppearanceError = safeUserFacingError($exception, 'The dashboard background could not be saved. Please try again.', 'dashboard background update');
         }
     }
     if ($dashboardAppearanceJson && $dashboardAppearanceError !== '') {
-        http_response_code(422);
+        http_response_code($dashboardAppearanceResponseStatus);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $dashboardAppearanceError]);
         exit;
@@ -312,6 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_dashboard_background') {
     $dashboardAppearanceJson = ($_POST['response_format'] ?? '') === 'json'
         || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
+    $dashboardAppearanceResponseStatus = 422;
     $copySources = [
         'messages' => 'Messages',
         'profile_posts' => 'Profile wallpaper',
@@ -380,12 +383,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'copy_
             exit;
         } catch (InvalidArgumentException | RuntimeException $exception) {
             if ($copiedImagePath !== null) deleteUserBackgroundImage($copiedImagePath, $appearanceUserId);
-            $dashboardAppearanceError = $exception->getMessage();
+            $dashboardAppearanceResponseStatus = $exception instanceof mysqli_sql_exception ? 500 : 422;
+            http_response_code($dashboardAppearanceResponseStatus);
+            $dashboardAppearanceError = safeUserFacingError($exception, 'The dashboard background could not be copied. Please try again.', 'dashboard background copy');
         }
     }
 
     if ($dashboardAppearanceJson && $dashboardAppearanceError !== '') {
-        http_response_code(422);
+        http_response_code($dashboardAppearanceResponseStatus);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $dashboardAppearanceError]);
         exit;
@@ -452,8 +457,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['
             } catch (Throwable $exception) {
                 @mysqli_rollback($conn);
                 foreach ($storedMedia as $media) deletePostMedia($media['path'], $authorId);
+                $postErrorStatus = $exception instanceof mysqli_sql_exception ? 500 : ($exception instanceof SecurityRateLimitException ? 429 : ($exception instanceof InvalidArgumentException ? 422 : 500));
+                http_response_code($postErrorStatus);
                 $postError = $exception instanceof InvalidArgumentException || $exception instanceof RuntimeException
-                    ? $exception->getMessage()
+                    ? safeUserFacingError($exception, 'The post could not be published. Please try again.', 'post publish')
                     : 'The post could not be published. Please try again.';
             }
         }

@@ -19,11 +19,13 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Review Spotify and Steam callback security: bind linking to the initiating user/browser, enforce expiration and single use, handle rejection, and verify Steam identity assertions.
 - [x] Bind Spotify and Steam callback state to the initiating browser session and account.
 - [x] Require Steam's signed identity fields to match and reject stale OpenID nonces.
-- [x] Centralize session settings: HttpOnly, SameSite=Lax, Secure on HTTPS, cookie-only sessions, strict session mode, and ID regeneration after login/registration.
+- [x] Centralize session settings: HttpOnly, SameSite=Lax, Secure on HTTPS, cookie-only sessions, strict session mode, no URL-based session IDs, and ID regeneration after login/registration.
+- [x] Give NexusSpace a dedicated session-cookie name and scope its path to the app directory.
+- [x] Set session-backed PHP responses to `Cache-Control: no-store` so private pages and session tokens are not retained in browser or proxy caches.
 - [ ] Verify authenticated session expiry, logout invalidation, and production HTTPS/proxy configuration end to end.
 - [x] Enforce a 30-minute authenticated idle timeout and a 12-hour absolute session lifetime; active-user heartbeats extend only the idle timeout.
 - [x] Allow `NEXUSSPACE_FORCE_SECURE_COOKIE=1` for deployments where HTTPS terminates at a trusted reverse proxy.
-- [ ] Add server-side rate limits for login, registration, messages, friend requests, comments, uploads, and integration requests.
+- [x] Add server-side rate limits for login, registration, messages, friend requests, comments, uploads, and Spotify/Steam connection starts and activity requests.
 - [x] Add database-backed limits for login by IP/account and registration by IP.
 - [x] Add rate limits for messages, friend requests, comments, post media uploads, and Spotify song requests.
 - [x] Limit profile picture and user background image uploads per account.
@@ -35,11 +37,13 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Block non-static CSS positioning, including values supplied through CSS variables, to keep custom styles inside the profile layout.
 - [x] Block custom SVG/MathML markup, namespaced attributes, unsafe URL schemes, and CSS escape obfuscation.
 - [ ] Audit output escaping and SQL queries throughout the app; retain prepared statements for user-controlled values.
+- [x] Bind post/comment/media ID lists and comment viewer IDs in prepared statements instead of interpolating integers into SQL.
+- [x] Restrict Spotify image URLs to HTTPS and clickable Spotify destinations to `open.spotify.com`.
 - [x] Bind profile author, pagination cursor, viewer, friendship, and block filters in the post refresh endpoint.
 - [x] Audit upload MIME/content checks, size and count limits, ownership, filenames, and deletion paths; cap avatar image dimensions and block script execution in upload directories.
 - [x] Serve post media through post visibility and block checks while preserving byte-range video requests.
 - [x] Add an initial report-only CSP in Apache for same-origin scripts/styles/API requests, external HTTPS images, and the Spotify embed.
-- [ ] Review browser CSP reports for inline styles and any other required resources, adjust the policy, then enforce it. Account for Spotify playback, media, custom profiles, and inline styles/scripts.
+- [ ] Review browser CSP reports on the dashboard, profile, and Messages pages. Source review already found inline style attributes and generated profile style blocks; account for those and any other required resources before enforcing the policy. Account for Spotify embeds, media, custom profiles, and inline scripts/styles.
 - [x] Set content-type sniffing, framing, and referrer protections in Apache.
 - [x] Confirm the security headers work in Laragon.
 - [x] Add Apache rules to disable directory listing and block hidden files and internal directories.
@@ -119,6 +123,6 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 
 ## Suggested next task
 
-Finish the authorization, output-escaping, and custom HTML/CSS audits, then add
-a report-only Content Security Policy. Verify security behavior in the browser
-before deployment preparation and the remaining social features.
+Continue the authorization, output-escaping, and custom HTML/CSS audits, then
+review the existing report-only Content Security Policy in a browser. Verify
+session behavior and production server configuration before deployment.

@@ -4,16 +4,27 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/env.php';
 
+// Session-backed pages can contain private data or CSRF tokens; keep them out of browser and proxy caches.
+header('Cache-Control: no-store');
+
 if (session_status() === PHP_SESSION_NONE) {
     // Set NEXUSSPACE_FORCE_SECURE_COOKIE=1 when TLS terminates at a trusted proxy.
     $https = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
         || filter_var(getenv('NEXUSSPACE_FORCE_SECURE_COOKIE') ?: '0', FILTER_VALIDATE_BOOLEAN);
+    $scriptPath = parse_url((string) ($_SERVER['SCRIPT_NAME'] ?? '/'), PHP_URL_PATH) ?: '/';
+    $scriptDirectory = rtrim(str_replace('\\', '/', dirname($scriptPath)), '/');
+    if (strtolower(basename($scriptDirectory)) === 'pages') {
+        $scriptDirectory = rtrim(str_replace('\\', '/', dirname($scriptDirectory)), '/');
+    }
+    $cookiePath = ($scriptDirectory === '' ? '' : $scriptDirectory) . '/';
+    session_name('NEXUSSPACESESSID');
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
     ini_set('session.gc_maxlifetime', '43200');
     session_set_cookie_params([
         'lifetime' => 0,
-        'path' => '/',
+        'path' => $cookiePath,
         'secure' => $https,
         'httponly' => true,
         'samesite' => 'Lax',

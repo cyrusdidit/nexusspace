@@ -13,6 +13,7 @@ if (!isset($_SESSION['user_id'])) {
 
 require_once __DIR__ . '/../includes/spotify.php';
 require_once __DIR__ . '/../includes/db_connect.php';
+require_once __DIR__ . '/../includes/rate_limit.php';
 
 if (!spotifyIsConfigured()) {
     header('Location: settings.php?spotify=not-configured');
@@ -22,6 +23,10 @@ if (!spotifyIsConfigured()) {
 $state = spotifyBase64Url(random_bytes(24));
 $verifier = spotifyBase64Url(random_bytes(64));
 $userId = (int) $_SESSION['user_id'];
+if (!consumeSecurityRateLimit($conn, 'spotify_connect_user', (string) $userId, 10, 3600)) {
+    header('Location: settings.php?spotify=rate-limited');
+    exit;
+}
 $expiresAt = date('Y-m-d H:i:s', time() + 600);
 mysqli_query($conn, 'DELETE FROM spotify_oauth_requests WHERE expires_at < NOW()');
 $statement = mysqli_prepare($conn, 'INSERT INTO spotify_oauth_requests (state, user_id, code_verifier, expires_at) VALUES (?, ?, ?, ?)');
