@@ -132,9 +132,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const postComposerBox = document.querySelector('[data-post-composer-box]');
     const postComposerExpand = document.querySelector('[data-post-composer-expand]');
     const postComposerClose = document.querySelector('[data-post-composer-close]');
+    const postComposerCancel = document.querySelector('[data-post-composer-cancel]');
     const postAudienceSelect = document.querySelector('[data-post-audience-select]');
     const postAudienceValue = document.querySelector('[data-post-audience-value]');
     const postComposer = document.querySelector('[data-post-composer]');
+    const postActionLockStatus = document.querySelector('[data-post-action-lock-status]');
     const postMediaInput = document.querySelector('[data-post-media-input]');
     const postMediaPreview = document.querySelector('[data-post-media-preview]');
     const postMediaPreviewContent = postMediaPreview?.querySelector('[data-post-media-preview-content]');
@@ -142,7 +144,37 @@ document.addEventListener('DOMContentLoaded', () => {
     let postMediaObjectUrls = [];
     let postMediaValidationPending = 0;
     let postMediaSelectionVersion = 0;
+    let postComposerSubmitting = false;
     let updatePostComposerSize = () => {};
+    const setComposerActionActive = (active) => {
+        if (active) document.body.dataset.postActionActive = 'compose';
+        else if (document.body.dataset.postActionActive === 'compose') delete document.body.dataset.postActionActive;
+        if (postActionLockStatus) {
+            postActionLockStatus.textContent = active
+                ? 'Finish or discard this post draft before editing another post.'
+                : 'Finish or cancel the current post edit before starting a new post.';
+            postActionLockStatus.hidden = !active && document.body.dataset.postActionActive !== 'edit';
+        }
+        document.dispatchEvent(new CustomEvent('nexus:post-action-change', { detail: { action: document.body.dataset.postActionActive || '' } }));
+    };
+    const setComposerLocked = (locked) => {
+        const controlsLocked = locked || postComposerSubmitting;
+        postComposer?.querySelectorAll('[data-post-title-input], [data-post-audience-select], [data-post-content], [data-post-media-input], [data-post-composer-close], [data-post-composer-expand], .post-submit-button').forEach((control) => {
+            control.disabled = controlsLocked;
+        });
+        if (postComposerCancel) postComposerCancel.disabled = controlsLocked;
+        if (postComposerExpand) postComposerExpand.title = locked ? 'Finish or cancel the current post edit first.' : 'Create a post';
+        if (postActionLockStatus) {
+            postActionLockStatus.textContent = locked
+                ? 'Finish or cancel the current post edit before starting a new post.'
+                : 'Finish or discard this post draft before editing another post.';
+            postActionLockStatus.hidden = !locked && document.body.dataset.postActionActive !== 'compose';
+        }
+    };
+    document.addEventListener('nexus:post-action-change', (event) => setComposerLocked(event.detail?.action === 'edit'));
+    if (postComposerBox?.classList.contains('is-expanded')) document.body.dataset.postActionActive = 'compose';
+    setComposerLocked(document.body.dataset.postActionActive === 'edit');
+    if (document.body.dataset.postActionActive === 'compose') setComposerActionActive(true);
     if (postContent && postCharacterCount) {
         const updatePostCharacterCount = () => {
             postCharacterCount.textContent = `${postContent.value.length}/2500`;
@@ -152,19 +184,48 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePostCharacterCount();
     }
     const expandPostComposer = () => {
+        if (document.body.dataset.postActionActive === 'edit') return;
         postComposerBox?.classList.add('is-expanded');
+        if (postComposerExpand) {
+            postComposerExpand.title = 'Create a post';
+            postComposerExpand.setAttribute('aria-label', 'Create a post');
+        }
+        setComposerActionActive(true);
         updatePostComposerSize();
     };
     const collapsePostComposer = () => {
         if (!postComposerBox?.classList.contains('is-expanded')) return;
         postComposerBox.classList.remove('is-expanded');
         if (postComposer?.contains(document.activeElement)) document.activeElement.blur();
+        if (postComposerExpand) {
+            postComposerExpand.title = 'Continue writing your post';
+            postComposerExpand.setAttribute('aria-label', 'Continue writing your post');
+        }
     };
     postComposerExpand?.addEventListener('click', () => {
         expandPostComposer();
         postContent?.focus();
     });
     postComposerClose?.addEventListener('click', collapsePostComposer);
+    postComposerCancel?.addEventListener('click', () => {
+        if (postComposerSubmitting) return;
+        if (postTitleInput) postTitleInput.value = '';
+        if (postContent) {
+            postContent.value = '';
+            postContent.dispatchEvent(new Event('input'));
+        }
+        if (postAudienceSelect) {
+            postAudienceSelect.value = 'friends';
+            postAudienceSelect.dispatchEvent(new Event('change'));
+        }
+        clearPostMedia();
+        collapsePostComposer();
+        setComposerActionActive(false);
+        if (postComposerExpand) {
+            postComposerExpand.title = 'Create a post';
+            postComposerExpand.setAttribute('aria-label', 'Create a post');
+        }
+    });
     const updatePostAudienceLabel = () => {
         if (!postAudienceSelect || !postAudienceValue) return;
         if (postAudienceSelect.value === 'friends') {
@@ -333,6 +394,8 @@ document.addEventListener('DOMContentLoaded', () => {
         xhr.open('POST', submitUrl);
         xhr.setRequestHeader('Accept', 'application/json');
         if (submit) submit.disabled = true;
+        postComposerSubmitting = true;
+        setComposerLocked(false);
         if (uploadState) uploadState.hidden = false;
         if (progress) progress.value = 0;
         if (status) status.textContent = 'Publishing...';
@@ -356,7 +419,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (xhr.status < 200 || xhr.status >= 300 || !data.ok) {
                 if (status) status.textContent = data.error || 'The post could not be published.';
-                if (submit) submit.disabled = false;
+                postComposerSubmitting = false;
+                setComposerLocked(document.body.dataset.postActionActive === 'edit');
                 return;
             }
             if (status) status.textContent = 'Published.';
@@ -365,13 +429,21 @@ document.addEventListener('DOMContentLoaded', () => {
             postContent.dispatchEvent(new Event('input'));
             clearPostMedia();
             postComposerBox?.classList.remove('is-expanded');
+            setComposerActionActive(false);
+            postComposerSubmitting = false;
+            setComposerLocked(false);
+            if (postComposerExpand) {
+                postComposerExpand.title = 'Create a post';
+                postComposerExpand.setAttribute('aria-label', 'Create a post');
+            }
             window.dispatchEvent(new CustomEvent('nexusspace:posts-refresh'));
             if (submit) submit.disabled = false;
             window.setTimeout(() => { if (uploadState) uploadState.hidden = true; }, 1200);
         });
         xhr.addEventListener('error', () => {
             if (status) status.textContent = 'The upload connection failed. Please try again.';
-            if (submit) submit.disabled = false;
+            postComposerSubmitting = false;
+            setComposerLocked(document.body.dataset.postActionActive === 'edit');
         });
         xhr.send(new FormData(postComposer));
     });

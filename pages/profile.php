@@ -927,13 +927,13 @@ if ($isOwnProfile) {
             <p class="profile-bio" data-profile-style="bio.text"><?= trim($user['bio'] ?? '') !== '' ? htmlspecialchars($user['bio'], ENT_QUOTES, 'UTF-8') : ($isOwnProfile ? 'Create your own bio!' : '') ?></p>
             <?php if ($isOwnProfile): ?>
                 <details class="profile-bio-editor" data-profile-style="bio.editor"<?= $bioError ? ' open' : '' ?>>
-                    <summary aria-label="Edit bio" title="Edit bio" data-profile-style="bio.edit-control">!</summary>
+                    <summary aria-label="Edit bio" title="Edit bio" data-profile-style="bio.edit-control">&#9998;</summary>
                     <form method="post" action="profile.php?id=<?= $userId ?>">
                         <input type="hidden" name="action" value="update_bio">
                         <input type="hidden" name="token" value="<?= htmlspecialchars($_SESSION['profile_edit_token'], ENT_QUOTES, 'UTF-8') ?>">
                         <label class="sr-only" for="profile-bio-input">Bio</label>
-                        <textarea id="profile-bio-input" name="bio" rows="3" maxlength="160" aria-describedby="bio-limit" data-profile-style="bio.editor"><?= htmlspecialchars($bioDraft, ENT_QUOTES, 'UTF-8') ?></textarea>
-                        <div class="profile-bio-actions"><small id="bio-limit" data-profile-style="bio.counter"><?= mb_strlen($bioDraft, 'UTF-8') ?>/160</small><button type="submit" aria-label="Save bio" title="Save bio" data-profile-style="bio.save-control">&#10003;</button></div>
+                        <textarea id="profile-bio-input" name="bio" rows="3" maxlength="160" placeholder="Create your own bio!" aria-describedby="bio-limit" data-profile-style="bio.editor"><?= htmlspecialchars($bioDraft, ENT_QUOTES, 'UTF-8') ?></textarea>
+                        <div class="profile-bio-actions"><small id="bio-limit" data-profile-style="bio.counter"><?= mb_strlen($bioDraft, 'UTF-8') ?>/160</small><button type="submit" aria-label="Save bio" title="Save bio" data-profile-style="bio.save-control">Save</button></div>
                         <?php if ($bioError): ?><p class="post-error" role="alert"><?= htmlspecialchars($bioError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                     </form>
                 </details>
@@ -1050,6 +1050,7 @@ if ($isOwnProfile) {
             <?php endif; ?>
             <h2 id="profile-posts-heading" data-profile-style="posts.heading"><?= $isOwnProfile ? 'My posts' : 'Posts' ?></h2>
             <p class="post-empty" data-profile-style="posts.empty-state" data-post-empty<?= $profilePosts ? ' hidden' : '' ?>>No posts to show yet.</p>
+            <?php if ($isOwnProfile): ?><p class="post-action-lock-hint" data-post-action-lock-status role="status" hidden></p><?php endif; ?>
             <div class="post-list" data-profile-style="posts.list" data-post-list>
             <?php foreach ($profilePosts as $post): ?>
                 <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= $isOwnProfile ? ' is-owned' : '' ?>" data-profile-style="post.card" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>" data-post-pinned="<?= !empty($post['pinned_at']) ? 'true' : 'false' ?>"<?= $isOwnProfile ? ' data-profile-post-pins' : '' ?>>
@@ -1058,7 +1059,7 @@ if ($isOwnProfile) {
                             <span class="post-avatar" data-profile-style="post.avatar" aria-hidden="true"><span><?= htmlspecialchars(mb_strtoupper(mb_substr($user['username'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><?php if ($avatarPath): ?><img src="<?= htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8') ?>" alt="" loading="lazy"><?php endif; ?></span>
                             <span><?= htmlspecialchars($profileDisplayName, ENT_QUOTES, 'UTF-8') ?></span>
                         </span>
-                        <div class="post-meta" data-profile-style="post.metadata"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y \a\t H:i', strtotime($post['created_at'])), ENT_QUOTES, 'UTF-8') ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ($isOwnProfile): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
+                        <div class="post-meta" data-profile-style="post.metadata"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(date('M j, Y \a\t H:i', strtotime($post['created_at'])), ENT_QUOTES, 'UTF-8') ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ($isOwnProfile): ?> &middot; <span data-post-visibility-label><?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?></span><?php endif; ?></div>
                     </header>
                     <?php if ($post['title'] !== ''): ?><h3 class="post-title" data-profile-style="post.title" data-post-title><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
                     <p class="post-content" data-profile-style="post.body" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>

@@ -609,7 +609,7 @@ if (isset($_SESSION['user_id'])) {
     <script src="assets/js/friend-badges.js?v=<?= filemtime(__DIR__ . '/assets/js/friend-badges.js') ?>" defer></script>
     <?php if (isset($_SESSION['user_id'])): ?><script src="assets/js/posts.js?v=<?= filemtime(__DIR__ . '/assets/js/posts.js') ?>" defer></script><?php endif; ?>
 </head>
-<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-security-csrf="' . htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') . '" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-status-visibility-endpoint="status-visibility.php" data-status-visibility-csrf="' . htmlspecialchars($_SESSION['status_visibility_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard" data-notifications-endpoint="notifications.php" data-notifications-csrf="' . htmlspecialchars($_SESSION['notifications_csrf'], ENT_QUOTES, 'UTF-8') . '"' : '' ?>>
+<body<?= isset($_SESSION['user_id']) ? ' class="dashboard-page" data-activity-endpoint="activity-ping.php" data-security-csrf="' . htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') . '" data-spotify-activity-endpoint="spotify-activity.php" data-steam-activity-endpoint="steam-activity.php" data-status-visibility-endpoint="status-visibility.php" data-status-visibility-csrf="' . htmlspecialchars($_SESSION['status_visibility_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-actions-endpoint="post-actions.php" data-post-updates-endpoint="post-updates.php" data-post-csrf="' . htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') . '" data-post-context="dashboard" data-notifications-endpoint="notifications.php" data-notifications-csrf="' . htmlspecialchars($_SESSION['notifications_csrf'], ENT_QUOTES, 'UTF-8') . '"' : ' class="public-landing-page"' ?>>
     <?php if (isset($_SESSION['user_id'])): ?>
         <?php
         $username = htmlspecialchars($_SESSION['username'], ENT_QUOTES, 'UTF-8');
@@ -760,23 +760,24 @@ if (isset($_SESSION['user_id'])) {
                     <input type="hidden" name="action" value="create_post">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
                     <div class="post-composer-box<?= $postContent !== '' || $postError !== '' ? ' is-expanded' : '' ?>" data-post-composer-box>
-                        <div class="post-composer-header"><label class="sr-only" for="post-title">Post title</label><input id="post-title" name="title" maxlength="100" placeholder="Post title" value="<?= htmlspecialchars($postTitle, ENT_QUOTES, 'UTF-8') ?>" data-post-title-input><div class="post-composer-header-actions"><label class="sr-only" for="post-visibility">Audience</label><span class="post-audience-select"><select id="post-visibility" name="visibility" aria-label="Post audience" data-post-audience-select><option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option><option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option></select><span class="post-audience-value" aria-hidden="true" data-post-audience-value><?= $postVisibility === 'public' ? 'Public' : "Friends<br>Only" ?></span></span><button class="post-composer-close" type="button" aria-label="Close post composer" title="Close" data-post-composer-close>&times;</button></div></div>
+                        <div class="post-composer-header"><label class="sr-only" for="post-title">Post title</label><input id="post-title" name="title" maxlength="100" placeholder="Post title" value="<?= htmlspecialchars($postTitle, ENT_QUOTES, 'UTF-8') ?>" data-post-title-input><div class="post-composer-header-actions"><label class="sr-only" for="post-visibility">Audience</label><span class="post-audience-select"><select id="post-visibility" name="visibility" aria-label="Post audience" data-post-audience-select><option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option><option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option></select><span class="post-audience-value" aria-hidden="true" data-post-audience-value><?= $postVisibility === 'public' ? 'Public' : "Friends<br>Only" ?></span></span><button class="post-composer-close" type="button" aria-label="Minimize post composer" title="Minimize" data-post-composer-close>&minus;</button></div></div>
                         <label class="sr-only" for="post-content">Write a post</label>
                         <textarea id="post-content" name="content" rows="4" maxlength="2500" placeholder="What's on your mind?" data-post-content><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
                         <button class="post-composer-expand" type="button" aria-label="Create a post" title="Create a post" data-post-composer-expand>+</button>
-                        <div class="post-composer-footer"><span class="post-character-count" data-post-character-count>0/2500</span><div class="post-composer-actions"><label class="post-media-picker" for="post-media" title="Attach media" aria-label="Attach media">+</label><input id="post-media" class="sr-only" type="file" name="post_media[]" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-input multiple><button class="post-submit-button" type="submit">Post</button></div></div>
+                        <div class="post-composer-footer"><span class="post-character-count" data-post-character-count>0/2500</span><div class="post-composer-actions"><label class="post-media-picker" for="post-media" title="Attach media" aria-label="Attach media">+</label><input id="post-media" class="sr-only" type="file" name="post_media[]" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-input multiple><button class="post-composer-cancel" type="button" data-post-composer-cancel>Discard</button><button class="post-submit-button" type="submit">Post</button></div></div>
                         <div class="post-media-preview" data-post-media-preview hidden><div data-post-media-preview-content></div></div>
                     </div>
                     <div class="post-upload-state" data-post-upload-state hidden><progress max="100" value="0" data-post-upload-progress></progress><span data-post-upload-status role="status"></span></div>
                     <?php if ($postError): ?><p class="post-error" role="alert"><?= htmlspecialchars($postError, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
                 </form>
+                <p class="post-action-lock-hint" data-post-action-lock-status role="status" hidden></p>
                 <p class="post-empty" data-post-empty<?= $posts ? ' hidden' : '' ?>>No posts yet.</p>
                 <div class="post-list" data-post-list>
                 <?php foreach ($posts as $post): ?>
                     <article id="post-<?= (int) $post['id'] ?>" class="post-card<?= (int) $post['user_id'] === $userId ? ' is-owned' : '' ?>" data-post-card data-post-id="<?= (int) $post['id'] ?>" data-post-created="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>">
                         <header class="post-header">
                             <?php renderPostAuthor($post); ?>
-                            <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ((int) $post['user_id'] === $userId): ?> &middot; <?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?><?php endif; ?></div>
+                            <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time><?php if (!empty($post['edited_at'])): ?> &middot; <span data-post-edited>Edited</span><?php endif; ?><?php if ((int) $post['user_id'] === $userId): ?> &middot; <span data-post-visibility-label><?= $post['visibility'] === 'public' ? 'Public' : 'Friends Only' ?></span><?php endif; ?></div>
                         </header>
                         <?php if ($post['title'] !== ''): ?><h3 class="post-title" data-post-title><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
                         <p class="post-content" data-post-content><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
@@ -912,26 +913,47 @@ if (isset($_SESSION['user_id'])) {
             <span data-zoom-warning-message>This layout works best at 175% zoom or lower.</span>
         </details>
     <?php else: ?>
-        <main>
-            <h1>NexusSpace</h1>
-            <p>A place to make your space your own.</p>
-            <p>
-                <a class="button" href="pages/register.php">Create an account</a>
-                <a class="button button-secondary" href="pages/login.php">Log in</a>
-            </p>
-            <h2>Public Posts</h2>
-            <?php if (!$posts): ?><p>No public posts yet.</p><?php endif; ?>
-            <?php foreach ($posts as $post): ?>
-                <article class="post-card">
-                    <header class="post-header">
-                        <?php renderPostAuthor($post); ?>
-                        <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time></div>
-                    </header>
-                    <?php if ($post['title'] !== ''): ?><h3 class="post-title"><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
-                    <p class="post-content"><?= htmlspecialchars($post['content'], ENT_QUOTES, 'UTF-8') ?></p>
-                    <?php renderPostMedia($post); ?>
-                </article>
-            <?php endforeach; ?>
+        <main class="public-landing">
+            <aside class="public-welcome" aria-labelledby="public-welcome-title">
+                <span class="public-brand-mark" aria-hidden="true">N</span>
+                <p class="public-eyebrow">Welcome to</p>
+                <h1 id="public-welcome-title">NexusSpace</h1>
+                <p class="public-welcome-copy">A social space for profiles, posts, and friends. Make a space that feels like yours.</p>
+                <div class="public-auth-actions">
+                    <a class="button" href="pages/register.php">Create an account</a>
+                    <a class="button button-secondary" href="pages/login.php">Log in</a>
+                </div>
+            </aside>
+            <section class="public-feed" aria-labelledby="public-feed-title">
+                <header class="public-feed-heading">
+                    <p class="public-eyebrow">From the community</p>
+                    <h2 id="public-feed-title">Public posts</h2>
+                    <p>Take a look around before you join.</p>
+                </header>
+                <?php if (!$posts): ?><p class="public-empty-state">No public posts yet. Check back soon.</p><?php endif; ?>
+                <div class="public-post-list">
+                    <?php foreach ($posts as $post): ?>
+                        <article class="post-card">
+                            <header class="post-header">
+                                <?php renderPostAuthor($post); ?>
+                                <div class="post-meta"><time datetime="<?= htmlspecialchars(str_replace(' ', 'T', $post['created_at']), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars($post['created_at'], ENT_QUOTES, 'UTF-8') ?>"><?= postTimestamp($post['created_at']) ?></time></div>
+                            </header>
+                            <?php if ($post['title'] !== ''): ?><h3 class="post-title"><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
+                            <?php $publicPostContent = (string) $post['content']; ?>
+                            <?php if (mb_strlen($publicPostContent, 'UTF-8') > 100): ?>
+                                <p class="post-content"><?= htmlspecialchars(mb_substr($publicPostContent, 0, 100, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?>&hellip;</p>
+                                <details class="public-post-more">
+                                    <summary><span class="public-post-more-label">Read more</span><span class="public-post-less-label">Show less</span></summary>
+                                    <p class="post-content"><?= htmlspecialchars($publicPostContent, ENT_QUOTES, 'UTF-8') ?></p>
+                                </details>
+                            <?php else: ?>
+                                <p class="post-content"><?= htmlspecialchars($publicPostContent, ENT_QUOTES, 'UTF-8') ?></p>
+                            <?php endif; ?>
+                            <?php renderPostMedia($post); ?>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
+            </section>
         </main>
     <?php endif; ?>
 </body>

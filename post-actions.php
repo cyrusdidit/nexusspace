@@ -97,12 +97,15 @@ try {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can edit this post.'], 403);
         if (mb_strlen($title, 'UTF-8') > 100) postActionResponse(['ok' => false, 'error' => 'Keep the post title under 100 characters.'], 422);
         if (mb_strlen($content, 'UTF-8') > 2500 || ($title === '' && $content === '' && !$post['media'])) postActionResponse(['ok' => false, 'error' => 'Add a title, write something, or keep the attached media, using no more than 2,500 characters.'], 422);
-        $statement = mysqli_prepare($conn, 'UPDATE posts SET title = ?, content = ?, edited_at = NOW() WHERE id = ? AND user_id = ?');
-        mysqli_stmt_bind_param($statement, 'ssii', $title, $content, $postId, $viewerId);
+        $visibility = is_string($_POST['visibility'] ?? null) ? $_POST['visibility'] : (string) $post['visibility'];
+        if (!in_array($visibility, ['friends', 'public'], true)) postActionResponse(['ok' => false, 'error' => 'Choose a valid post audience.'], 422);
+        $statement = mysqli_prepare($conn, 'UPDATE posts SET title = ?, content = ?, visibility = ?, edited_at = NOW() WHERE id = ? AND user_id = ?');
+        mysqli_stmt_bind_param($statement, 'sssii', $title, $content, $visibility, $postId, $viewerId);
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
         $post['title'] = $title;
         $post['content'] = $content;
+        $post['visibility'] = $visibility;
         $post['edited_at'] = date('Y-m-d H:i:s');
     } elseif ($action === 'delete_post') {
         if ($postOwnerId !== $viewerId) postActionResponse(['ok' => false, 'error' => 'Only the post creator can delete this post.'], 403);
@@ -332,6 +335,7 @@ postActionResponse([
     'ok' => true,
     'title' => $post['title'],
     'content' => $post['content'],
+    'visibility' => $post['visibility'],
     'edited' => $post['edited_at'] !== null,
     'mediaKey' => implode('|', array_map(static fn(array $item): string => (string) $item['id'] . ':' . $item['media_path'], $post['media'])),
     'mediaHtml' => $mediaHtml,

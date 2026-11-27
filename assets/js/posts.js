@@ -6,6 +6,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadMoreButton = document.querySelector('[data-post-load-more]');
     const liveChannel = 'BroadcastChannel' in window ? new BroadcastChannel('nexusspace-posts') : null;
     if (!endpoint || !csrfToken) return;
+    let postDeleteDialog = null;
+
+    const confirmPostDeletion = (card) => new Promise((resolve) => {
+        if (!postDeleteDialog) {
+            const dialog = document.createElement('dialog');
+            const heading = document.createElement('h2');
+            const message = document.createElement('p');
+            const actions = document.createElement('div');
+            const cancel = document.createElement('button');
+            const confirm = document.createElement('button');
+            dialog.className = 'post-delete-dialog';
+            dialog.setAttribute('aria-labelledby', 'post-delete-heading');
+            dialog.setAttribute('aria-describedby', 'post-delete-description');
+            heading.id = 'post-delete-heading';
+            heading.textContent = 'Delete this post?';
+            message.id = 'post-delete-description';
+            message.dataset.postDeleteMessage = '';
+            actions.className = 'post-delete-actions';
+            cancel.type = 'button';
+            cancel.textContent = 'Cancel';
+            confirm.type = 'button';
+            confirm.className = 'post-delete-confirm';
+            confirm.textContent = 'Delete post';
+            actions.append(cancel, confirm);
+            dialog.append(heading, message, actions);
+            document.body.append(dialog);
+            cancel.addEventListener('click', () => dialog.close('cancel'));
+            confirm.addEventListener('click', () => dialog.close('delete'));
+            dialog.addEventListener('click', (event) => {
+                if (event.target === dialog) dialog.close('cancel');
+            });
+            postDeleteDialog = dialog;
+        }
+
+        const title = card.querySelector('[data-post-title]')?.textContent.trim();
+        const message = postDeleteDialog.querySelector('[data-post-delete-message]');
+        message.textContent = title
+            ? `Delete "${title}" and all its comments? This cannot be undone.`
+            : 'Delete this post and all its comments? This cannot be undone.';
+        postDeleteDialog.returnValue = '';
+        postDeleteDialog.addEventListener('close', () => resolve(postDeleteDialog.returnValue === 'delete'), { once: true });
+        postDeleteDialog.showModal();
+        postDeleteDialog.querySelector('button')?.focus();
+    });
+
+    const updatePostEditLocks = (action) => {
+        const locked = Boolean(action);
+        document.querySelectorAll('[data-post-edit]').forEach((button) => {
+            button.disabled = locked;
+            button.title = locked ? (action === 'compose' ? 'Finish or discard the current post draft first.' : 'Finish or cancel the current post edit first.') : '';
+        });
+        document.querySelectorAll('[data-post-action-lock-status]').forEach((status) => {
+            status.textContent = action === 'compose'
+                ? 'Finish or discard this post draft before editing another post.'
+                : 'Finish or cancel the current post edit before starting another post.';
+            status.hidden = !locked;
+        });
+    };
+    document.addEventListener('nexus:post-action-change', (event) => updatePostEditLocks(event.detail?.action || ''));
+    const announcePostAction = (action, card = null) => {
+        if (action) document.body.dataset.postActionActive = action;
+        else delete document.body.dataset.postActionActive;
+        document.dispatchEvent(new CustomEvent('nexus:post-action-change', { detail: { action, card } }));
+    };
+    updatePostEditLocks(document.body.dataset.postActionActive || '');
 
     const request = async (card, action, values = {}) => {
         const formData = new FormData();
@@ -53,6 +118,33 @@ document.addEventListener('DOMContentLoaded', () => {
         status.textContent = error.message || 'The post could not be updated.';
         status.hidden = false;
     };
+    const updateCommentCharacterCount = (textarea) => {
+        const counter = textarea.form?.querySelector('[data-comment-character-count]');
+        if (!counter) return;
+        const limit = Number(textarea.maxLength) || 1000;
+        const length = textarea.value.length;
+        counter.textContent = `${length}/${limit}`;
+        counter.setAttribute('aria-label', `${length} of ${limit} characters`);
+        counter.classList.toggle('is-near-limit', length >= Math.ceil(limit * 0.9));
+        counter.classList.toggle('is-at-limit', length >= limit);
+    };
+    const updatePostEditCharacterCount = (field) => {
+        const titleField = field.matches('[data-post-edit-title]');
+        const selector = titleField ? '[data-post-edit-title-count]' : '[data-post-edit-content-count]';
+        const counter = field.form?.querySelector(selector);
+        if (!counter) return;
+        const limit = Number(field.maxLength) || (titleField ? 100 : 2500);
+        const length = field.value.length;
+        counter.textContent = `${length}/${limit}`;
+        counter.setAttribute('aria-label', `${length} of ${limit} characters`);
+        counter.classList.toggle('is-near-limit', length >= Math.ceil(limit * 0.9));
+        counter.classList.toggle('is-at-limit', length >= limit);
+    };
+    document.querySelectorAll('[data-post-edit-title], [data-post-edit-content]').forEach(updatePostEditCharacterCount);
+    document.querySelectorAll('[data-comment-character-count]').forEach((counter) => {
+        const textarea = counter.closest('form')?.querySelector('textarea[maxlength]');
+        if (textarea) updateCommentCharacterCount(textarea);
+    });
     const updateInteractions = (card, data, preserveDrafts = false) => {
         if (!data.interactionsHtml) return;
         const drafts = [];
@@ -88,6 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (draft.type === 'edit') textarea = card.querySelector(`[data-comment-id="${draft.commentId}"] [data-comment-edit-form] textarea`);
             if (!textarea) return;
             textarea.value = draft.value;
+            updateCommentCharacterCount(textarea);
             if (draft.open && draft.type !== 'comment') {
                 textarea.form.hidden = false;
                 if (draft.type === 'edit') {
@@ -154,6 +247,12 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         event.target.form?.requestSubmit();
     });
+    document.addEventListener('input', (event) => {
+        const postEditField = event.target.closest?.('[data-post-edit-title], [data-post-edit-content]');
+        if (postEditField) updatePostEditCharacterCount(postEditField);
+        const textarea = event.target.closest?.('[data-post-comment-form] textarea, [data-comment-reply-form] textarea, [data-comment-edit-form] textarea');
+        if (textarea) updateCommentCharacterCount(textarea);
+    });
 
     document.addEventListener('click', async (event) => {
         const button = event.target.closest('button');
@@ -181,6 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (button.matches('[data-comment-focus]')) { card.querySelector('[data-post-comment-form] textarea')?.focus(); return; }
         if (button.matches('[data-post-edit]')) {
+            if (document.body.dataset.postActionActive) return;
+            announcePostAction('edit', card);
             card.classList.add('is-editing');
             const title = card.querySelector('[data-post-title]');
             if (title) title.hidden = true;
@@ -196,6 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const title = card.querySelector('[data-post-title]');
             if (title) title.hidden = false;
             card.querySelector('[data-post-content]').hidden = false;
+            announcePostAction('');
             return;
         }
         if (button.matches('[data-comment-reply]')) {
@@ -233,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
             action = 'purge_comment'; values.comment_id = button.closest('[data-comment-id]').dataset.commentId;
         }
         if (button.matches('[data-post-delete]')) {
-            if (!window.confirm('Delete this post and all of its comments?')) return;
+            if (!await confirmPostDeletion(card)) return;
             action = 'delete_post';
         }
         if (button.matches('[data-post-media-remove]')) {
@@ -269,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
             action = 'edit_post';
             values.title = form.querySelector('[data-post-edit-title]').value;
             values.content = form.querySelector('textarea').value;
+            values.visibility = form.querySelector('[data-post-edit-visibility]').value;
         }
         else if (form.matches('[data-post-comment-form]')) { action = 'add_comment'; values.content = form.elements.content.value; }
         else if (form.matches('[data-comment-reply-form]')) { action = 'add_comment'; values.content = form.elements.content.value; values.parent_id = form.elements.parent_id.value; }
@@ -283,9 +386,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateTitle(card, data.title);
                 const content = card.querySelector('[data-post-content]');
                 content.textContent = data.content;
+                const audience = card.querySelector('[data-post-visibility-label]');
+                if (audience) audience.textContent = data.visibility === 'public' ? 'Public' : 'Friends Only';
                 content.hidden = false;
                 form.hidden = true;
                 card.classList.remove('is-editing');
+                announcePostAction('');
                 if (!card.querySelector('[data-post-edited]')) card.querySelector('.post-meta').insertAdjacentHTML('beforeend', ' &middot; <span data-post-edited>Edited</span>');
             }
             updateInteractions(card, data);
@@ -367,12 +473,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isNew) return;
                 updateTitle(card, post.title);
                 const titleEditor = card.querySelector('[data-post-edit-title]');
-                if (titleEditor && titleEditor.form.hidden) titleEditor.value = post.title;
+                if (titleEditor && titleEditor.form.hidden) {
+                    titleEditor.value = post.title;
+                    updatePostEditCharacterCount(titleEditor);
+                }
                 const content = card.querySelector('[data-post-content]');
                 if (content && content.textContent !== post.content) {
                     content.textContent = post.content;
                     const editor = card.querySelector('[data-post-edit-form] textarea');
-                    if (editor && editor.form.hidden) editor.value = post.content;
+                    if (editor && editor.form.hidden) {
+                        editor.value = post.content;
+                        updatePostEditCharacterCount(editor);
+                    }
                 }
                 if (post.edited && !card.querySelector('[data-post-edited]')) {
                     card.querySelector('.post-meta')?.insertAdjacentHTML('beforeend', ' &middot; <span data-post-edited>Edited</span>');

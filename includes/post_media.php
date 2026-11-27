@@ -249,13 +249,15 @@ function renderPostEditForm(array $post): void
     ?>
     <form class="post-edit-form" data-profile-style="post.edit-form" data-post-edit-form hidden>
         <input class="post-edit-title" type="text" maxlength="100" placeholder="Post title" value="<?= htmlspecialchars((string) ($post['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-profile-style="post.edit-title-field" data-post-edit-title>
-        <textarea maxlength="2500" data-profile-style="post.edit-body-field"><?= htmlspecialchars((string) ($post['content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
+        <span class="post-edit-character-count" data-post-edit-title-count aria-label="<?= mb_strlen((string) ($post['title'] ?? ''), 'UTF-8') ?> of 100 characters"><?= mb_strlen((string) ($post['title'] ?? ''), 'UTF-8') ?>/100</span>
+        <textarea maxlength="2500" data-profile-style="post.edit-body-field" data-post-edit-content><?= htmlspecialchars((string) ($post['content'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea>
+        <span class="post-edit-character-count" data-post-edit-content-count aria-label="<?= mb_strlen((string) ($post['content'] ?? ''), 'UTF-8') ?> of 2500 characters"><?= mb_strlen((string) ($post['content'] ?? ''), 'UTF-8') ?>/2500</span>
         <div class="post-edit-media-tools" data-profile-style="post.upload-progress">
             <label data-profile-style="post.media-add-control"><span>Add media</span><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" multiple data-post-media-add></label>
             <progress max="100" value="0" data-post-edit-upload-progress hidden></progress>
             <span data-post-edit-upload-status role="status"></span>
         </div>
-        <div data-profile-style="post.edit-actions"><button type="submit" data-profile-style="post.save-control">Save</button><button type="button" data-profile-style="post.cancel-control" data-post-edit-cancel>Cancel</button></div>
+        <div data-profile-style="post.edit-actions"><label class="post-edit-audience">Audience<select aria-label="Post audience" data-profile-style="post.edit-visibility-field" data-post-edit-visibility><option value="friends"<?= ($post['visibility'] ?? 'friends') === 'friends' ? ' selected' : '' ?>>Friends Only</option><option value="public"<?= ($post['visibility'] ?? 'friends') === 'public' ? ' selected' : '' ?>>Public</option></select></label><button type="submit" data-profile-style="post.save-control">Save</button><button type="button" data-profile-style="post.cancel-control" data-post-edit-cancel>Cancel</button></div>
     </form>
     <?php
 }

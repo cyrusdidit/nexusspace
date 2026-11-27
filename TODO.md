@@ -121,6 +121,20 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [ ] Write conclusions based on the completed requirements and test results; complete the glossary, reference list, and appendices, including checking every in-text citation against the bibliography.
 - [ ] Replace remaining instructional placeholders, correct figure descriptions and captions, and remove or redact configuration details in screenshots.
 
+## 7. User feedback (translated)
+
+- [x] Allow post visibility (public/friends) to be changed while editing, so a visibility mistake does not require deleting and recreating the post.
+- [x] Prevent overlapping post actions: only one post draft or edit can be active at a time; minimizing keeps a draft locked, while Discard clears it.
+- [x] Replace browser-native post deletion confirmations with an in-page confirmation dialog that supports keyboard cancel and an explicit Delete action.
+- [x] Show current comment, reply, and comment-edit character counts; turn the counter red near the limit and highlight it strongly at the limit.
+- [x] Show live current/max character counts for post title and body while editing; warn in red near the limits.
+- [x] Make bio editing clearer with the shared pencil icon, a highlighted editor, and a labeled Save button.
+- [x] Redesign the logged-out landing page with a public feed beside a welcome panel and clear registration/login links; stack the layout on smaller screens.
+- [x] Truncate long public posts to 100 characters with a built-in Read more / Show less disclosure.
+- [ ] Use soft deletion for administrator-removed posts so they are hidden but recoverable for appeals; define a review and permanent-purge schedule for marked posts.
+- [ ] Check whether `posts.media_type` and `posts.media_path` are still used; remove them from the schema if media is handled entirely by `post_media`.
+- [ ] Make logout easy to reach directly, without requiring users to navigate through Settings first.
+
 ## Suggested next task
 
 Continue the authorization, output-escaping, and custom HTML/CSS audits, then
