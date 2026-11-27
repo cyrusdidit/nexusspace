@@ -118,11 +118,24 @@ document.addEventListener('DOMContentLoaded', () => {
         status.textContent = error.message || 'The post could not be updated.';
         status.hidden = false;
     };
+    const characterLength = (value) => Array.from(value).length;
+    const enforceCharacterLimit = (field) => {
+        const limit = Number(field.dataset.characterLimit);
+        if (!Number.isSafeInteger(limit) || limit < 0) return;
+        const characters = Array.from(field.value);
+        if (characters.length <= limit) return;
+        const selectionStart = field.selectionStart;
+        field.value = characters.slice(0, limit).join('');
+        if (typeof selectionStart === 'number') {
+            const position = Math.min(selectionStart, field.value.length);
+            field.setSelectionRange(position, position);
+        }
+    };
     const updateCommentCharacterCount = (textarea) => {
         const counter = textarea.form?.querySelector('[data-comment-character-count]');
         if (!counter) return;
-        const limit = Number(textarea.maxLength) || 1000;
-        const length = textarea.value.length;
+        const limit = Number(textarea.dataset.characterLimit) || 1000;
+        const length = characterLength(textarea.value);
         counter.textContent = `${length}/${limit}`;
         counter.setAttribute('aria-label', `${length} of ${limit} characters`);
         counter.classList.toggle('is-near-limit', length >= Math.ceil(limit * 0.9));
@@ -133,8 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const selector = titleField ? '[data-post-edit-title-count]' : '[data-post-edit-content-count]';
         const counter = field.form?.querySelector(selector);
         if (!counter) return;
-        const limit = Number(field.maxLength) || (titleField ? 100 : 2500);
-        const length = field.value.length;
+        const limit = Number(field.dataset.characterLimit) || (titleField ? 100 : 2500);
+        const length = characterLength(field.value);
         counter.textContent = `${length}/${limit}`;
         counter.setAttribute('aria-label', `${length} of ${limit} characters`);
         counter.classList.toggle('is-near-limit', length >= Math.ceil(limit * 0.9));
@@ -142,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     document.querySelectorAll('[data-post-edit-title], [data-post-edit-content]').forEach(updatePostEditCharacterCount);
     document.querySelectorAll('[data-comment-character-count]').forEach((counter) => {
-        const textarea = counter.closest('form')?.querySelector('textarea[maxlength]');
+        const textarea = counter.closest('form')?.querySelector('textarea[data-character-limit]');
         if (textarea) updateCommentCharacterCount(textarea);
     });
     const updateInteractions = (card, data, preserveDrafts = false) => {
@@ -248,6 +261,8 @@ document.addEventListener('DOMContentLoaded', () => {
         event.target.form?.requestSubmit();
     });
     document.addEventListener('input', (event) => {
+        const limitedField = event.target.closest?.('[data-character-limit]');
+        if (limitedField) enforceCharacterLimit(limitedField);
         const postEditField = event.target.closest?.('[data-post-edit-title], [data-post-edit-content]');
         if (postEditField) updatePostEditCharacterCount(postEditField);
         const textarea = event.target.closest?.('[data-post-comment-form] textarea, [data-comment-reply-form] textarea, [data-comment-edit-form] textarea');
@@ -352,7 +367,10 @@ document.addEventListener('DOMContentLoaded', () => {
         button.disabled = true;
         try {
             const data = await request(card, action, values);
-            if (data.deleted) card.remove();
+            if (data.deleted) {
+                if (card.classList.contains('is-editing')) announcePostAction('');
+                card.remove();
+            }
             else {
                 updateMedia(card, data);
                 updateInteractions(card, data);
@@ -459,7 +477,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (!response.ok || !data.ok) return;
             const available = new Set(data.availableIds.map(String));
-            cards.forEach((card) => { if (!available.has(card.dataset.postId)) card.remove(); });
+            cards.forEach((card) => {
+                if (!available.has(card.dataset.postId)) {
+                    if (card.classList.contains('is-editing')) announcePostAction('');
+                    card.remove();
+                }
+            });
             data.posts.forEach((post, index) => {
                 let card = document.querySelector(`[data-post-card][data-post-id="${post.id}"]`);
                 const isNew = !card;

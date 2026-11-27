@@ -83,14 +83,14 @@ function renderPostComment(array $comment, int $viewerId, int $postOwnerId, stri
                 <?php if (!$reply && $postOwnerId === $viewerId): ?><button type="button" data-profile-style="comment.pin-control" data-comment-pin><?= $comment['pinned_at'] ? 'Unpin' : 'Pin' ?></button><?php endif; ?>
             </div>
             <form class="post-comment-edit" data-profile-style="comment.edit-form" data-comment-edit-form hidden>
-                <textarea maxlength="1000" required data-profile-style="comment.edit-field"><?= htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <textarea data-character-limit="1000" required data-profile-style="comment.edit-field"><?= htmlspecialchars($comment['content'], ENT_QUOTES, 'UTF-8') ?></textarea>
                 <span class="comment-character-count" data-comment-character-count aria-label="<?= mb_strlen($comment['content'], 'UTF-8') ?> of 1000 characters"><?= mb_strlen($comment['content'], 'UTF-8') ?>/1000</span>
                 <button type="submit" data-profile-style="comment.save-control">Save</button><button type="button" data-profile-style="comment.cancel-control" data-comment-edit-cancel>Cancel</button>
             </form>
             <?php if (!$reply): ?>
                 <form class="post-reply-form" data-profile-style="comment.reply-form" data-comment-reply-form hidden>
                     <input type="hidden" name="parent_id" value="<?= (int) $comment['id'] ?>">
-                    <textarea name="content" maxlength="1000" placeholder="Write a reply..." required data-profile-style="comment.reply-field"></textarea>
+                    <textarea name="content" data-character-limit="1000" placeholder="Write a reply..." required data-profile-style="comment.reply-field"></textarea>
                     <span class="comment-character-count" data-comment-character-count aria-label="0 of 1000 characters">0/1000</span>
                     <button type="submit" data-profile-style="comment.reply-submit">Reply</button>
                 </form>
@@ -121,7 +121,7 @@ function renderPostInteractions(array $post, array $interaction, int $viewerId, 
             <button type="button" data-profile-style="post.comment-control" data-comment-focus>Comment <span><?= $commentCount ?></span></button>
         </div>
         <form class="post-comment-form" data-profile-style="comment.composer" data-post-comment-form>
-            <textarea name="content" maxlength="1000" placeholder="Write a comment..." required data-profile-style="comment.composer-field"></textarea>
+            <textarea name="content" data-character-limit="1000" placeholder="Write a comment..." required data-profile-style="comment.composer-field"></textarea>
             <span class="comment-character-count" data-comment-character-count aria-label="0 of 1000 characters">0/1000</span>
             <button type="submit" data-profile-style="comment.composer-submit">Comment</button>
         </form>

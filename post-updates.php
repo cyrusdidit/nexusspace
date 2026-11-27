@@ -30,7 +30,7 @@ $profileUserId = filter_var($_POST['profile_user_id'] ?? null, FILTER_VALIDATE_I
 $mode = ($_POST['mode'] ?? '') === 'older' ? 'older' : 'refresh';
 $requestedIds = json_decode(is_string($_POST['post_ids'] ?? null) ? $_POST['post_ids'] : '[]', true);
 $requestedCount = is_array($requestedIds) ? min(200, count($requestedIds)) : 0;
-$filters = [];
+$filters = ['p.admin_removed_at IS NULL'];
 $bindTypes = '';
 $bindValues = [];
 if ($context === 'profile') {
@@ -51,7 +51,7 @@ if ($mode === 'older') {
 }
 $limit = $mode === 'older' ? 26 : min(250, max(50, $requestedCount + 50));
 $pinFields = $context === 'profile'
-    ? ', p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count'
+    ? ', p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL AND pinned.admin_removed_at IS NULL) AS pinned_post_count'
     : ', NULL AS pinned_at, 0 AS pinned_post_count';
 $orderBy = $context === 'profile'
     ? 'p.pinned_at IS NULL ASC, p.pinned_at ASC, p.created_at DESC, p.id DESC'

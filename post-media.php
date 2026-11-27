@@ -27,7 +27,7 @@ $viewerId = (int) ($_SESSION['user_id'] ?? 0);
 $mediaPath = 'uploads/posts/' . $filename;
 $statement = mysqli_prepare(
     $conn,
-    "SELECT p.id, p.user_id, p.visibility FROM posts p LEFT JOIN post_media pm ON pm.post_id = p.id AND pm.media_path = ? WHERE (p.media_path = ? OR pm.id IS NOT NULL) AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1"
+    "SELECT p.id, p.user_id, p.visibility FROM posts p LEFT JOIN post_media pm ON pm.post_id = p.id AND pm.media_path = ? WHERE (p.media_path = ? OR pm.id IS NOT NULL) AND p.admin_removed_at IS NULL AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1"
 );
 mysqli_stmt_bind_param($statement, 'ssiiiii', $mediaPath, $mediaPath, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId);
 mysqli_stmt_execute($statement);

@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/background_customization.php';
 require_once __DIR__ . '/includes/post_interactions.php';
 require_once __DIR__ . '/includes/post_media.php';
 require_once __DIR__ . '/includes/rate_limit.php';
+require_once __DIR__ . '/includes/admin.php';
 
 require_once __DIR__ . '/includes/session.php';
 
@@ -512,11 +513,20 @@ if (isset($_SESSION['user_id'])) {
     if (isset($submittedColor) && preg_match('/^#[0-9a-f]{6}$/', $submittedColor)) {
         $dashboardBackgroundColor = $submittedColor;
     }
-    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 51");
+    $feedStatement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.admin_removed_at IS NULL AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) ORDER BY p.created_at DESC, p.id DESC LIMIT 51");
     mysqli_stmt_bind_param($feedStatement, 'iiiii', $userId, $userId, $userId, $userId, $userId);
     mysqli_stmt_execute($feedStatement);
     $posts = mysqli_fetch_all(mysqli_stmt_get_result($feedStatement), MYSQLI_ASSOC);
     mysqli_stmt_close($feedStatement);
+    $isPostModerator = isNexusSpaceAdmin($userId);
+    $removedPostCount = 0;
+    if (!$isPostModerator) {
+        $removedCountStatement = mysqli_prepare($conn, 'SELECT COUNT(*) AS total FROM posts WHERE user_id = ? AND admin_removed_at IS NOT NULL');
+        mysqli_stmt_bind_param($removedCountStatement, 'i', $userId);
+        mysqli_stmt_execute($removedCountStatement);
+        $removedPostCount = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($removedCountStatement))['total'];
+        mysqli_stmt_close($removedCountStatement);
+    }
     $hasMorePosts = count($posts) > 50;
     if ($hasMorePosts) array_pop($posts);
     attachPostMedia($posts, loadPostMedia($conn, array_column($posts, 'id')));
@@ -585,7 +595,7 @@ if (isset($_SESSION['user_id'])) {
         }
     }
 } else {
-    $publicResult = mysqli_query($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
+    $publicResult = mysqli_query($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.created_at, u.username, u.avatar_path, u.bio, u.profile_background_color, u.profile_text_color, u.registration_date FROM posts p JOIN users u ON u.id = p.user_id WHERE p.visibility = 'public' AND p.admin_removed_at IS NULL ORDER BY p.created_at DESC, p.id DESC LIMIT 50");
     $posts = mysqli_fetch_all($publicResult, MYSQLI_ASSOC);
     attachPostMedia($posts, loadPostMedia($conn, array_column($posts, 'id')));
 }
@@ -752,6 +762,8 @@ if (isset($_SESSION['user_id'])) {
                 <nav class="sidebar-actions" aria-label="Account actions">
                     <a class="settings-link" href="pages/settings.php" aria-label="Settings" title="Settings"><span class="sidebar-action-icon" aria-hidden="true">&#9881;</span></a>
                     <button type="button" data-dashboard-appearance-toggle aria-controls="dashboard-appearance-panel" aria-expanded="false" aria-label="Appearance" title="Appearance"><span class="sidebar-action-icon" aria-hidden="true">&#9998;</span></button>
+                    <?php if ($isPostModerator): ?><a class="moderation-link" href="pages/post-moderation.php" aria-label="Post moderation" title="Post moderation"><span class="sidebar-action-icon" aria-hidden="true">&#9878;</span></a><?php elseif ($removedPostCount > 0): ?><a class="moderation-link" href="pages/post-moderation.php" aria-label="Removed posts" title="Removed posts"><span class="sidebar-action-icon" aria-hidden="true">&#9878;</span></a><?php endif; ?>
+                    <form class="sidebar-logout-form" method="post" action="logout.php"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars(securityCsrfToken(), ENT_QUOTES, 'UTF-8') ?>"><button type="submit" aria-label="Log out" title="Log out"><span class="sidebar-action-icon" aria-hidden="true">&#10162;</span></button></form>
                 </nav>
             </aside>
 
@@ -760,9 +772,9 @@ if (isset($_SESSION['user_id'])) {
                     <input type="hidden" name="action" value="create_post">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['posts_csrf'], ENT_QUOTES, 'UTF-8') ?>">
                     <div class="post-composer-box<?= $postContent !== '' || $postError !== '' ? ' is-expanded' : '' ?>" data-post-composer-box>
-                        <div class="post-composer-header"><label class="sr-only" for="post-title">Post title</label><input id="post-title" name="title" maxlength="100" placeholder="Post title" value="<?= htmlspecialchars($postTitle, ENT_QUOTES, 'UTF-8') ?>" data-post-title-input><div class="post-composer-header-actions"><label class="sr-only" for="post-visibility">Audience</label><span class="post-audience-select"><select id="post-visibility" name="visibility" aria-label="Post audience" data-post-audience-select><option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option><option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option></select><span class="post-audience-value" aria-hidden="true" data-post-audience-value><?= $postVisibility === 'public' ? 'Public' : "Friends<br>Only" ?></span></span><button class="post-composer-close" type="button" aria-label="Minimize post composer" title="Minimize" data-post-composer-close>&minus;</button></div></div>
+                        <div class="post-composer-header"><label class="sr-only" for="post-title">Post title</label><input id="post-title" name="title" data-character-limit="100" placeholder="Post title" value="<?= htmlspecialchars($postTitle, ENT_QUOTES, 'UTF-8') ?>" data-post-title-input><div class="post-composer-header-actions"><label class="sr-only" for="post-visibility">Audience</label><span class="post-audience-select"><select id="post-visibility" name="visibility" aria-label="Post audience" data-post-audience-select><option value="friends"<?= $postVisibility === 'friends' ? ' selected' : '' ?>>Friends Only</option><option value="public"<?= $postVisibility === 'public' ? ' selected' : '' ?>>Public</option></select><span class="post-audience-value" aria-hidden="true" data-post-audience-value><?= $postVisibility === 'public' ? 'Public' : "Friends<br>Only" ?></span></span><button class="post-composer-close" type="button" aria-label="Minimize post composer" title="Minimize" data-post-composer-close>&minus;</button></div></div>
                         <label class="sr-only" for="post-content">Write a post</label>
-                        <textarea id="post-content" name="content" rows="4" maxlength="2500" placeholder="What's on your mind?" data-post-content><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
+                        <textarea id="post-content" name="content" rows="4" data-character-limit="2500" placeholder="What's on your mind?" data-post-content><?= htmlspecialchars($postContent, ENT_QUOTES, 'UTF-8') ?></textarea>
                         <button class="post-composer-expand" type="button" aria-label="Create a post" title="Create a post" data-post-composer-expand>+</button>
                         <div class="post-composer-footer"><span class="post-character-count" data-post-character-count>0/2500</span><div class="post-composer-actions"><label class="post-media-picker" for="post-media" title="Attach media" aria-label="Attach media">+</label><input id="post-media" class="sr-only" type="file" name="post_media[]" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" data-post-media-input multiple><button class="post-composer-cancel" type="button" data-post-composer-cancel>Discard</button><button class="post-submit-button" type="submit">Post</button></div></div>
                         <div class="post-media-preview" data-post-media-preview hidden><div data-post-media-preview-content></div></div>
@@ -941,7 +953,7 @@ if (isset($_SESSION['user_id'])) {
                             <?php if ($post['title'] !== ''): ?><h3 class="post-title"><?= htmlspecialchars($post['title'], ENT_QUOTES, 'UTF-8') ?></h3><?php endif; ?>
                             <?php $publicPostContent = (string) $post['content']; ?>
                             <?php if (mb_strlen($publicPostContent, 'UTF-8') > 100): ?>
-                                <p class="post-content"><?= htmlspecialchars(mb_substr($publicPostContent, 0, 100, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?>&hellip;</p>
+                                <p class="post-content public-post-preview"><?= htmlspecialchars(mb_substr($publicPostContent, 0, 100, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?>&hellip;</p>
                                 <details class="public-post-more">
                                     <summary><span class="public-post-more-label">Read more</span><span class="public-post-less-label">Show less</span></summary>
                                     <p class="post-content"><?= htmlspecialchars($publicPostContent, ENT_QUOTES, 'UTF-8') ?></p>

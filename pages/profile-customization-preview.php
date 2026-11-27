@@ -77,7 +77,7 @@ mysqli_stmt_execute($statement);
 $topFriends = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);
 mysqli_stmt_close($statement);
 
-$statement = mysqli_prepare($conn, 'SELECT id, user_id, title, content, media_path, media_type, visibility, created_at, edited_at FROM posts WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 3');
+$statement = mysqli_prepare($conn, 'SELECT id, user_id, title, content, media_path, media_type, visibility, created_at, edited_at FROM posts WHERE user_id = ? AND admin_removed_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 3');
 mysqli_stmt_bind_param($statement, 'i', $currentUserId);
 mysqli_stmt_execute($statement);
 $posts = mysqli_fetch_all(mysqli_stmt_get_result($statement), MYSQLI_ASSOC);

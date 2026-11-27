@@ -131,9 +131,9 @@ unchecked audit items are work to verify, not confirmed vulnerabilities.
 - [x] Make bio editing clearer with the shared pencil icon, a highlighted editor, and a labeled Save button.
 - [x] Redesign the logged-out landing page with a public feed beside a welcome panel and clear registration/login links; stack the layout on smaller screens.
 - [x] Truncate long public posts to 100 characters with a built-in Read more / Show less disclosure.
-- [ ] Use soft deletion for administrator-removed posts so they are hidden but recoverable for appeals; define a review and permanent-purge schedule for marked posts.
-- [ ] Check whether `posts.media_type` and `posts.media_path` are still used; remove them from the schema if media is handled entirely by `post_media`.
-- [ ] Make logout easy to reach directly, without requiring users to navigate through Settings first.
+- [x] Add admin-configured post removal, author appeals, restore/review controls, a seven-day appeal review target, and a 30-day purge job that preserves posts with pending appeals.
+- [x] Confirmed `posts.media_type` and `posts.media_path` are still used by legacy post queries and the media fallback; retain them until those paths are migrated.
+- [x] Add a direct, CSRF-protected logout action to the dashboard sidebar.
 
 ## Suggested next task
 

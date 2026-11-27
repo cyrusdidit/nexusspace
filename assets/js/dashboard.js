@@ -177,12 +177,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.body.dataset.postActionActive === 'compose') setComposerActionActive(true);
     if (postContent && postCharacterCount) {
         const updatePostCharacterCount = () => {
-            postCharacterCount.textContent = `${postContent.value.length}/2500`;
+            const limit = Number(postContent.dataset.characterLimit) || 2500;
+            postCharacterCount.textContent = `${Array.from(postContent.value).length}/${limit}`;
             updatePostComposerSize();
         };
-        postContent.addEventListener('input', updatePostCharacterCount);
+        postContent.addEventListener('input', () => {
+            const limit = Number(postContent.dataset.characterLimit) || 2500;
+            const characters = Array.from(postContent.value);
+            if (characters.length > limit) postContent.value = characters.slice(0, limit).join('');
+            updatePostCharacterCount();
+        });
         updatePostCharacterCount();
     }
+    const postTitle = document.querySelector('[data-post-title-input]');
+    postTitle?.addEventListener('input', () => {
+        const limit = Number(postTitle.dataset.characterLimit) || 100;
+        const characters = Array.from(postTitle.value);
+        if (characters.length > limit) postTitle.value = characters.slice(0, limit).join('');
+    });
     const expandPostComposer = () => {
         if (document.body.dataset.postActionActive === 'edit') return;
         postComposerBox?.classList.add('is-expanded');

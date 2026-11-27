@@ -34,7 +34,7 @@ $action = is_string($_POST['action'] ?? null) ? $_POST['action'] : '';
 $allowedActions = ['edit_post', 'delete_post', 'add_media', 'replace_media', 'reorder_media', 'remove_media', 'add_comment', 'edit_comment', 'delete_comment', 'purge_comment', 'toggle_pin', 'toggle_post_pin'];
 if (!$postId || !in_array($action, $allowedActions, true)) postActionResponse(['ok' => false, 'error' => 'Invalid post action.'], 422);
 
-$statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1");
+$statement = mysqli_prepare($conn, "SELECT p.id, p.user_id, p.title, p.content, p.media_path, p.media_type, p.visibility, p.created_at, p.edited_at, p.pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL AND pinned.admin_removed_at IS NULL) AS pinned_post_count FROM posts p WHERE p.id = ? AND p.admin_removed_at IS NULL AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)) LIMIT 1");
 mysqli_stmt_bind_param($statement, 'iiiiii', $postId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId);
 mysqli_stmt_execute($statement);
 $post = mysqli_fetch_assoc(mysqli_stmt_get_result($statement));
@@ -71,7 +71,7 @@ try {
             $statement = mysqli_prepare($conn, 'UPDATE posts SET pinned_at = NULL WHERE id = ? AND user_id = ?');
             mysqli_stmt_bind_param($statement, 'ii', $postId, $viewerId);
         } else {
-            $countStatement = mysqli_prepare($conn, 'SELECT COUNT(*) AS total FROM posts WHERE user_id = ? AND pinned_at IS NOT NULL');
+            $countStatement = mysqli_prepare($conn, 'SELECT COUNT(*) AS total FROM posts WHERE user_id = ? AND pinned_at IS NOT NULL AND admin_removed_at IS NULL');
             mysqli_stmt_bind_param($countStatement, 'i', $viewerId);
             mysqli_stmt_execute($countStatement);
             $pinnedCount = (int) mysqli_fetch_assoc(mysqli_stmt_get_result($countStatement))['total'];
@@ -86,7 +86,7 @@ try {
         mysqli_stmt_execute($statement);
         mysqli_stmt_close($statement);
         mysqli_commit($conn);
-        $stateStatement = mysqli_prepare($conn, 'SELECT pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL) AS pinned_post_count FROM posts p WHERE p.id = ? AND p.user_id = ? LIMIT 1');
+        $stateStatement = mysqli_prepare($conn, 'SELECT pinned_at, (SELECT COUNT(*) FROM posts pinned WHERE pinned.user_id = p.user_id AND pinned.pinned_at IS NOT NULL AND pinned.admin_removed_at IS NULL) AS pinned_post_count FROM posts p WHERE p.id = ? AND p.user_id = ? AND p.admin_removed_at IS NULL LIMIT 1');
         mysqli_stmt_bind_param($stateStatement, 'ii', $postId, $viewerId);
         mysqli_stmt_execute($stateStatement);
         $pinState = mysqli_fetch_assoc(mysqli_stmt_get_result($stateStatement)) ?: ['pinned_at' => null, 'pinned_post_count' => 0];
@@ -217,10 +217,10 @@ try {
             $validParent = $parentComment !== null;
             mysqli_stmt_close($statement);
             if (!$validParent) postActionResponse(['ok' => false, 'error' => 'That comment cannot be replied to.'], 422);
-            $statement = mysqli_prepare($conn, "INSERT INTO post_comments (post_id, user_id, parent_id, content) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))) AND EXISTS (SELECT 1 FROM post_comments c WHERE c.id = ? AND c.post_id = ? AND c.parent_id IS NULL AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = ?)))");
+            $statement = mysqli_prepare($conn, "INSERT INTO post_comments (post_id, user_id, parent_id, content) SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM posts p WHERE p.id = ? AND p.admin_removed_at IS NULL AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?))) AND EXISTS (SELECT 1 FROM post_comments c WHERE c.id = ? AND c.post_id = ? AND c.parent_id IS NULL AND c.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = c.user_id) OR (b.blocker_id = c.user_id AND b.blocked_id = ?)))");
             mysqli_stmt_bind_param($statement, 'iiisiiiiiiiiii', $postId, $viewerId, $parentId, $content, $postId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId, $parentId, $postId, $viewerId, $viewerId);
         } else {
-            $statement = mysqli_prepare($conn, "INSERT INTO post_comments (post_id, user_id, content) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM posts p WHERE p.id = ? AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)))");
+            $statement = mysqli_prepare($conn, "INSERT INTO post_comments (post_id, user_id, content) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM posts p WHERE p.id = ? AND p.admin_removed_at IS NULL AND (p.visibility = 'public' OR p.user_id = ? OR EXISTS (SELECT 1 FROM friends f WHERE (f.user_id = ? AND f.friend_id = p.user_id) OR (f.friend_id = ? AND f.user_id = p.user_id))) AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = ? AND b.blocked_id = p.user_id) OR (b.blocker_id = p.user_id AND b.blocked_id = ?)))");
             mysqli_stmt_bind_param($statement, 'iisiiiiii', $postId, $viewerId, $content, $postId, $viewerId, $viewerId, $viewerId, $viewerId, $viewerId);
         }
         mysqli_stmt_execute($statement);

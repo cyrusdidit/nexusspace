@@ -10,11 +10,15 @@ NexusSpace is a PHP and MySQL social website for profiles, posts, comments, frie
 4. Set `NEXUSSPACE_URL` to the URL you use to open the site, such as `http://localhost/nexusspace`. Configure `SPOTIFY_CLIENT_ID`, `SPOTIFY_REDIRECT_URI`, and `STEAM_WEB_API_KEY` only if you want to use those integrations. Provider callback URLs must match the URLs registered with Spotify and Steam.
 5. Open `http://localhost/nexusspace` in a browser. Register an account through the site.
 
+To enable post moderation, set `NEXUSSPACE_ADMIN_USER_IDS` in `.env` to a comma-separated list of trusted account IDs (find IDs in the `users` table), for example `1,4`. Apply [`database/20261127_soft_delete_admin_posts.sql`](database/20261127_soft_delete_admin_posts.sql) to an existing database; new installs already include the moderation tables. Admins can remove posts, review appeals, and restore removed posts at `pages/post-moderation.php`. The appeal review target is seven days. Posts are purged after 30 days unless an appeal is pending.
+
 ## Existing database upgrades
 
 Do not run `fresh-install.sql` on a database that already contains data. Instead, review the unapplied dated SQL files in [`database/`](database/) and apply each required migration once, in chronological order, using a MySQL administrator account. Back up the database first. The fresh-install schema already contains many changes represented by historical migrations, so do not replay those migrations on a fresh installation.
 
 The local development database may have migrations applied that are not yet applied to another copy. Check the migration files and the project's upgrade notes before deploying changes to another environment.
+
+Schedule `php scripts/purge-admin-removed-posts.php` to run daily from the project root (for Laragon on Windows, use Task Scheduler with the selected Laragon `php.exe`). It permanently deletes admin-removed posts older than 30 days, including their comments, appeal records, and uploaded media. Pending appeals are excluded until reviewed.
 
 ## Configuration and troubleshooting
 

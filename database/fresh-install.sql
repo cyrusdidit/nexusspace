@@ -1,5 +1,5 @@
 -- NexusSpace: complete schema for a NEW, EMPTY database.
--- Includes migrations through 20261112. Do not run those migrations again.
+-- Includes migrations through 20261127. Do not run those migrations again.
 -- No DROP statements; existing tables cause an error rather than being replaced.
 CREATE DATABASE IF NOT EXISTS nexusspace CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE nexusspace;
@@ -99,10 +99,30 @@ CREATE TABLE posts (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     edited_at DATETIME NULL,
     pinned_at DATETIME(6) NULL,
+    admin_removed_at DATETIME NULL,
+    admin_removed_by INT UNSIGNED NULL,
+    admin_removal_reason VARCHAR(500) NULL,
     INDEX posts_feed (created_at, id),
     INDEX posts_author (user_id, created_at),
     INDEX posts_profile_pins (user_id, pinned_at, created_at, id),
+    INDEX posts_admin_removed (admin_removed_at, id),
     CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE post_removal_appeals (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    post_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    reason VARCHAR(2000) NOT NULL,
+    status ENUM('pending', 'upheld', 'restored') NOT NULL DEFAULT 'pending',
+    admin_response VARCHAR(1000) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at DATETIME NULL,
+    reviewed_by INT UNSIGNED NULL,
+    UNIQUE KEY post_removal_appeal_once (post_id),
+    KEY post_removal_appeals_queue (status, created_at),
+    CONSTRAINT fk_post_removal_appeal_post FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+    CONSTRAINT fk_post_removal_appeal_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE profile_customizations (
